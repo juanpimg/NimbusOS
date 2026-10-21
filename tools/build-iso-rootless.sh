@@ -208,6 +208,17 @@ patch_makepkg
 patch_mkarchiso
 
 # --- 3. Construir la ISO dentro del namespace ---
+
+# Cerrojo: dos builds sobre la misma cache de paquetes se pisan (uno renombra
+# el .part que el otro va a renombrar y aparece "could not rename ...: No such
+# file or directory"). flock serializa los builds que compartan prefijo.
+LOCKFILE="$PREFIX/build.lock"
+exec 9>"$LOCKFILE"
+if command -v flock >/dev/null 2>&1; then
+  if ! flock -n 9; then
+    die "ya hay otro build en marcha con este prefijo (bloqueo en $LOCKFILE)"
+  fi
+fi
 mkdir -p "$OUTDIR"
 log "Construyendo la ISO (sin root) en $OUTDIR"
 set +e
