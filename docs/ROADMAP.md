@@ -4,7 +4,7 @@
 
 Nimbus es un **proyecto comunitario desde el día 1**: repositorios públicos, issues abiertas y decisiones documentadas. No hay nada privado que "se liberará más adelante"; si lees esto, ya estás dentro. Cada hito deja el sistema **usable**, no un esqueleto.
 
-Fuente: documento de diseño §5. Posición actual: **M0 en curso** (Tasks 1–4 hechas: licencias, keyring, pins, tokens del shell; Tasks 5–8 pendientes: Hyprland, ISO, Calamares, harness QEMU).
+Fuente: documento de diseño §5. Posición actual: **M0 en curso, con las Tasks 1–8 implementadas en el repo** (andamiaje, keyring, pins, tokens del shell, Hyprland, ISO, Calamares, harness QEMU). El criterio de salida se verifica con `bash iso/build.sh --outdir … --local-repo` + `bash tests/integration/boot_live.sh --iso …` (requiere CachyOS con root, o el banco rootless; no ejecutado en este entorno, ver [BUILDING.md](BUILDING.md)).
 
 | Hito | Contenido | Criterio de salida |
 |------|-----------|-------------------|
