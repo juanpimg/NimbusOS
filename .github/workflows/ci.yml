@@ -65,8 +65,10 @@ jobs:
           # falta el repo de CachyOS, y ahi si se importa su keyring.
       - name: Instalar dependencias
         run: |
+          # python-pyyaml: los tests del instalador parsean settings.conf,
+          # que Calamares lee con YAML (no con INI).
           pacman --config /etc/pacman.conf -Sy --noconfirm --needed \
-            python-pytest bats qt6-declarative qt6-wayland \
+            python-pytest python-pyyaml bats qt6-declarative qt6-wayland \
             qt6-shadertools lua actionlint quickshell
       - name: Actionlint
         run: |
