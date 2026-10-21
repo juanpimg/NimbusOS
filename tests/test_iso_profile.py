@@ -431,10 +431,20 @@ def test_sddm_is_configured_with_nimbus_theme_and_autologin():
 
 
 def test_sddm_theme_is_packaged_from_versioned_sources():
-    pkgbuild = (ROOT / "packages" / "nimbus-shell" / "PKGBUILD").read_text(encoding="utf-8")
-    assert "usr/share/sddm/themes/nimbus" in pkgbuild
-    assert "dots/sddm/nimbus" in pkgbuild
-    theme = ROOT / "dots" / "sddm" / "nimbus"
+    # El tema del greeter lo instala nimbus-installer (que es quien trae la
+    # config de SDDM que lo usa). Cuando los dos paquetes lo instalaban, la
+    # transaccion de la ISO abortaba con "conflicting files".
+    installer_pkg = (ROOT / "packages" / "nimbus-installer" / "PKGBUILD").read_text(encoding="utf-8")
+    assert "usr/share/sddm/themes/nimbus" in installer_pkg
+    shell_pkg = (ROOT / "packages" / "nimbus-shell" / "PKGBUILD").read_text(encoding="utf-8")
+    # Solo importa que nimbus-shell NO INSTALE el tema (un comentario que lo
+    # explique es legitimo).
+    shell_installs = [
+        line for line in shell_pkg.splitlines()
+        if line.strip().startswith("install ") and "sddm/themes" in line
+    ]
+    assert shell_installs == [], shell_installs
+    theme = ROOT / "installer" / "greeter" / "nimbus-greeter"
     for name in ("Main.qml", "metadata.desktop", "theme.conf"):
         assert (theme / name).is_file(), f"falta el tema SDDM propio: {name}"
     main = (theme / "Main.qml").read_text(encoding="utf-8")

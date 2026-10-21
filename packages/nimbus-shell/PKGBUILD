@@ -15,13 +15,8 @@ package() {
   install -d "$pkgdir/usr/lib/nimbus/shell"
   cp -r "$startdir/../../shell/src" "$pkgdir/usr/lib/nimbus/shell/src"
   install -Dm755 "$startdir/../../shell/nimbus-shell" "$pkgdir/usr/bin/nimbus-shell"
-  # Greeter SDDM de Nimbus: QML funcional propio (dots/sddm/nimbus) con el
-  # arte original del proyecto (SVG de installer/greeter, solo lectura: esa
-  # pista es duena de esos ficheros). Nada de assets de terceros.
-  install -Dm644 "$startdir/../../dots/sddm/nimbus/Main.qml" "$pkgdir/usr/share/sddm/themes/nimbus/Main.qml"
-  install -Dm644 "$startdir/../../dots/sddm/nimbus/metadata.desktop" "$pkgdir/usr/share/sddm/themes/nimbus/metadata.desktop"
-  install -Dm644 "$startdir/../../dots/sddm/nimbus/theme.conf" "$pkgdir/usr/share/sddm/themes/nimbus/theme.conf"
-  install -Dm644 "$startdir/../../installer/greeter/nimbus-greeter/background.svg" "$pkgdir/usr/share/sddm/themes/nimbus/background.svg"
-  install -Dm644 "$startdir/../../installer/greeter/nimbus-greeter/logo.svg" "$pkgdir/usr/share/sddm/themes/nimbus/logo.svg"
-  install -Dm644 "$startdir/../../installer/greeter/nimbus-greeter/avatar-placeholder.svg" "$pkgdir/usr/share/sddm/themes/nimbus/avatar-placeholder.svg"
+  # El tema del greeter (SDDM) NO se instala aqui: es de nimbus-installer.
+  # Cuando los dos paquetes lo instalaban, la transaccion de la ISO abortaba
+  # con "conflicting files" porque los dos pretendian los mismos ficheros en
+  # /usr/share/sddm/themes/nimbus/.
 }

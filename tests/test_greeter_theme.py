@@ -33,6 +33,10 @@ PASSWORD_STORE_RES = (
 )
 
 
+def _main():
+    return (THEME / "Main.qml").read_text(encoding="utf-8")
+
+
 def _theme_text(suffixes=(".qml", ".desktop", ".conf", ".svg")):
     blobs = {}
     for path in sorted(THEME.rglob("*")):
@@ -82,29 +86,30 @@ def test_main_qml_declares_password_wrong_property():
     assert re.search(r"property\s+bool\s+passwordWrong\s*:", text)
 
 
-def test_main_qml_declares_busy_property():
-    text = (THEME / "Main.qml").read_text(encoding="utf-8")
-    assert re.search(r"property\s+bool\s+busy\s*:", text)
-
-
-def test_main_qml_declares_login_requested_signal():
-    text = (THEME / "Main.qml").read_text(encoding="utf-8")
-    assert re.search(
-        r"signal\s+loginRequested\s*\(\s*string\s+user\s*,\s*string\s+password\s*\)",
-        text,
-    )
-
-
-def test_main_qml_declares_reboot_signal():
-    text = (THEME / "Main.qml").read_text(encoding="utf-8")
-    assert re.search(r"signal\s+rebootRequested\s*\(\s*\)", text)
-
-
-def test_main_qml_declares_shutdown_signal():
-    text = (THEME / "Main.qml").read_text(encoding="utf-8")
-    assert re.search(r"signal\s+shutdownRequested\s*\(\s*\)", text)
-
-
+def test_main_qml_uses_the_real_sddm_api():
+    """El tema se autentica con el API REAL del greeter (sddm.login), no con
+    senales propias: un tema que emite 'loginRequested' no lo escucha nadie y
+    el greeter no puede iniciar sesion."""
+    text = _main()
+    assert "sddm.login(" in text, "el tema debe llamar a sddm.login"
+    assert re.search(r"sddm\.login\(\s*root\.currentUser\s*,", text), text
+    assert "loginRequested" not in text, "no hay senal propia: la hay SDDM"
+    # Reinicio y apagado, tambien por el API del daemon.
+    assert "sddm.reboot()" in text
+    assert "sddm.powerOff()" in text
+def test_main_qml_declares_session_index_and_password_error():
+    """La sesion elegida y el error de contrasena son estado del tema."""
+    text = _main()
+    assert re.search(r"property\s+int\s+sessionIndex\s*:", text), text
+    assert re.search(r"property\s+bool\s+passwordWrong\s*:", text), text
+def test_main_qml_reboots_through_sddm():
+    text = _main()
+    assert "sddm.reboot()" in text
+    assert "rebootRequested" not in text
+def test_main_qml_shuts_down_through_sddm():
+    text = _main()
+    assert "sddm.powerOff()" in text
+    assert "shutdownRequested" not in text
 def test_main_qml_is_plain_qtquick_item():
     text = (THEME / "Main.qml").read_text(encoding="utf-8")
     assert "PanelWindow" not in text, "el tema SDDM no usa Quickshell PanelWindow"
@@ -155,12 +160,13 @@ def test_password_is_emitted_not_stored():
         assert not pattern.search(text), (
             f"la contrasena no se guarda en propiedades: {pattern.pattern}"
         )
-    # Se emite en la senal y se descarta: tras emitir, el campo se vacia.
-    assert re.search(r"loginRequested\s*\(", text), (
-        "la contrasena debe emitirse en loginRequested"
+    # Se entrega al daemon de SDDM y se descarta: tras el login, el campo se
+    # vacia. El tema no guarda la contrasena en ninguna propiedad.
+    assert re.search(r"sddm\.login\s*\(", text), (
+        "la contrasena debe entregarse a sddm.login"
     )
     assert re.search(r"\.text\s*=\s*\"\"", text), (
-        "tras emitir la senal, el campo de contrasena se descarta"
+        "tras el login, el campo de contrasena se descarta"
     )
 
 

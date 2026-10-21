@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 [SddmGreeterTheme]
 Name=Nimbus
-Description=Nimbus login screen: large clock, user list and password prompt
+Description=Nimbus login screen: own artwork, no third-party assets
 Author=Nimbus Project
 Version=1.0
 License=GPL-3.0-or-later
