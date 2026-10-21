@@ -1,20 +1,27 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+# La sesion live la gestiona Hyprland, no el shell: nimbus-shell es un cliente
+# de Quickshell y necesita el compositor ya corriendo. El shell lo arranca la
+# config de Hyprland (hyprland.lua -> nimbus-start) via hyprland.start.
 [Unit]
-Description=Nimbus live session
-After=graphical.target
-ConditionPathExists=/usr/bin/nimbus-shell
+Description=Nimbus live session (Hyprland)
+After=systemd-user-sessions.service plymouth-quit-wait.service
+Conflicts=getty@tty2.service getty@tty3.service getty@tty4.service getty@tty5.service getty@tty6.service
 
 [Service]
-Type=simple
+Type=idle
 User=nimbus
-WorkingDirectory=/home/nimbus
-Environment=DISPLAY=:0
-Environment=WAYLAND_DISPLAY=wayland-1
-Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=HOME=/home/nimbus
-Environment=QT_QPA_PLATFORM=wayland
-Environment=QSG_RHI_BACKEND=opengl
-ExecStart=/usr/bin/nimbus-shell
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=XDG_SESSION_DESKTOP=Hyprland
+Environment=XDG_CURRENT_DESKTOP=Hyprland
+Environment=WAYLAND_DISPLAY=wayland-1
+Environment=HYPRLAND_INSTANCE_SIGNATURE=__AUTO__
+# El runtime dir no lo crea logind (este unit no pasa por PAM): se asegura
+# aqui con privilegios (prefijo +) porque User=nimbus no podria hacer chown.
+# Sin el, Hyprland 0.56 no puede crear $XDG_RUNTIME_DIR/hypr/<firma> y el
+# socket del compositor nunca aparece.
+ExecStartPre=+/usr/bin/install -d --owner=nimbus --group=nimbus --mode=0700 /run/user/1000
+ExecStart=/usr/bin/Hyprland --config /home/nimbus/.config/hypr/hyprland.lua
 Restart=on-failure
 RestartSec=2
 

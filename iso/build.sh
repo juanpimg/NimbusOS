@@ -59,6 +59,14 @@ mkdir -p "$WORK" "$OUTDIR"
 rm -rf "$WORK"/*
 cp -r "$ROOT/iso/profiles/$PROFILE" "$WORK/profile"
 
+# La sesion live lee la config de Hyprland del home del usuario nimbus
+# (~/.config/hypr/hyprland.lua). El origen real es dots/hypr/ del repo: se
+# copia en tiempo de build sobre el perfil staged para que el airootfs nunca
+# lleve una segunda copia desincronizada.
+mkdir -p "$WORK/profile/airootfs/home/nimbus/.config/hypr"
+cp "$ROOT/dots/hypr/hyprland.lua" \
+  "$WORK/profile/airootfs/home/nimbus/.config/hypr/hyprland.lua"
+
 # Repo local de bootstrap: se compilan los PKGBUILDs de Nimbus y se sirven
 # por file:// desde el host durante pacstrap. El pacman.conf del perfil
 # declara el repo en su punto de montaje dentro de la ISO, asi que se

@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Puerta de readiness de la sesion live de Nimbus.
+#
+# systemd considera "activo" a un unit que esta reiniciandose, asi que escribir
+# NIMBUS_LIVE_READY desde un ExecStart declararia la sesion lista con el
+# escritorio muerto detras (falso positivo del harness). Este script solo
+# escribe el marcador cuando la sesion esta de verdad lista:
+#   1. espera hasta TIMEOUT s a que exista un proceso qs/quickshell del
+#      usuario nimbus (el shell),
+#   2. comprueba que Hyprland responde (hyprctl instances no necesita firma;
+#      version via --instance 0 demuestra que el socket responde),
+#   3. solo entonces escribe NIMBUS_LIVE_READY en /dev/console.
+# Si se agota el tiempo NO escribe el marcador y deja NIMBUS_LIVE_TIMEOUT para
+# que el harness distinga el fallo con diagnostico.
+set -euo pipefail
+
+TIMEOUT="${NIMBUS_LIVE_READY_TIMEOUT:-90}"
+USER_NAME="nimbus"
+RUNTIME_DIR="/run/user/1000"
+POLL=2
+
+shell_running() {
+    pgrep -u "$USER_NAME" -x qs >/dev/null 2>&1 \
+        || pgrep -u "$USER_NAME" -x quickshell >/dev/null 2>&1 \
+        || pgrep -u "$USER_NAME" -x nimbus-shell >/dev/null 2>&1
+}
+
+hyprland_responds() {
+    local out
+    out="$(XDG_RUNTIME_DIR="$RUNTIME_DIR" hyprctl instances 2>/dev/null)" || return 1
+    [ -n "$out" ] || return 1
+    XDG_RUNTIME_DIR="$RUNTIME_DIR" hyprctl --instance 0 version >/dev/null 2>&1
+}
+
+elapsed=0
+while [ "$elapsed" -lt "$TIMEOUT" ]; do
+    if shell_running && hyprland_responds; then
+        echo NIMBUS_LIVE_READY > /dev/console
+        exit 0
+    fi
+    sleep "$POLL"
+    elapsed=$((elapsed + POLL))
+done
+
+echo "NIMBUS_LIVE_TIMEOUT: sesion live no lista tras ${TIMEOUT}s (Hyprland o el shell no responden)" > /dev/console
+echo NIMBUS_LIVE_TIMEOUT > /dev/console
+exit 1

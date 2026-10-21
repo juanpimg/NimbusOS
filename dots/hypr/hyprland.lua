@@ -49,13 +49,11 @@ hl.bind("SUPER + 7", hl.dsp.focus({ workspace = 7 }))
 hl.bind("SUPER + 8", hl.dsp.focus({ workspace = 8 }))
 hl.bind("SUPER + 9", hl.dsp.focus({ workspace = 9 }))
 
--- Sesión de emergencia: si el shell de Nimbus falla, el usuario cae aquí con
--- un terminal a pantalla completa (la regla de ventana está arriba, en este
--- mismo fichero) y puede matar el proceso o cambiar de sesión.
-local function emergency()
-    hl.dispatch(hl.dsp.exec_cmd("kitty --class emergency"))
-end
-hl.bind("SUPER + SHIFT + E", emergency)
+-- Sesión de emergencia: si el shell de Nimbus falla, este bind abre un
+-- terminal a pantalla completa (ver la regla de ventana de arriba) para
+-- diagnosticar. Usa el dispatcher directo como el resto de binds: envolverlo
+-- en una llamada intermedia romperia la carga de toda la config.
+hl.bind("SUPER + SHIFT + E", hl.dsp.exec_cmd("kitty --class emergency"))
 
 hl.on("hyprland.start", function()
     hl.exec_cmd("sh /usr/lib/nimbus/dots/nimbus-start")

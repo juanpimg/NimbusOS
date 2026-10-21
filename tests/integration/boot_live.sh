@@ -29,9 +29,18 @@ trap 'kill "$PID" 2>/dev/null || true' EXIT
 
 echo "Arrancando la ISO en QEMU (accel: $ACCEL), log: $LOG"
 
-if wait_for_marker "$LOG" "$TIMEOUT"; then
+wait_status=0
+wait_for_marker "$LOG" "$TIMEOUT" || wait_status=$?
+
+if [ "$wait_status" -eq 0 ]; then
   echo "OK: la sesión live de Nimbus está lista"
   exit 0
+fi
+
+if [ "$wait_status" -eq 2 ]; then
+  echo "FALLO: la sesión live señaló $NIMBUS_TIMEOUT_MARKER (Hyprland o el shell no llegaron a estar listos)" >&2
+  tail -n 60 "$LOG" >&2
+  exit 1
 fi
 
 echo "FALLO: no se encontró $NIMBUS_MARKER en $TIMEOUT segundos" >&2
