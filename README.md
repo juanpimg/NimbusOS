@@ -48,7 +48,7 @@ El proyecto ha completado los hitos **M0 ("cimientos")**, **M1 (shell)** y **M2 
 | `installer/` | Configuración de Calamares (`settings.conf`), seis módulos propios (`nimbus-dualboot`, `nimbus-appearance`, `nimbus-software`, `nimbus-bootloader`, `nimbus-postinstall`, `nimbus-verify`), tabla i18n (`nimbus_i18n.py`), herramientas (`tools/`) y tema de SDDM (`greeter/nimbus-greeter/`). |
 | `tests/` | Tests pytest (251) y bats (13); `tests/integration/` con el harness QEMU (`boot_live.sh`, espera `NIMBUS_LIVE_READY`). |
 | `docs/` | Índice, arquitectura, guía de construcción, roadmap y documentos de diseño. |
-| `third_party/` | Código vendorizado de terceros (MIT); hoy solo existe como convención documentada: el directorio no existe aún en el árbol. |
+| `third_party/` | Reservado para futuro código vendorizado de terceros (MIT); el directorio no existe aún en el árbol y hoy no se distribuye código de terceros. |
 | `.github/` | Workflows de CI (`ci.yml`: lint + tests; `iso.yml`: construye la ISO y la arranca en QEMU). |
 
 ## Inicio rápido

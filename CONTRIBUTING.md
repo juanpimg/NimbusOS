@@ -75,7 +75,7 @@ Cada fichero fuente lleva su licencia en los primeros 600 bytes, y `tools/check_
 
 - `SPDX-License-Identifier: GPL-3.0-or-later` en todo el código propio.
 - `SPDX-License-Identifier: MIT` bajo `third_party/`, si ese directorio llega a existir
-  (hoy no existe: no se distribuye código de terceros, ver [LICENSES.md](../LICENSES.md)).
+  (hoy no existe: no se distribuye código de terceros, ver [LICENSES.md](LICENSES.md)).
 
 El porqué: si algún día se vendoriza código de terceros con su licencia original MIT, tiene que
 ir marcado para que la procedencia siga siendo auditable y el proyecto pueda demostrar qué
