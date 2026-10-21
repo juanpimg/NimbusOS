@@ -454,3 +454,90 @@ def test_lock_screen_starts_closed():
         f"la ventana de bloqueo debe usar {flag} en su `visible`: si no, "
         "aparece bloqueada en cada arranque"
     )
+
+
+# --- T2: `nimbus-shell ipc call` despacha al shell en marcha ---
+#
+# Los atajos de Hyprland (`dots/hypr/hyprland.lua`, pista ajena) invocan
+# `nimbus-shell ipc call <target> <fn>` (p. ej. `dock toggle`). El launcher
+# debe traducirlo a `qs ipc call nimbus call <target> <fn>` (socket IPC de
+# Quickshell 0.3.2 contra el `IpcHandler` con `target: "nimbus"` de
+# shell.qml), no a arrancar otra instancia con `qs -c`.
+import os
+import stat
+import subprocess
+
+
+def _run_launcher_with_fake_qs(args):
+    """Ejecuta el launcher con un `qs` falso que registra sus argumentos.
+
+    Devuelve (rc, argv_recibidos, stderr). argv_recibidos es None si el
+    `qs` falso nunca fue invocado.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        qs_path = os.path.join(tmp, "qs")
+        log_path = os.path.join(tmp, "argv.log")
+        with open(qs_path, "w", encoding="utf-8") as handle:
+            handle.write(
+                "#!/usr/bin/env bash\n"
+                'printf \'%%s\\n\' "$@" > "%s"\n'
+                "exit 0\n" % log_path
+            )
+        os.chmod(qs_path, os.stat(qs_path).st_mode | stat.S_IXUSR)
+        env = dict(os.environ)
+        env["PATH"] = tmp + os.pathsep + env.get("PATH", "")
+        proc = subprocess.run(
+            [str(LAUNCHER)] + list(args),
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=30,
+        )
+        argv = None
+        if os.path.exists(log_path):
+            with open(log_path, encoding="utf-8") as handle:
+                argv = [line.rstrip("\n") for line in handle.readlines()]
+        return proc.returncode, argv, proc.stderr
+
+
+def test_launcher_ipc_call_dispatches_to_running_shell():
+    # Lo que invocan los atajos: `nimbus-shell ipc call dock toggle`.
+    rc, argv, _ = _run_launcher_with_fake_qs(["ipc", "call", "dock", "toggle"])
+    assert rc == 0, "el despacho IPC debe salir con 0"
+    assert argv == ["ipc", "call", "nimbus", "call", "dock", "toggle"], (
+        "el launcher debe despachar por el socket IPC de Quickshell, no "
+        "arrancar otra instancia: %r" % (argv,)
+    )
+    # Contrapueba: el formato viejo (pasar todo a `qs -c`) es el defecto.
+    assert argv is None or argv[:2] != ["-c", "/usr/lib/nimbus/shell/src"], (
+        "ipc call no puede terminar en `qs -c`"
+    )
+
+
+def test_launcher_ipc_call_accepts_redundant_nimbus_prefix():
+    # Forma redundante `ipc call nimbus call <target> <fn>`: mismo destino.
+    rc, argv, _ = _run_launcher_with_fake_qs(
+        ["ipc", "call", "nimbus", "call", "spotlight", "toggle"]
+    )
+    assert rc == 0
+    assert argv == ["ipc", "call", "nimbus", "call", "spotlight", "toggle"]
+
+
+def test_launcher_ipc_call_rejects_malformed_calls():
+    # Sin funcion o sin subcomando: error, sin invocar a `qs`.
+    for args in (["ipc", "call", "dock"], ["ipc"], ["ipc", "llamar"]):
+        rc, argv, stderr = _run_launcher_with_fake_qs(args)
+        assert rc != 0, "la llamada malformada %r debe fallar" % (args,)
+        assert argv is None, "la llamada malformada no debe invocar a qs"
+        assert stderr.strip() != "", "debe explicar el uso en stderr"
+
+
+def test_launcher_plain_launch_still_boots_shell():
+    # Sin `ipc`: arranque normal via `qs -c <dir>` (contrato existente).
+    rc, argv, _ = _run_launcher_with_fake_qs([])
+    assert rc == 0
+    assert argv == ["-c", "/usr/lib/nimbus/shell/src"], (
+        "el arranque normal debe seguir siendo `qs -c <dir>`: %r" % (argv,)
+    )
