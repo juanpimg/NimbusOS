@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+set -euo pipefail
+
+# Aplica el layout flotante antes de que entre el shell.
+hyprctl keyword layout floating >/dev/null 2>&1 || true
+
+# Espera a que el compositor esté listo y arranca el shell.
+exec /usr/bin/nimbus-shell
