@@ -339,7 +339,7 @@ def run_with_paths(efivars_dir=None, bootmgfw_paths=None, locale=None,
                 (dest / f"{dump_path.name}.sha256").write_text(
                     f"{digest}  {dump_path.name}\n", encoding="utf-8")
             else:
-                _backup_table(target, dest)
+                _backup_table(target, dest, locale=lang)
                 basename = pathlib.Path(str(target)).name
                 dump_path = dest / f"{basename}.sfdisk.dump"
             backups[str(target)] = str(dump_path)
