@@ -4,7 +4,7 @@
 
 Nimbus es una distribución Linux basada en CachyOS con un escritorio estilo macOS, construido con Hyprland y un shell propio en Quickshell (QML).
 
-Está pensada para personas que nunca van a abrir una terminal. El objetivo: un instalador con aspecto de asistente, un solo lenguaje visual en todo el sistema, tienda de aplicaciones propia, perfil "gameready" de un clic y actualizaciones con red de seguridad (snapshots Btrfs y rollback). Optimizada para juegos y portátiles: Steam nativo con Proton, gamescope con VRR/HDR, gráficos híbridos y perfiles de energía.
+Está pensada para personas que nunca van a abrir una terminal. El objetivo: un instalador con aspecto de asistente, un solo lenguaje visual en todo el sistema, tienda de aplicaciones propia, perfil "gameready" de un clic y actualizaciones con red de seguridad (snapshots Btrfs y rollback). Con perfil gameready y soporte de portátiles: Steam nativo con Proton, gamescope con VRR/HDR, gráficos híbridos y perfiles de energía.
 
 ## Estado
 
@@ -52,7 +52,7 @@ Instalar las dependencias de construcción (requiere CachyOS y root; comando no 
 ```bash
 sudo pacman -S --needed base-devel archiso quickshell hyprland qt6-declarative \
   qt6-wayland qt6-shadertools repo bats python-pytest lua yamllint actionlint \
-  shellcheck qemu-desktop
+  shellcheck qemu-desktop cachyos-calamares-next inter-font
 ```
 
 Los tres suites de tests (verificados; ver salidas exactas en [docs/BUILDING.md](docs/BUILDING.md)). El comando canónico es `python -m pytest tests -v` (funciona en cuanto instalas `python-pytest`); en este contenedor `pytest` no está en el PATH y se usa el venv:

@@ -11,12 +11,12 @@ Nimbus se construye sobre CachyOS (Arch) x86-64. Instala las dependencias con:
 ```bash
 sudo pacman -S --needed base-devel archiso quickshell hyprland qt6-declarative \
   qt6-wayland qt6-shadertools repo bats python-pytest lua yamllint actionlint \
-  shellcheck qemu-desktop
+  shellcheck qemu-desktop cachyos-calamares-next inter-font
 ```
 
 > No verificado en este entorno: requiere CachyOS y root. Lo que sí está verificado aquí son los tres comandos de tests de abajo.
 
-Qué es cada cosa: `base-devel` y `repo` para compilar e indexar paquetes; `archiso` para construir la ISO; `quickshell`, `hyprland` y las librerías `qt6-*` para el shell; `bats`, `python-pytest` y `qmltestrunner` (viene con `qt6-declarative`) para los tests; `lua` para validar la config de Hyprland; `yamllint`, `actionlint` y `shellcheck` para el lint de CI; `qemu-desktop` para probar la ISO en VM.
+Qué es cada cosa: `base-devel` y `repo` para compilar e indexar paquetes; `archiso` para construir la ISO; `quickshell`, `hyprland` y las librerías `qt6-*` para el shell; `bats`, `python-pytest` y `qmltestrunner` (viene con `qt6-declarative`) para los tests; `lua` para validar la config de Hyprland; `yamllint`, `actionlint` y `shellcheck` para el lint de CI; `qemu-desktop` para probar la ISO en VM; `inter-font` porque el paquete `nimbus-shell` depende de ella; `cachyos-calamares-next` solo hace falta para las tareas del instalador (validar `installer/`).
 
 Versiones mínimas (del documento de diseño): `quickshell >= 0.3.2`, `hyprland >= 0.56.2`, `qt6 >= 6.12` con `qt6-shadertools`, `archiso >= 91`, `calamares >= 3.4.2`.
 
@@ -93,7 +93,7 @@ Hoy las cadenas viven en la tabla de `shell/src/Nimbus/Translations.qml`, con fa
 2. Añade un test en `shell/tests/tst_config.qml` que fije `Config.setLocale("<tu-idioma>")` y compruebe `Config.translated(...)`.
 3. Ejecuta el runner QML de arriba y confirma que pasa.
 
-La infraestructura gettext definitiva (que permitirá ampliar idiomas sin tocar el shell) llega en M5/M6; hasta entonces, este es el mecanismo.
+La i18n completa con gettext (que permitirá ampliar idiomas sin tocar el shell) llega en M5/M6; hasta entonces, este es el mecanismo.
 
 ## Cómo informar de un bug
 
