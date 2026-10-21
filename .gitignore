@@ -15,4 +15,10 @@ __pycache__/
 *.sig
 keys/
 gpg/
+# Material de firma generado por la construccion del keyring de bootstrap.
+# No se versionan: la clave se rota antes de cualquier publicacion (ver
+# packages/README.md) y un keyring generado no debe viajar en el historial.
+packages/nimbus-keyring/nimbus.gpg
+packages/nimbus-keyring/nimbus-trusted
+packages/nimbus-keyring/nimbus-revoked
 .superpowers/
