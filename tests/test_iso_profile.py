@@ -182,3 +182,30 @@ def test_bootstrap_repo_is_unsigned_with_a_visible_todo():
     section = text.split("[nimbus]")[1].split("[")[0]
     assert "SigLevel = Optional" in section
     assert "TODO(bootstrap)" in section
+
+
+def _section(path, name):
+    """Contenido de una seccion `[name]` de un pacman.conf."""
+    text = path.read_text(encoding="utf-8")
+    parts = re.split(r"(?m)^\[(.+)\]$", text)
+    for i in range(0, len(parts[1:]), 2):
+        if parts[1:][i] == name:
+            return parts[1:][i + 1].strip()
+    raise AssertionError(f"seccion [{name}] no encontrada en {path}")
+
+
+def test_live_pacman_conf_stays_in_sync_with_profile():
+    """El pacman.conf live y el del perfil comparten [options] y [nimbus]
+    (el contrato del repo local). Los demas repos difieren a proposito:
+    el perfil usa Servers explicitos para el build, el live usa Includes
+    con los mirrorlists empaquetados."""
+    for section in ("options", "nimbus"):
+        assert _section(PROFILE / "pacman.conf", section) == _section(
+            PROFILE / "airootfs" / "etc" / "pacman.conf", section
+        )
+
+
+def test_live_mirrorlists_cover_profile_includes():
+    text = (PROFILE / "airootfs" / "etc" / "pacman.conf").read_text(encoding="utf-8")
+    for inc in re.findall(r"^Include\s*=\s*(\S+)", text, re.MULTILINE):
+        assert (PROFILE / "airootfs" / inc.lstrip("/")).is_file(), inc

@@ -13,8 +13,9 @@
 #      mirror y extraerlos a un prefijo local (sin instalar nada).
 #   2. Parchar las copias locales de `pacstrap` y `makepkg` para que funcionen
 #      dentro de un user namespace.
-#   3. Ejecutar el build dentro de
-#      `unshare --user --map-root-user --mount --pid --fork --mount-proc --ipc --uts`.
+#   3. Ejecutar el build dentro de un user namespace con el maximo mapeo de
+#      uids disponible (doble rango si newuidmap es operativo, si no el root
+#      de la maquina; ver el comentario sobre MAP_ARGS mas abajo).
 #
 # En el CI (GitHub Actions, contenedor con root) NO hace falta nada de esto:
 # ahi se instala `archiso` con pacman y se construye con normalidad. Este
@@ -147,8 +148,45 @@ PY
   log "makepkg parcheado para permitir NIMBUS_ALLOW_ROOT=1"
 }
 
+patch_mkarchiso() {
+  local p="$PREFIX/prefix/usr/bin/mkarchiso"
+  [ -f "$p" ] || die "mkarchiso no encontrado en el prefijo"
+  grep -q "NIMBUS_ROOTLESS_MKARCHISO" "$p" && return 0
+  cp "$p" "$p.orig" 2>/dev/null || true
+
+  python3 - "$p" <<'PY'
+import io, sys
+p = sys.argv[1]
+s = io.open(p, encoding="utf-8").read()
+# Tolerar el chown al usuario live cuando el namespace no mapea su uid
+# (un solo rango: solo el 0 interior existe). Sin el mapeo completo el
+# install/chown a uid!=0 falla con EINVAL y `set -e` aborta el build.
+# Con mapeo completo las primarias tienen exito y la imagen es identica a
+# la de CI; sin el, los rescates dejan un home root:root 0755 que basta
+# para que la sesion live arranque en desarrollo.
+# NIMBUS_ROOTLESS_MKARCHISO
+subs = [
+    ('''_unshare install -d -m 0750 -o "${passwd[2]}" -g "${passwd[3]}" -- "${pacstrap_dir}${passwd[5]}"''',
+     '''_unshare install -d -m 0750 -o "${passwd[2]}" -g "${passwd[3]}" -- "${pacstrap_dir}${passwd[5]}" || _unshare install -d -m 0755 -- "${pacstrap_dir}${passwd[5]}"'''),
+    ('''_unshare cp -dRT --update=none --preserve=mode,timestamps,links -- "${pacstrap_dir}/etc/skel/." "${pacstrap_dir}${passwd[5]}"''',
+     '''_unshare cp -dRT --update=none --preserve=mode,timestamps,links -- "${pacstrap_dir}/etc/skel/." "${pacstrap_dir}${passwd[5]}" || true'''),
+    ('''_unshare chmod -f 0750 -- "${pacstrap_dir}${passwd[5]}"''',
+     '''_unshare chmod -f 0750 -- "${pacstrap_dir}${passwd[5]}" || true'''),
+    ('''_unshare chown -hR -- "${passwd[2]}:${passwd[3]}" "${pacstrap_dir}${passwd[5]}"''',
+     '''_unshare chown -hR -- "${passwd[2]}:${passwd[3]}" "${pacstrap_dir}${passwd[5]}" || _unshare chmod -f 0755 -- "${pacstrap_dir}${passwd[5]}"'''),
+]
+for a, b in subs:
+    if a not in s:
+        sys.exit("mkarchiso: no se encuentra el patron:\n" + a)
+    s = s.replace(a, b, 1)
+io.open(p, "w", encoding="utf-8").write(s)
+PY
+  log "mkarchiso parcheado para tolerar el home sin mapeo completo de uids"
+}
+
 patch_pacstrap
 patch_makepkg
+patch_mkarchiso
 
 # --- 3. Construir la ISO dentro del namespace ---
 mkdir -p "$OUTDIR"
@@ -158,9 +196,23 @@ set +e
 # el 1000 interior (el usuario de la sesion live) se mapea al rango de
 # /etc/subuid. Con un solo rango no se puede hacer chown al uid 1000 y la
 # construccion falla con "cannot change owner of .../home/nimbus".
-unshare --user \
-        --map-users=0:"$(id -u)":1 --map-users=1000:"$(awk -F: '/^'"$(id -un)"':/{print $2; exit}' /etc/subuid)":65536 \
-        --map-groups=0:"$(id -g)":1 --map-groups=1000:"$(awk -F: '/^'"$(id -un)"':/{print $2; exit}' /etc/subgid)":65536 \
+# El doble rango exige un newuidmap operativo; si la maquina no lo tiene
+# (p. ej. sin bit setuid), se usa un solo rango y el parche de mkarchiso
+# deja un home temporal que basta para desarrollo.
+SUBUID="$(awk -F: -v u="$(id -un)" '$1==u {print $2; exit}' /etc/subuid 2>/dev/null)"
+SUBGID="$(awk -F: -v u="$(id -un)" '$1==u {print $2; exit}' /etc/subgid 2>/dev/null)"
+MAP_ARGS=(--map-root-user)
+if [ -n "$SUBUID" ] && [ -n "$SUBGID" ] \
+   && unshare --user --map-users=0:"$(id -u)":1 --map-users=1000:"$SUBUID":1 \
+              --map-groups=0:"$(id -g)":1 --map-groups=1000:"$SUBGID":1 \
+              --mount true 2>/dev/null; then
+  log "namespace con doble rango de uids (chown al usuario live disponible)"
+  MAP_ARGS=(--map-users=0:"$(id -u)":1 --map-users=1000:"$SUBUID":65536
+            --map-groups=0:"$(id -g)":1 --map-groups=1000:"$SUBGID":65536)
+else
+  log "namespace con un solo rango (el home del live sera temporal)"
+fi
+unshare --user "${MAP_ARGS[@]}" \
         --mount --pid --fork --mount-proc --ipc --uts \
   env NIMBUS_ALLOW_ROOT=1 \
       PATH="$PREFIX/prefix/usr/bin:$PATH" \

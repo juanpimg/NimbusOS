@@ -101,6 +101,8 @@ if [ "$LOCAL_REPO" -eq 1 ]; then
      "$WORK/profile/airootfs/usr/share/pacman/keyrings/"
   REPO_DIR="$WORK/nimbus-repo"
   mkdir -p "$REPO_DIR"
+  # BUILDDIR redirige los directorios de trabajo de makepkg (src/, pkg/)
+  # fuera del arbol: el build no deja rastro en packages/.
   for pkgdir in "$ROOT"/packages/*/; do
     name="$(basename "$pkgdir")"
     [ -f "$pkgdir/PKGBUILD" ] || continue
@@ -108,7 +110,7 @@ if [ "$LOCAL_REPO" -eq 1 ]; then
     # PKGDEST es la variable que dice a makepkg donde dejar el paquete.
     # Ojo: la opcion packagelist de makepkg NO construye nada, solo imprime
     # las rutas que se producirian.
-    ( cd "$pkgdir" && PKGDEST="$REPO_DIR" makepkg --nodeps --noconfirm ) \
+    ( cd "$pkgdir" && BUILDDIR="$WORK/mkpkg/$name" PKGDEST="$REPO_DIR" makepkg --nodeps --noconfirm ) \
       >"$WORK/build-${name}.log" 2>&1
   done
   # Si no ha salido ningun paquete, el repo local quedaria vacio y la ISO no
