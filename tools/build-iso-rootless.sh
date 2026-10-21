@@ -227,12 +227,37 @@ if [ -n "$SUBUID" ] && [ -n "$SUBGID" ] \
 else
   log "namespace con un solo rango (el home del live sera temporal)"
 fi
+
+# Resolver DNS para el namespace: resolvers directos con timeout corto, en
+# lugar del stub de systemd-resolved que se satura con las descargas paralelas.
+# Se puede cambiar con NIMBUS_DNS (lista de IPs separadas por espacios).
+RESOLV_CONF="$PREFIX/resolv-nimbus.conf"
+mkdir -p "$PREFIX"
+{
+  for ip in ${NIMBUS_DNS:-1.1.1.1 9.9.9.9}; do
+    printf 'nameserver %s\n' "$ip"
+  done
+  printf 'options timeout:2 attempts:3\n'
+} > "$RESOLV_CONF"
+
 unshare --user "${MAP_ARGS[@]}" \
         --mount --pid --fork --mount-proc --ipc --uts \
   env NIMBUS_ALLOW_ROOT=1 \
       LD_LIBRARY_PATH="$PREFIX/prefix/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
       PATH="$PREFIX/prefix/usr/bin:$PATH" \
-      bash "$ROOT/iso/build.sh" --outdir "$OUTDIR" --local-repo
+      NIMBUS_RESOLV_CONF="$RESOLV_CONF" \
+      bash -c '
+        # Resolver DNS estable. El stub de systemd-resolved (127.0.0.53) se
+        # satura con las descargas paralelas del build y acaba con
+        # "Resolving timed out after 10000 milliseconds", que aborta la
+        # transaccion de pacman a mitad. Un resolv.conf con resolvers
+        # directos y timeout corto aguanta la carga.
+        if [ -n "${NIMBUS_RESOLV_CONF:-}" ] && [ -f "${NIMBUS_RESOLV_CONF}" ]; then
+          mount --bind "${NIMBUS_RESOLV_CONF}" /etc/resolv.conf 2>/dev/null \
+            || echo "aviso: no se pudo montar el resolv.conf propio; se usa el del host" >&2
+        fi
+        exec bash "$0" --outdir "$1" --local-repo
+      ' "$ROOT/iso/build.sh" "$OUTDIR"
 status=$?
 set -e
 
