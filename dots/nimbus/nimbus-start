@@ -5,6 +5,15 @@ set -euo pipefail
 # Aplica el layout flotante antes de que entre el shell.
 hyprctl keyword layout floating >/dev/null 2>&1 || true
 
+# Fondo de Nimbus: swaybg pinta el arte propio de la sesion. Si falta el
+# binario o el fichero, la sesion sigue igual: el shell pinta su base con
+# la paleta de Nimbus y Hyprland no muestra su marca (misc en hyprland.lua).
+NIMBUS_WALLPAPER="/usr/share/nimbus/backgrounds/Nimbus.png"
+if command -v swaybg >/dev/null 2>&1 && [ -f "$NIMBUS_WALLPAPER" ]; then
+    swaybg -i "$NIMBUS_WALLPAPER" -m fill >/dev/null 2>&1 &
+    echo "nimbus-start: fondo $NIMBUS_WALLPAPER con swaybg (PID $!)" >&2
+fi
+
 # Si el shell no esta instalado, cae a un terminal de emergencia para que el
 # usuario pueda diagnosticar en vez de quedarse con una sesion muda.
 if [ ! -x /usr/bin/nimbus-shell ]; then
