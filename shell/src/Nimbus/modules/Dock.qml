@@ -13,7 +13,10 @@ import Nimbus
 // probadas en tst_dock.qml.
 //
 // Los datos entran por properties (`favorites`, `running`, `badgeCounts`);
-// el componente dibuja, no decide: no contiene la lista de aplicaciones.
+// el componente dibuja, no decide. Cada favorito es
+// `{id, name, icon, color}` con el nombre ya traducido (lo pone quien
+// instancia, p. ej. shell.qml con `Config.translated`) y el color de baldosa
+// desde Theme. La papelera se dibuja con formas (sin assets).
 Item {
     id: root
 
@@ -117,6 +120,15 @@ Item {
         return (entry && entry.icon) ? String(entry.icon) : ""
     }
 
+    // Color de la baldosa del icono: lo pone quien instancia (shell.qml con
+    // Theme.app*); sin color se usa la superficie alternativa.
+    function colorAt(index) {
+        if (isTrashIndex(index))
+            return Theme.surfaceAlt
+        var entry = entryAt(index)
+        return (entry && entry.color) ? entry.color : Theme.surfaceAlt
+    }
+
     function activate(index) {
         appActivated(appIdAt(index))
     }
@@ -127,6 +139,7 @@ Item {
 
     Glass {
         anchors.fill: parent
+        radius: Theme.dockRadius
     }
 
     MouseArea {
@@ -151,6 +164,7 @@ Item {
             y: root.height - height
             appId: root.appIdAt(index)
             icon: root.iconAt(index)
+            iconColor: root.colorAt(index)
             label: root.labelAt(index)
             running: root.isRunning(appId)
             badgeCount: root.badgeFor(appId)
