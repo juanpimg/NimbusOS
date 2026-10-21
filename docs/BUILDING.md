@@ -131,11 +131,14 @@ Dos detalles del harness que han roto builds reales:
   subir el número** del marcador (`V4` → `V5`, …). El marcador va detrás del
   shebang: delante lo rompería y `env` recaería a `/bin/sh`.
 
-Espejos usados durante la construcción:
+Espejos usados durante la construcción (los mismos que el perfil en `../iso/profiles/nimbus/pacman.conf`):
 
-- Arch (`core`, `extra`): `https://archlinux.cachyos.org/repo/$repo/os/$arch`
-- CachyOS v3: `https://cdn77.cachyos.org/repo/$arch_v3/$repo`
-- CachyOS genérico: `https://cdn77.cachyos.org/repo/$arch/$repo`
+- Arch (`core`, `extra`): `https://mirror.rackspace.com/archlinux/$repo/os/$arch` y `https://mirror.leaseweb.com/archlinux/$repo/os/$arch`.
+- CachyOS: `https://mirror.bali0531.hu/repo/$arch/$repo` (primero: el único verificado con el `glibc` nuevo) y `https://cdn77.cachyos.org/repo/$arch/$repo` (segundo).
+
+No usar `https://archlinux.cachyos.org/repo/$repo/os/$arch`: sirve un borde desfasado que devolvió 404 para `glibc` recién sincronizado y abortó la construcción de la ISO entera.
+
+Sobre `cachyos-v3`: la ISO en vivo usa siempre los repos genéricos, porque tiene que arrancar en hardware desconocido y la CPU por defecto de QEMU (`qemu64`) no tiene AVX2: un binario v3 abortaría con SIGILL. La elección de `cachyos-v3` la hace el instalador sobre el hardware real de destino.
 
 ## Probar la sesión live en QEMU
 

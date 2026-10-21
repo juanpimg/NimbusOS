@@ -48,7 +48,7 @@ El repo ya tiene 8 zonas con código y tests. Elige una y empieza por el fichero
 
 1. **Tooling** (`tools/`): `genkeyring.sh`, `sign_repo.sh`, `promote.sh`, `verify_repo.sh`, `check_spdx.py`, `build-iso-rootless.sh`. Empieza leyendo `packages/README.md` (contratos de `promote.sh` y `verify_repo.sh`) y ejecuta `PATH="$HOME/.local/bin:$PATH" bats tests/*.bats`.
 2. **Paquetes** (`packages/`): `nimbus-keyring`, `nimbus-shell`, `nimbus-dots` (PKGBUILDs). Empieza por `packages/README.md` (modelo `testing`/`stable`, rotación de clave) y comprueba que `makepkg` está disponible; recuerda que `makepkg` no corre como root.
-3. **Shell/QML** (`shell/`): singletons `Theme`, `Config`, `Translations` en `shell/src/Nimbus/`, punto de entrada `shell/src/main.qml`, tests en `shell/tests/`. Empieza ejecutando el comando QML de arriba y leyendo [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (§ "Arquitectura del shell"). Toda cadena visible va a `Translations` (ver "Cómo traducir" abajo).
+3. **Shell/QML** (`shell/`): singletons `Theme`, `Config`, `Translations` en `shell/src/Nimbus/`, punto de entrada `shell/src/shell.qml`, tests en `shell/tests/`. Empieza ejecutando el comando QML de arriba y leyendo [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (§ "Arquitectura del shell"). Toda cadena visible va a `Translations` (ver "Cómo traducir" abajo).
 4. **Configuración de Hyprland** (`dots/`): `dots/hypr/hyprland.lua` (API Lua nativa: layout flotante, atajos estilo macOS, sesión de emergencia), `dots/nimbus/defaults.conf`, `dots/nimbus/nimbus-start`. Empieza con `/tmp/opencode/nimbus-venv/bin/python -m pytest tests/test_hyprland_config.py -v`. Necesitas `lua` para validar la sintaxis fuera de Hyprland.
 5. **ISO** (`iso/`): perfil archiso 91 en `iso/profiles/nimbus/` (`profiledef.sh`, `pacman.conf`, `packages.x86_64`, `airootfs/`) y `iso/build.sh --local-repo`. Empieza con `/tmp/opencode/nimbus-venv/bin/python -m pytest tests/test_iso_profile.py -v` y leyendo [docs/BUILDING.md](docs/BUILDING.md) (§ "Construir la ISO").
 6. **Instalador** (`installer/`): `installer/calamares/settings.conf` y los módulos `nimbus-appearance`, `nimbus-software`, `nimbus-verify`. Empieza con `/tmp/opencode/nimbus-venv/bin/python -m pytest tests/test_calamares_settings.py tests/test_calamares_behavior.py -v`. Solo necesitas `cachyos-calamares-next` si vas a validar `installer/` contra Calamares real.
@@ -106,7 +106,7 @@ Hoy las cadenas viven en la tabla de `shell/src/Nimbus/Translations.qml`, con fa
 2. Añade un test en `shell/tests/tst_config.qml` que fije `Config.setLocale("<tu-idioma>")` y compruebe `Config.translated(...)`.
 3. Ejecuta el runner QML de arriba y confirma que pasa.
 
-La i18n completa con gettext (que permitirá ampliar idiomas sin tocar el shell) llega en M5/M6; hasta entonces, este es el mecanismo.
+Esta tabla es la infraestructura de traducción disponible hoy (la que la tabla de decisiones del [documento de diseño](docs/superpowers/specs/2026-10-21-nimbus-design.md) pide desde el principio): el instalador usa la misma tabla en `installer/calamares/nimbus_i18n.py` y el shell en el singleton `Translations`. Un catálogo gettext completo, que permitirá ampliar idiomas sin tocar el shell, llega más adelante (M5/M6).
 
 ## Cómo informar de un bug
 

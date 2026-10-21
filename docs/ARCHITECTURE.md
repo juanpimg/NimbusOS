@@ -56,7 +56,7 @@ Sobre la clave que hay hoy en el repo: es una **clave de bootstrap de prueba**, 
 
 ## Arquitectura del shell
 
-Hoy el shell es un punto de entrada mínimo (`shell/src/main.qml`) más tres singletons registrados en `shell/src/Nimbus/qmldir` bajo el módulo `Nimbus` (se importan con `import Nimbus`):
+Hoy el shell es un punto de entrada mínimo (`shell/src/shell.qml`, raíz `ShellRoot` de Quickshell) más tres singletons registrados en `shell/src/Nimbus/qmldir` bajo el módulo `Nimbus` (se importan con `import Nimbus`):
 
 - **`Theme`** (`shell/src/Nimbus/Theme.qml`) — tokens de diseño de solo lectura: colores de fondo/superficie/texto/separador/acento para modo claro y oscuro, material de cristal (`glass`) con su fallback opaco (`glassOpaque`), métricas (`radius` 12, `spacing` 8, `barHeight` 28, `dockSize` 64) y tipografía (`Inter`). `setMode("light"|"dark"|"auto")` cambia el esquema; `setAccent(color)` fija el acento elegido por el usuario, que gana en ambos modos.
 - **`Config`** (`shell/src/Nimbus/Config.qml`) — configuración persistida con versionado (`schemaVersion`, hoy 2): `mode`, `accent` (hex en minúsculas, sin `#`), `locale` (código BCP-47). `migrateFrom(n)` migra esquemas antiguos sin romper el arranque; `translated(clave)` resuelve cadenas en el idioma activo.
@@ -85,4 +85,4 @@ Principio previsto: un módulo que falle al cargar no debe tumbar el shell enter
 
 ## Dónde vive cada módulo y cómo se añade uno nuevo
 
-Hoy: `shell/src/Nimbus/*.qml` (singletons) + `shell/src/main.qml` (punto de entrada) + `shell/tests/tst_*.qml` (tests). Para registrar un singleton nuevo se añade el fichero a `shell/src/Nimbus/` y su línea `singleton <Nombre> 1.0 <Fichero>.qml` al `qmldir`; los tests lo importan con `import Nimbus` y `QML2_IMPORT_PATH` apuntando a `shell/src`. El empaquetado (`packages/nimbus-shell/PKGBUILD`) instala el árbol en `/usr/lib/nimbus/shell/src` y el launcher en `/usr/bin/nimbus-shell`. La convención para módulos visuales completos (dónde cuelgan del `main.qml`, cómo se prueban aislados) se define en M1.
+Hoy: `shell/src/Nimbus/*.qml` (singletons) + `shell/src/shell.qml` (punto de entrada) + `shell/tests/tst_*.qml` (tests). Para registrar un singleton nuevo se añade el fichero a `shell/src/Nimbus/` y su línea `singleton <Nombre> 1.0 <Fichero>.qml` al `qmldir`; los tests lo importan con `import Nimbus` y `QML2_IMPORT_PATH` apuntando a `shell/src`. El empaquetado (`packages/nimbus-shell/PKGBUILD`) instala el árbol en `/usr/lib/nimbus/shell/src` y el launcher en `/usr/bin/nimbus-shell`. La convención para módulos visuales completos (dónde cuelgan del `shell.qml`, cómo se prueban aislados) se define en M1.
