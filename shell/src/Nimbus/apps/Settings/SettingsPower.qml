@@ -22,8 +22,8 @@ Column {
     Row {
         spacing: Theme.spacing
         Button {
-            text: Config.translated("settings.power.profile.powersaver")
-            onClicked: root.profile = "powersaver"
+            text: Config.translated("settings.power.profile.economy")
+            onClicked: root.profile = "economy"
         }
         Button {
             text: Config.translated("settings.power.profile.balanced")
