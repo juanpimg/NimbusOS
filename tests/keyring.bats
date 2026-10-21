@@ -40,7 +40,7 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
-@test "el keybox exportado verifica con la clave pública, sin la clave privada" {
+@test "la clave pública exportada verifica, sin la clave privada" {
   bash "$REPO_ROOT/tools/genkeyring.sh" --outdir "$TESTDIR/out" --uid "Nimbus Signing <nimbus@example.org>" --email "nimbus@example.org"
   FPR="$(gpg --homedir "$TESTDIR/out/gnupg" --list-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
   printf 'contenido\n' > "$TESTDIR/datos.txt"
@@ -49,8 +49,22 @@ teardown() {
   # Un keyring limpio que solo tiene la clave pública, tal y como verá el usuario.
   mkdir -p "$TESTDIR/verifyhome"
   chmod 700 "$TESTDIR/verifyhome"
-  run gpg --homedir "$TESTDIR/verifyhome" --no-default-keyring --keyring "$TESTDIR/out/nimbus.gpg" --verify "$TESTDIR/datos.txt.sig" "$TESTDIR/datos.txt"
+  gpg --homedir "$TESTDIR/verifyhome" --quiet --import "$TESTDIR/out/nimbus.gpg"
+  run gpg --homedir "$TESTDIR/verifyhome" --verify "$TESTDIR/datos.txt.sig" "$TESTDIR/datos.txt"
   [ "$status" -eq 0 ]
+}
+
+@test "nimbus.gpg es importable con gpg --import, como exige pacman-key --populate" {
+  bash "$REPO_ROOT/tools/genkeyring.sh" --outdir "$TESTDIR/out" --uid "Nimbus Signing <nimbus@example.org>" --email "nimbus@example.org"
+  # pacman-key --populate hace exactamente esto: gpg --import <nimbus.gpg>.
+  # Si el artefacto es un keybox en vez de una exportacion armored, falla aqui.
+  mkdir -p "$TESTDIR/importhome"
+  chmod 700 "$TESTDIR/importhome"
+  run gpg --homedir "$TESTDIR/importhome" --quiet --import "$TESTDIR/out/nimbus.gpg"
+  [ "$status" -eq 0 ]
+  # Y la clave importada debe ser la de Nimbus.
+  run gpg --homedir "$TESTDIR/importhome" --list-keys --with-colons
+  [[ "$output" == *"nimbus@example.org"* ]]
 }
 
 @test "sign_repo firma la base de datos y se niega a firmar dos veces" {

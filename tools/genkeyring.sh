@@ -46,14 +46,8 @@ gpg --homedir "$OUTDIR/gnupg" --batch --yes --quiet --passphrase '' \
 
 FPR="$(gpg --homedir "$OUTDIR/gnupg" --batch --yes --quiet --list-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
 
-rm -f "$OUTDIR/nimbus.gpg"
-gpg --homedir "$OUTDIR/gnupg" --batch --yes --quiet --export "$KEYUID" \
-  | gpg --homedir "$OUTDIR/gnupg" --batch --yes --quiet --no-default-keyring \
-      --keyring "$OUTDIR/nimbus.gpg" --import
-rm -f "$OUTDIR/nimbus.gpg~"
-
 gpg --homedir "$OUTDIR/gnupg" --batch --yes --quiet --armor --export "$KEYUID" \
-  > "$OUTDIR/nimbus-public.asc"
+  > "$OUTDIR/nimbus.gpg"
 
 mkdir -p "$OUTDIR/nimbus-keyring"
 cp "$OUTDIR/nimbus.gpg" "$OUTDIR/nimbus-keyring/nimbus.gpg"
