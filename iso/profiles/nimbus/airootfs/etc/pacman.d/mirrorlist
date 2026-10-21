@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Espejos de Arch para la sesion live de Nimbus.
+Server = https://mirror.rackspace.com/archlinux/$repo/os/$arch
+Server = https://mirror.leaseweb.com/archlinux/$repo/os/$arch

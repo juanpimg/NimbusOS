@@ -76,6 +76,12 @@ fi
 patch_pacstrap() {
   local p="$PREFIX/prefix/usr/bin/pacstrap"
   [ -f "$p" ] || die "pacstrap no encontrado en el prefijo"
+  # Reparar prefijos donde un parche anterior dejo el marcador en la linea 1,
+  # rompiendo el shebang: env recaia a /bin/sh (modo posix) y el `trap -p`
+  # de pacstrap fallaba de forma espuria.
+  if [ "$(head -1 "$p")" = "# NIMBUS_ROOTLESS_PATCH" ] && [ -f "$p.orig" ]; then
+    cp "$p.orig" "$p"
+  fi
   grep -q "NIMBUS_ROOTLESS_PATCH" "$p" && return 0
   cp "$p" "$p.orig"
 
@@ -107,7 +113,13 @@ for a, b in subs:
     if a not in s:
         sys.exit("pacstrap: no se encuentra el patron:\n" + a)
     s = s.replace(a, b, 1)
-s = "# NIMBUS_ROOTLESS_PATCH\n" + s
+# El marcador va DETRAS del shebang: delante lo romperia y env recaeria a
+# /bin/sh (modo posix), donde `trap -p EXIT` imprime de forma espuria y
+# pacstrap aborta con "(BUG): attempting to overwrite existing EXIT trap".
+lines = s.split("\n")
+assert lines[0].startswith("#!"), "pacstrap: sin shebang en la linea 1"
+lines.insert(1, "# NIMBUS_ROOTLESS_PATCH")
+s = "\n".join(lines)
 io.open(p, "w", encoding="utf-8").write(s)
 PY
   log "pacstrap parcheado para user namespace"
@@ -115,7 +127,11 @@ PY
 
 patch_makepkg() {
   local p="$PREFIX/prefix/usr/bin/makepkg"
-  [ -f "$p" ] || die "makepkg no encontrado en el prefijo"
+  # makepkg viene del paquete `pacman`, que no se extrae al prefijo: se copia
+  # el del host y se parcha. Sin esto el build muere aqui en un prefijo nuevo.
+  if [ ! -f "$p" ]; then
+    cp /usr/bin/makepkg "$p" || die "makepkg no encontrado en el host"
+  fi
   grep -q "NIMBUS_ALLOW_ROOT" "$p" && return 0
   cp /usr/bin/makepkg "$p"
   python3 - "$p" <<'PY'
@@ -138,7 +154,14 @@ patch_makepkg
 mkdir -p "$OUTDIR"
 log "Construyendo la ISO (sin root) en $OUTDIR"
 set +e
-unshare --user --map-root-user --mount --pid --fork --mount-proc --ipc --uts \
+# Dos rangos de uid: el 0 interior (root) se mapea a nuestro usuario real, y
+# el 1000 interior (el usuario de la sesion live) se mapea al rango de
+# /etc/subuid. Con un solo rango no se puede hacer chown al uid 1000 y la
+# construccion falla con "cannot change owner of .../home/nimbus".
+unshare --user \
+        --map-users=0:"$(id -u)":1 --map-users=1000:"$(awk -F: '/^'"$(id -un)"':/{print $2; exit}' /etc/subuid)":65536 \
+        --map-groups=0:"$(id -g)":1 --map-groups=1000:"$(awk -F: '/^'"$(id -un)"':/{print $2; exit}' /etc/subgid)":65536 \
+        --mount --pid --fork --mount-proc --ipc --uts \
   env NIMBUS_ALLOW_ROOT=1 \
       PATH="$PREFIX/prefix/usr/bin:$PATH" \
       bash "$ROOT/iso/build.sh" --outdir "$OUTDIR" --local-repo

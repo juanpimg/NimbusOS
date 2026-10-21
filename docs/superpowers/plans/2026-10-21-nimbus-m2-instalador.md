@@ -158,7 +158,7 @@ Debe comprobar, sin tocar ningún disco real:
     ```
     nimbus-postinstall --root <raiz> [--offline]
     ```
-    Pasos: (1) copiar el keyring de Nimbus y ejecutar `pacman-key --populate nimbus`; (2) añadir el repo `nimbus` a `pacman.conf` con `SigLevel = Required DatabaseOptional` y su mirrorlist; (3) activar el servicio de snapshots y el de actualizaciones automáticas; (4) configurar el greeter (tema Nimbus); (5) configurar el **perfil de energía** por defecto y el límite de carga de batería si el hardware lo soporta; (6) configurar los **gráficos híbridos** en modo `on-demand` si hay dGPU NVIDIA; (7) copiar los defaults de `dots/` a `/etc/skel/` para que los usuarios nuevos los hereden; (8) poner `/etc/os-release` con la marca Nimbus.
+    Pasos: (1) copiar el keyring de Nimbus y ejecutar `pacman-key --populate nimbus`; (2) añadir el repo `nimbus` a `pacman.conf` con `SigLevel = Required DatabaseOptional` y su mirrorlist; (2b) **elegir el repo de CachyOS segun la CPU del equipo de destino**: si soporta AVX2 (x86-64-v3) se anade `[cachyos-v3]`, y si no, se deja el generico `[cachyos]`. La ISO en vivo usa **siempre** los repos genericos, porque tiene que arrancar en hardware desconocido; es el instalador, sobre el hardware real, el que activa la optimizacion; (3) activar el servicio de snapshots y el de actualizaciones automáticas; (4) configurar el greeter (tema Nimbus); (5) configurar el **perfil de energía** por defecto y el límite de carga de batería si el hardware lo soporta; (6) configurar los **gráficos híbridos** en modo `on-demand` si hay dGPU NVIDIA; (7) copiar los defaults de `dots/` a `/etc/skel/` para que los usuarios nuevos los hereden; (8) poner `/etc/os-release` con la marca Nimbus.
     Cada paso reporta `ok`, `skipped` o `failed`, y **el script sale con 0 aunque un paso opcional falle**, Leaving solo los pasos críticos pueden hacerlo fracasar.
   - `nimbus-postinstall.py` — módulo Calamares que invoca la herramienta anterior y **muestra el resultado** en el resumen final, paso a paso, con un mensaje accionable por cada fallo.
 
@@ -167,6 +167,7 @@ Debe comprobar, sin tocar ningún disco real:
   - Un paso opcional que falla **no** aborta el resto.
   - Un paso crítico que falla **sí** aborta y se reporta.
   - El repo se añade a `pacman.conf` con `SigLevel = Required DatabaseOptional` y **no** se añade dos veces.
+  - **La seleccion de repo por CPU es correcta**: con AVX2 se anade `[cachyos-v3]`, sin ella se deja `[cachyos]`. Y con una CPU sin AVX2 el sistema **arranca igual** con el repo generico, nunca con el v3.
   - En modo `--offline`, los pasos que necesitan red se marcan como `skipped`, no como `failed`.
 
 - [ ] **Step 2**: Ejecuta y confirma que falla.

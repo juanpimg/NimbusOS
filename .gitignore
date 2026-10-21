@@ -2,6 +2,8 @@ node_modules/
 .venv/
 *.iso
 build/
+pkg/
+iso/work/
 out/
 __pycache__/
 .pytest_cache/

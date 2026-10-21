@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Paquetes del modo 'bootstrap' de mkarchiso (mkarchiso -m bootstrap).
+# El modo 'iso' no los usa, pero archiso 91 exige que el fichero exista.
+arch-install-scripts
+base
