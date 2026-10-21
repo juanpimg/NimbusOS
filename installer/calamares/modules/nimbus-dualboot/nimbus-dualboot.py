@@ -14,8 +14,7 @@ Se ejecuta **antes** de `partition` y hace:
    que `bootloader` use **GRUB** y no systemd-boot.
 
 Toda cadena visible pasa por `translated()` (ES/EN). Las claves
-`dualboot.*` se registran en la tabla al importar si aun no existen
-(estan declaradas para subir a `nimbus_i18n.py`; ver informe M2T1).
+`dualboot.*` viven en la tabla central `nimbus_i18n.py` (única fuente).
 """
 
 import logging
@@ -29,8 +28,7 @@ except ImportError:  # pragma: no cover - entorno sin Calamares
     libcalamares = None
 
 try:
-    from nimbus_i18n import TRANSLATIONS, active_locale, translated
-    _i18n_table = TRANSLATIONS
+    from nimbus_i18n import active_locale, translated
 except ImportError:  # cargado por ruta (Calamares/test) sin paquete
     import importlib.util as _importlib_util
     import sys as _sys
@@ -45,10 +43,8 @@ except ImportError:  # cargado por ruta (Calamares/test) sin paquete
         _i18n_module = _importlib_util.module_from_spec(_i18n_spec)
         _sys.modules["nimbus_i18n"] = _i18n_module
         _i18n_spec.loader.exec_module(_i18n_module)
-    TRANSLATIONS = _i18n_module.TRANSLATIONS
     active_locale = _i18n_module.active_locale
     translated = _i18n_module.translated
-    _i18n_table = TRANSLATIONS
 
 logger = logging.getLogger(__name__)
 
@@ -59,70 +55,12 @@ DEFAULT_BACKUP_DIR = pathlib.Path("/var/lib/nimbus/partitionsafe")
 # Deteccion de Windows via os-prober y via arbol NTFS montado.
 WINDOWS_SYSTEM32 = pathlib.Path("Windows/System32")
 
+# Las claves ES/EN de este modulo viven en la tabla central
+# (installer/calamares/nimbus_i18n.py), unica fuente. Este modulo
+# no registra nada al importar (ver informe de la pista del instalador).
+
 _EFI_GUID = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
 _PARTITION_LINE_RE = re.compile(r"^\s*(/dev/\S+)\s*:.*\bstart\s*=")
-
-DUALBOOT_TRANSLATIONS = {
-    "es": {
-        "dualboot.pretty_name": "Arranque dual",
-        "dualboot.pretty_status": "Preparando el arranque dual con Windows.",
-        "dualboot.fastboot.blocked": (
-            "Fast Boot de Windows esta activo. Con el inicio rapido "
-            "GRUB no aparece y Windows puede no arrancar. Desactivalo "
-            "antes de continuar: en Windows ejecuta "
-            "`powercfg /h off` como administrador y desactiva "
-            "Fast Boot en la BIOS/UEFI."
-        ),
-        "dualboot.windows.found": "Windows detectado: se instalara junto a el.",
-        "dualboot.windows.none": "Sin Windows detectable: instalacion unica.",
-        "dualboot.backup.ok": "Tabla de particiones respaldada en {dest}.",
-        "dualboot.backup.error": (
-            "No se pudo respaldar la tabla de particiones ({detail})."
-        ),
-        "dualboot.efi.reuse": (
-            "Se reutilizara la particion EFI existente en {efi}."
-        ),
-        "dualboot.efi.create": "No hay particion EFI: se creara una nueva.",
-        "dualboot.bootloader.grub": "grub",
-        "dualboot.bootloader.default": "systemd-boot",
-    },
-    "en": {
-        "dualboot.pretty_name": "Dual boot",
-        "dualboot.pretty_status": "Preparing dual boot with Windows.",
-        "dualboot.fastboot.blocked": (
-            "Windows Fast Boot is enabled. With fast startup GRUB "
-            "will not show and Windows may fail to boot. Disable it "
-            "before continuing: in Windows run "
-            "`powercfg /h off` as administrator and disable "
-            "Fast Boot in the BIOS/UEFI."
-        ),
-        "dualboot.windows.found": "Windows detected: installing alongside it.",
-        "dualboot.windows.none": "No Windows detected: single installation.",
-        "dualboot.backup.ok": "Partition table backed up to {dest}.",
-        "dualboot.backup.error": (
-            "Could not back up the partition table ({detail})."
-        ),
-        "dualboot.efi.reuse": "Reusing the existing EFI partition at {efi}.",
-        "dualboot.efi.create": "No EFI partition: a new one will be created.",
-        "dualboot.bootloader.grub": "grub",
-        "dualboot.bootloader.default": "systemd-boot",
-    },
-}
-
-
-def _ensure_translations():
-    """Registra las claves dualboot.* si aun no estan en la tabla."""
-    try:
-        table = _i18n_table
-    except NameError:
-        return
-    for lang, entries in DUALBOOT_TRANSLATIONS.items():
-        bucket = table.setdefault(lang, {})
-        for key, value in entries.items():
-            bucket.setdefault(key, value)
-
-
-_ensure_translations()
 
 PARTITIONSAFE_BIN = (
     pathlib.Path(__file__).resolve().parents[3]

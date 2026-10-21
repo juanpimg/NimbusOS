@@ -55,6 +55,44 @@ TRANSLATIONS = {
         "software.unknown_profile": (
             "perfil de software desconocido: {profile} (se omite)"
         ),
+        "dualboot.pretty_name": "Arranque dual",
+        "dualboot.pretty_status": "Preparando el arranque dual con Windows.",
+        "dualboot.fastboot.blocked": (
+            "Fast Boot de Windows esta activo. Con el inicio rapido "
+            "GRUB no aparece y Windows puede no arrancar. Desactivalo "
+            "antes de continuar: en Windows ejecuta "
+            "`powercfg /h off` como administrador y desactiva "
+            "Fast Boot en la BIOS/UEFI."
+        ),
+        "dualboot.windows.found": "Windows detectado: se instalara junto a el.",
+        "dualboot.windows.none": "Sin Windows detectable: instalacion unica.",
+        "dualboot.backup.ok": "Tabla de particiones respaldada en {dest}.",
+        "dualboot.backup.error": (
+            "No se pudo respaldar la tabla de particiones ({detail})."
+        ),
+        "dualboot.efi.reuse": (
+            "Se reutilizara la particion EFI existente en {efi}."
+        ),
+        "dualboot.efi.create": "No hay particion EFI: se creara una nueva.",
+        "dualboot.bootloader.grub": "grub",
+        "dualboot.bootloader.default": "systemd-boot",
+        "bootloader.pretty_name": "Gestor de arranque",
+        "bootloader.pretty_status": (
+            "Configurando el gestor de arranque con rollback."
+        ),
+        "bootloader.entry.normal": "Nimbus",
+        "bootloader.entry.last_good": (
+            "Nimbus (última versión conocida buena)"
+        ),
+        "bootloader.entry.safe": "Nimbus (modo seguro)",
+        "bootloader.summary.rollback": (
+            "Rollback activado ({bootloader}): el menú ofrece "
+            "«{last_good}» y «{safe}»."
+        ),
+        "bootloader.summary.lts": (
+            "Sin rollback ({fs}): se instala {lts} como red de seguridad."
+        ),
+        "bootloader.grub.submenu": "Nimbus snapshots (rollback en un clic)",
         "verify.pretty_name": "Verificación",
         "verify.pretty_status": "Verificando la instalación.",
         "verify.gpu.drm_ok": "GPU detectada en /sys/class/drm.",
@@ -245,6 +283,38 @@ TRANSLATIONS = {
         "software.unknown_profile": (
             "unknown software profile: {profile} (skipped)"
         ),
+        "dualboot.pretty_name": "Dual boot",
+        "dualboot.pretty_status": "Preparing dual boot with Windows.",
+        "dualboot.fastboot.blocked": (
+            "Windows Fast Boot is enabled. With fast startup GRUB "
+            "will not show and Windows may fail to boot. Disable it "
+            "before continuing: in Windows run "
+            "`powercfg /h off` as administrator and disable "
+            "Fast Boot in the BIOS/UEFI."
+        ),
+        "dualboot.windows.found": "Windows detected: installing alongside it.",
+        "dualboot.windows.none": "No Windows detected: single installation.",
+        "dualboot.backup.ok": "Partition table backed up to {dest}.",
+        "dualboot.backup.error": (
+            "Could not back up the partition table ({detail})."
+        ),
+        "dualboot.efi.reuse": "Reusing the existing EFI partition at {efi}.",
+        "dualboot.efi.create": "No EFI partition: a new one will be created.",
+        "dualboot.bootloader.grub": "grub",
+        "dualboot.bootloader.default": "systemd-boot",
+        "bootloader.pretty_name": "Bootloader",
+        "bootloader.pretty_status": "Setting up the bootloader with rollback.",
+        "bootloader.entry.normal": "Nimbus",
+        "bootloader.entry.last_good": "Nimbus (last known good version)",
+        "bootloader.entry.safe": "Nimbus (safe mode)",
+        "bootloader.summary.rollback": (
+            "Rollback enabled ({bootloader}): the menu offers "
+            "«{last_good}» and «{safe}»."
+        ),
+        "bootloader.summary.lts": (
+            "No rollback ({fs}): installing {lts} as a safety net."
+        ),
+        "bootloader.grub.submenu": "Nimbus snapshots (one-click rollback)",
         "verify.pretty_name": "Verification",
         "verify.pretty_status": "Verifying the installation.",
         "verify.gpu.drm_ok": "GPU detected at /sys/class/drm.",

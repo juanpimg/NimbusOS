@@ -61,51 +61,9 @@ ENTRY_NORMAL = "normal"
 ENTRY_LAST_GOOD = "last-good"
 ENTRY_SAFE = "safe"
 
-# Claves visibles del menu y del resumen. Se registran en la tabla
-# ES/EN de nimbus_i18n al importar (ese fichero lo mantiene otra pista
-# y no se puede editar aqui): asi translated() las resuelve en ambos
-# idiomas sin tocar el fichero.
-BOOTLOADER_TRANSLATIONS = {
-    "es": {
-        "bootloader.pretty_name": "Gestor de arranque",
-        "bootloader.pretty_status": (
-            "Configurando el gestor de arranque con rollback."
-        ),
-        "bootloader.entry.normal": "Nimbus",
-        "bootloader.entry.last_good": (
-            "Nimbus (última versión conocida buena)"
-        ),
-        "bootloader.entry.safe": "Nimbus (modo seguro)",
-        "bootloader.summary.rollback": (
-            "Rollback activado ({bootloader}): el menú ofrece "
-            "«{last_good}» y «{safe}»."
-        ),
-        "bootloader.summary.lts": (
-            "Sin rollback ({fs}): se instala {lts} como red de seguridad."
-        ),
-        "bootloader.grub.submenu": "Nimbus snapshots (rollback en un clic)",
-    },
-    "en": {
-        "bootloader.pretty_name": "Bootloader",
-        "bootloader.pretty_status": "Setting up the bootloader with rollback.",
-        "bootloader.entry.normal": "Nimbus",
-        "bootloader.entry.last_good": "Nimbus (last known good version)",
-        "bootloader.entry.safe": "Nimbus (safe mode)",
-        "bootloader.summary.rollback": (
-            "Rollback enabled ({bootloader}): the menu offers "
-            "«{last_good}» and «{safe}»."
-        ),
-        "bootloader.summary.lts": (
-            "No rollback ({fs}): installing {lts} as a safety net."
-        ),
-        "bootloader.grub.submenu": "Nimbus snapshots (one-click rollback)",
-    },
-}
-
-for _lang, _table in BOOTLOADER_TRANSLATIONS.items():
-    _target = _i18n_module.TRANSLATIONS.setdefault(_lang, {})
-    for _key, _value in _table.items():
-        _target.setdefault(_key, _value)
+# Claves visibles del menu y del resumen. Viven en la tabla central
+# ES/EN de nimbus_i18n (unica fuente); este modulo no registra nada
+# al importar.
 
 
 def _current_locale(locale=None):

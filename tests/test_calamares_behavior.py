@@ -374,6 +374,51 @@ def test_appearance_rejects_multiline_wallpaper():
             "dark", "FF2D55", "playa\nEOF\ntouch /tmp/pwned")
 
 
+# --- D4: la tabla central es la unica fuente (sin auto-registro) ----------------
+
+
+def test_no_module_self_registers_translations():
+    """D4: dualboot/bootloader no parchean TRANSLATIONS al importar; sus
+    claves viven en nimbus_i18n.py (única fuente, simétrica ES/EN)."""
+    import ast as _ast
+
+    for relative in ("nimbus-dualboot/nimbus-dualboot.py",
+                     "nimbus-bootloader/nimbus-bootloader.py"):
+        source = (MODULES / relative).read_text(encoding="utf-8")
+        assert "setdefault" not in source, relative
+        tree = _ast.parse(source)
+        names = set()
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, _ast.Name):
+                        names.add(target.id)
+        assert not any("TRANSLATIONS" in name and name != "_i18n_table"
+                       for name in names), (relative, sorted(names))
+        assert "DUALBOOT_TRANSLATIONS" not in names, relative
+        assert "BOOTLOADER_TRANSLATIONS" not in names, relative
+
+
+def test_dualboot_and_bootloader_keys_are_central_and_symmetric():
+    """D4: toda clave visible de dualboot/bootloader existe en ES y EN."""
+    import sys as _sys
+
+    table = _sys.modules["nimbus_i18n"].TRANSLATIONS
+    keys = ["dualboot.pretty_name", "dualboot.pretty_status",
+            "dualboot.fastboot.blocked", "dualboot.windows.found",
+            "dualboot.windows.none", "dualboot.backup.ok",
+            "dualboot.backup.error", "dualboot.efi.reuse",
+            "dualboot.efi.create",
+            "bootloader.pretty_name", "bootloader.pretty_status",
+            "bootloader.entry.normal", "bootloader.entry.last_good",
+            "bootloader.entry.safe", "bootloader.summary.rollback",
+            "bootloader.summary.lts", "bootloader.grub.submenu"]
+    assert keys
+    for key in keys:
+        assert table["es"].get(key), f"falta ES: {key}"
+        assert table["en"].get(key), f"falta EN: {key}"
+
+
 # --- nimbus-verify -------------------------------------------------------------
 
 
