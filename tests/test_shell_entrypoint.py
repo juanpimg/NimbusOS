@@ -181,3 +181,97 @@ def test_pkgbuild_installs_shell_qml_and_launcher():
     )
     assert "shell/nimbus-shell" in text
     assert "/usr/bin/nimbus-shell" in text
+
+
+# --- Regression M4: el escritorio live arrancaba sin ninguna superficie ---
+#
+# Un Loader de QML solo instancia Items: montar una ventana (PanelWindow o
+# FloatingWindow, es decir, un QQuickWindow) dentro de un Loader nunca puede
+# funcionar y deja el escritorio vacio (solo el fondo). Estos tests leen
+# shell.qml como texto y atan la regresion sin necesitar compositor.
+LOADER_SOURCE_RE = re.compile(r"^\s*source\s*:\s*\"([^\"]+)\"", re.M)
+WINDOW_ROOT_RE = re.compile(r"^\s*(PanelWindow|FloatingWindow)\s*\{", re.M)
+
+
+def _resolve_loader_source(source):
+    """Resuelve un `source:` de Loader a fichero bajo shell/src (o None)."""
+    if source.startswith("Nimbus/"):
+        return ROOT / "shell" / "src" / source
+    return None
+
+
+def _loader_sources(text):
+    return LOADER_SOURCE_RE.findall(_strip_line_comments(text))
+
+
+def test_no_loader_mounts_a_window():
+    # Ningun Loader de shell.qml puede cargar un fichero cuya raiz sea una
+    # ventana: TopBar.qml (PanelWindow) y Settings.qml (FloatingWindow) se
+    # montaban asi y jamas aparecian.
+    for source in _loader_sources(SHELL_QML.read_text(encoding="utf-8")):
+        path = _resolve_loader_source(source)
+        if path is None or not path.is_file():
+            continue
+        root = _root_type(path.read_text(encoding="utf-8"))
+        assert root not in ("PanelWindow", "FloatingWindow"), (
+            f"Loader carga ventana {source} (raiz {root}): un Loader solo instancia Items"
+        )
+    # Contrapueba: el detector reconoce las dos ventanas rotas.
+    assert WINDOW_ROOT_RE.search(
+        (ROOT / "shell" / "src" / "Nimbus" / "modules" / "TopBar.qml").read_text(
+            encoding="utf-8"
+        )
+    ), "TopBar.qml ya no es PanelWindow"
+    # Y el patron caza un Loader que cargue una ventana si se reintroduce.
+    assert "TopBar.qml" in _loader_sources('Loader {\nsource: "Nimbus/modules/TopBar.qml"\n}')
+
+
+def test_topbar_is_a_window_not_a_loader_source():
+    topbar = (
+        ROOT / "shell" / "src" / "Nimbus" / "modules" / "TopBar.qml"
+    ).read_text(encoding="utf-8")
+    assert _root_type(topbar) == "PanelWindow", "TopBar.qml debe seguir siendo ventana"
+    sources = _loader_sources(SHELL_QML.read_text(encoding="utf-8"))
+    assert not any("TopBar" in s for s in sources), (
+        "TopBar.qml es una ventana y no puede montarse con source: de un Loader"
+    )
+    assert not any("Settings" in s for s in sources), (
+        "Settings.qml es una ventana (FloatingWindow) y no puede montarse con source: de un Loader"
+    )
+
+
+def test_dock_does_not_depend_on_a_flag_that_starts_closed():
+    shell = SHELL_QML.read_text(encoding="utf-8")
+    controller = (
+        ROOT / "shell" / "src" / "Nimbus" / "ShellController.qml"
+    ).read_text(encoding="utf-8")
+    # El Dock es siempre visible en macOS: su ventana no puede depender de un
+    # flag que arranque en false (dockOpen arrancaba en false y el Dock no se
+    # veia nunca). O bien no se referencia el flag, o bien arranca en true.
+    gated = "ShellController.dockOpen" in shell or "dockOpen" in shell
+    starts_open = re.search(r"property\s+bool\s+dockOpen\s*:\s*true", controller)
+    assert not gated or starts_open, (
+        "el Dock depende de dockOpen y dockOpen arranca en false: el Dock nunca se ve"
+    )
+
+
+def test_panelwindows_declare_coherent_layers():
+    shell = SHELL_QML.read_text(encoding="utf-8")
+    # Cada PanelWindow declarado en shell.qml debe fijar su capa con el
+    # attached WlrLayershell (import Quickshell.Wayland). Sin capa coherente
+    # el compositor apila mal las superficies.
+    blocks = re.split(r"^\s*PanelWindow\s*\{", shell, flags=re.M)[1:]
+    assert blocks, "shell.qml debe declarar PanelWindows"
+    for i, block in enumerate(blocks):
+        assert "WlrLayershell.layer" in block, (
+            f"el PanelWindow #{i + 1} de shell.qml no declara WlrLayershell.layer"
+        )
+    topbar = (
+        ROOT / "shell" / "src" / "Nimbus" / "modules" / "TopBar.qml"
+    ).read_text(encoding="utf-8")
+    assert "WlrLayershell.layer" in topbar, "TopBar.qml no declara su layer"
+    assert "WlrLayer.Top" in topbar, "la barra debe estar en la capa Top"
+    # Fondo abajo del todo, barra y dock sobre las ventanas, overlays arriba.
+    assert "WlrLayer.Background" in shell, "el fondo debe usar WlrLayer.Background"
+    assert "WlrLayer.Top" in shell, "el dock debe usar WlrLayer.Top"
+    assert "WlrLayer.Overlay" in shell, "los overlays deben usar WlrLayer.Overlay"
