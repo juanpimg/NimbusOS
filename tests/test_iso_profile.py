@@ -153,7 +153,11 @@ BUILD_SH = ROOT / "iso" / "build.sh"
 
 def test_build_uses_pkgdest_and_not_packagelist():
     text = BUILD_SH.read_text(encoding="utf-8")
-    assert 'PKGDEST="$REPO_DIR" makepkg' in text
+    # La intencion es que makepkg CONSTRUYA el paquete en el repo local, no
+    # que solo liste las rutas que se producirian. Se comprueba por separado
+    # para no atar el test a como este maquetada la invocacion.
+    assert 'PKGDEST="$REPO_DIR"' in text
+    assert "makepkg" in text
     assert "--packagelist" not in text
 
 

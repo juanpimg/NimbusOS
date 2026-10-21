@@ -109,6 +109,19 @@ if [ "$LOCAL_REPO" -eq 1 ]; then
      "$WORK/profile/airootfs/usr/share/pacman/keyrings/"
   REPO_DIR="$WORK/nimbus-repo"
   mkdir -p "$REPO_DIR"
+  # makepkg se NIEGA a correr como root, y con razon: evitar danios. Pero el
+  # build normal corre con root (archiso tiene que montar un chroot), asi que
+  # la compilacion de los paquetes se delega al usuario que lanzo el build.
+  PKGBUILD_USER=""
+  if [ "$(id -u)" -eq 0 ]; then
+    PKGBUILD_USER="${SUDO_USER:-${NIMBUS_BUILD_USER:-}}"
+    if [ -z "$PKGBUILD_USER" ] || ! id "$PKGBUILD_USER" >/dev/null 2>&1; then
+      echo "el build corre como root y no se sabe con que usuario compilar los paquetes." >&2
+      echo "lanzalo con sudo (SUDO_USER) o define NIMBUS_BUILD_USER." >&2
+      exit 1
+    fi
+    chown "$PKGBUILD_USER" "$REPO_DIR"
+  fi
   # BUILDDIR redirige los directorios de trabajo de makepkg (src/, pkg/)
   # fuera del arbol: el build no deja rastro en packages/.
   for pkgdir in "$ROOT"/packages/*/; do
@@ -116,10 +129,23 @@ if [ "$LOCAL_REPO" -eq 1 ]; then
     [ -f "$pkgdir/PKGBUILD" ] || continue
     echo "[nimbus] compilando $name (log: $WORK/build-${name}.log)"
     # PKGDEST es la variable que dice a makepkg donde dejar el paquete.
-    # Ojo: la opcion packagelist de makepkg NO construye nada, solo imprime
-    # las rutas que se producirian.
-    ( cd "$pkgdir" && BUILDDIR="$WORK/mkpkg/$name" PKGDEST="$REPO_DIR" makepkg --nodeps --noconfirm ) \
-      >"$WORK/build-${name}.log" 2>&1
+    # Ojo: la opcion de makepkg que solo *lista* las rutas NO construye nada;
+    # hay que dejar que makepkg construya de verdad.
+    if [ -n "$PKGBUILD_USER" ]; then
+      # Se compila EN SU SITIO: los PKGBUILDs usan rutas relativas al monorepo
+      # ($startdir/../..), asi que copiar el directorio los romperia. Solo se
+      # da permiso de escritura a los directorios que makepkg necesita.
+      mkdir -p "$WORK/mkpkg/$name"
+      chown -R "$PKGBUILD_USER" "$WORK/mkpkg/$name" "$REPO_DIR"
+      ( cd "$pkgdir" && sudo -u "$PKGBUILD_USER" \
+          env BUILDDIR="$WORK/mkpkg/$name" PKGDEST="$REPO_DIR" \
+          makepkg --nodeps --noconfirm ) \
+        >"$WORK/build-${name}.log" 2>&1
+    else
+      ( cd "$pkgdir" && BUILDDIR="$WORK/mkpkg/$name" PKGDEST="$REPO_DIR" \
+          makepkg --nodeps --noconfirm ) \
+        >"$WORK/build-${name}.log" 2>&1
+    fi
   done
   # Si no ha salido ningun paquete, el repo local quedaria vacio y la ISO no
   # podria resolver nimbus-shell. Falla aqui, de forma ruidosa.
