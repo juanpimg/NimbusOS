@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Bug
+description: Algo no funciona como dicen los docs.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de abrir este issue, comprueba
+        [docs/STATUS.md](../blob/main/docs/STATUS.md):
+        lo que describes puede ser un fallo ya conocido.
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Qué esperabas
+      description: Qué dicen los docs que debería pasar.
+    validations:
+      required: true
+  - type: textarea
+    id: pasado
+    attributes:
+      label: Qué pasó
+      description: Pasos para reproducirlo, uno por línea.
+    validations:
+      required: true
+  - type: textarea
+    id: entorno
+    attributes:
+      label: Entorno
+      description: |
+        Salida de `uname -a`, GPU (`lspci | grep -i vga`)
+        y si es portátil o sobremesa.
+    validations:
+      required: true
+  - type: textarea
+    id: verificacion
+    attributes:
+      label: Verificación
+      description: |
+        Salida del paso relevante (pytest, bats o
+        qmltestrunner). Ver CONTRIBUTING.md.
+    validations:
+      required: false
+  - type: checkboxes
+    id: reglas
+    attributes:
+      label: Reglas
+      options:
+        - label: No hay assets ni marcas de Apple adjuntos.
+        - label: Las cadenas visibles nuevas están en ES y EN.

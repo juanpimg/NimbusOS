@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+blank_issues_enabled: false
+contact_links:
+  - name: Estado del proyecto
+    url: https://github.com/juanpimg/NimbusOS/blob/main/docs/STATUS.md
+    about: Qué funciona, qué no y qué puedes coger, antes de abrir un issue.
+  - name: Guía de contribución
+    url: https://github.com/juanpimg/NimbusOS/blob/main/CONTRIBUTING.md
+    about: Tests, commits, licencias y flujo de PRs.

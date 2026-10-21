@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Parte de hardware
+description: Tester del programa beta con una máquina concreta.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cada línea de la matriz de hardware del diseño (§4.13)
+        necesita un tester. Si no sabes un dato, escribe
+        "no lo sé". No inventes valores.
+  - type: input
+    id: cpu
+    attributes:
+      label: CPU
+      description: |
+        Modelo (p. ej. i7-12700H) y si tiene AVX2
+        (`lscpu | grep avx2`).
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU
+      description: |
+        Modelo y driver (`lspci | grep -i vga`, p. ej.
+        RTX 4060 Max-Q / nvidia-open).
+    validations:
+      required: true
+  - type: dropdown
+    id: hibrido
+    attributes:
+      label: Gráficos híbridos
+      options:
+        - No (una sola GPU)
+        - "Sí (dGPU NVIDIA + iGPU Intel/AMD)"
+        - No lo sé
+    validations:
+      required: true
+  - type: input
+    id: ram
+    attributes:
+      label: RAM y disco
+      description: P. ej. 16 GB RAM, SSD NVMe 512 GB libres.
+    validations:
+      required: true
+  - type: dropdown
+    id: uefi
+    attributes:
+      label: Arranque UEFI
+      options:
+        - "Sí"
+        - "No (BIOS legacy)"
+        - No lo sé
+    validations:
+      required: true
+  - type: dropdown
+    id: dualboot
+    attributes:
+      label: Windows en dual-boot
+      options:
+        - "No"
+        - "Sí (indica versión en el texto libre)"
+        - Previsto (disco de prueba disponible)
+    validations:
+      required: true
+  - type: dropdown
+    id: portatil
+    attributes:
+      label: Portátil o sobremesa
+      options:
+        - Portátil (con batería: tapa y suspensión)
+        - Portátil (siempre enchufado)
+        - Sobremesa
+    validations:
+      required: true
+  - type: textarea
+    id: verify
+    attributes:
+      label: Resultado de nimbus-verify
+      description: |
+        Se muestra al final de la instalación. Si aún no
+        instalaste, escribe "no disponible".
+    validations:
+      required: false
+  - type: textarea
+    id: libre
+    attributes:
+      label: Texto libre
+      description: |
+        WiFi/Bluetooth/audio, impresora, y qué estás
+        dispuesto a probar (live, USB externo, gaming).
+    validations:
+      required: false
