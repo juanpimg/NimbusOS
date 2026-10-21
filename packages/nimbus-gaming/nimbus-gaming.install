@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# nimbus-gaming.install — deja el Proton por defecto configurado en la
+# configuracion de Steam. No lanza nada: instalar un paquete no debe abrir
+# Steam. Todo pasa por nimbus_gaming_set_default_proton, que sobrescribe los
+# ficheros en vez de anadir lineas, asi que es idempotente.
+set -euo pipefail
+
+NIMBUS_DEFAULT_PROTON="${NIMBUS_DEFAULT_PROTON:-proton-cachyos}"
+NIMBUS_GAMING_CONF_DIR="${NIMBUS_GAMING_CONF_DIR:-/usr/share/nimbus/gaming}"
+
+nimbus_gaming_set_default_proton() {
+  local conf_dir proton_file compat_file proton
+  conf_dir="${NIMBUS_GAMING_CONF_DIR:-/usr/share/nimbus/gaming}"
+  proton="${NIMBUS_DEFAULT_PROTON:-proton-cachyos}"
+  proton_file="$conf_dir/default-proton"
+  compat_file="$conf_dir/steam-compat.vdf"
+  install -d "$conf_dir"
+  printf '%s\n' "$proton" > "$proton_file"
+  {
+    printf '"CompatToolMapping"\n{\n'
+    printf '\t"0"\n\t{\n'
+    printf '\t\t"name"\t\t"%s"\n' "$proton"
+    printf '\t\t"config"\t\t""\n'
+    printf '\t\t"priority"\t\t"250"\n'
+    printf '\t}\n}\n'
+  } > "$compat_file"
+}
+
+post_install() {
+  nimbus_gaming_set_default_proton
+}
+
+post_upgrade() {
+  nimbus_gaming_set_default_proton
+}
+
+post_remove() {
+  :
+}
