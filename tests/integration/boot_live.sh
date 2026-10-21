@@ -19,7 +19,10 @@ if [ -z "$ISO" ] || [ ! -f "$ISO" ]; then
 fi
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-# shellcheck source=lib.sh
+# La ruta es relativa a la RAIZ del repo (la CI y los devs corren desde ahi),
+# no al directorio del script: con la ruta corta, shellcheck -x resolvia
+# ./lib.sh, que no existe, y avisaba SC1091.
+# shellcheck source=tests/integration/lib.sh
 source "$ROOT/tests/integration/lib.sh"
 
 LOG="$(mktemp -t nimbus-qemu-XXXXXX.log)"

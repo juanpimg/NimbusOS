@@ -54,8 +54,10 @@ if [ ! -x "$PREFIX/prefix/usr/bin/mkarchiso" ] || [ ! -x "$PREFIX/prefix/usr/bin
   bsdtar -xf "$SYNC_DB" -C "$PREFIX/db" 2>/dev/null || true
 
   for pkg in archiso squashfs-tools arch-install-scripts libburn libisofs libisoburn; do
-    dir="$(ls -d "$PREFIX/db/${pkg}-"* 2>/dev/null | head -1)" \
-      || die "el paquete $pkg no aparece en la base de datos"
+    # find en vez de ls: `ls -d` con glob no es seguro con nombres poco
+    # ascii (shellcheck SC2012), y find no necesita el glob.
+    dir="$(find "$PREFIX/db" -maxdepth 1 -type d -name "${pkg}-*" -print -quit 2>/dev/null)"
+    [ -n "$dir" ] || die "el paquete $pkg no aparece en la base de datos"
     file="$(grep -A1 '^%FILENAME%$' "$dir/desc" | tail -1)"
     [ -n "$file" ] || die "no se encuentra el nombre de fichero de $pkg"
     if [ ! -f "$PREFIX/pacman-cache/$file" ]; then
@@ -274,6 +276,10 @@ mkdir -p "$PREFIX"
   printf 'options timeout:2 attempts:3\n'
 } > "$RESOLV_CONF"
 
+# SC2016: las comillas simples del `bash -c` son INTENCIONALES: el script
+# que se pasa se ejecuta dentro del chroot y sus ${...} deben expandirse
+# alli, no en el host.
+# shellcheck disable=SC2016
 unshare --user "${MAP_ARGS[@]}" \
         --mount --pid --fork --mount-proc --ipc --uts \
   env NIMBUS_ALLOW_ROOT=1 \

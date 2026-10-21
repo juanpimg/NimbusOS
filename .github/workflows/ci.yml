@@ -25,7 +25,10 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
           sh_files="$(git ls-files '*.sh')"
-          if [ -n "$sh_files" ]; then shellcheck $sh_files; fi
+          # -x: sigue los ficheros que se|sourcean, para que tambien se
+          # comprueben. Sin -x, shellcheck avisa SC1091 y sale distinto de 0
+          # (la CI corre con `set -e`, asi que un info tumba el job).
+          if [ -n "$sh_files" ]; then shellcheck -x $sh_files; fi
 
   test:
     runs-on: ubuntu-latest
@@ -50,11 +53,14 @@ jobs:
           [extra]
           Server = https://mirror.rackspace.com/archlinux/$repo/os/$arch
           Server = https://mirror.leaseweb.com/archlinux/$repo/os/$arch
-
-          [cachyos]
-          Server = https://mirror.bali0531.hu/repo/$arch/$repo
-          Server = https://cdn77.cachyos.org/repo/$arch/$repo
           EOF
+          # SIN la seccion [cachyos], a proposito: la base de datos de CachyOS
+          # la firma la clave 882DCFE48E2051D48E2562ABF3B607488DB35A47, que NO
+          # esta en archlinux-keyring, asi que `pacman -Sy` abortaba con
+          # "key is unknown" y el job de CI se caia entero. Todo lo que la CI
+          # necesita (python-pytest, bats, qt6-*, quickshell, actionlint, lua)
+          # esta en los repos de Arch. Para construir la ISO de verdad si hace
+          # falta el repo de CachyOS, y ahi si se importa su keyring.
       - name: Instalar dependencias
         run: |
           pacman --config /etc/pacman.conf -Sy --noconfirm --needed \

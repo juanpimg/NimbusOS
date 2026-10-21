@@ -56,7 +56,9 @@ command -v mksquashfs >/dev/null || {
 }
 
 mkdir -p "$WORK" "$OUTDIR"
-rm -rf "$WORK"/*
+# La guarda ${WORK:?} es lo que evita el SC2115: si WORK estuviera vacio,
+# `rm -rf "$WORK"/*` seria `rm -rf /*`. Con la guarda, el script aborta.
+rm -rf -- "${WORK:?}"/*
 cp -r "$ROOT/iso/profiles/$PROFILE" "$WORK/profile"
 
 # La sesion live lee la config de Hyprland del home del usuario nimbus
