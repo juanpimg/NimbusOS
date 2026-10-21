@@ -16,4 +16,6 @@ SearchField 1.0 lib/SearchField.qml
 ListRow 1.0 lib/ListRow.qml
 SectionHeader 1.0 lib/SectionHeader.qml
 Tooltip 1.0 lib/Tooltip.qml
+DockItem 1.0 modules/DockItem.qml
+Dock 1.0 modules/Dock.qml
 Notifications 1.0 modules/Notifications.qml
