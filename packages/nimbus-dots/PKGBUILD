@@ -12,7 +12,6 @@ source=()
 sha256sums=()
 package() {
   install -Dm644 "$startdir/../../dots/hypr/hyprland.lua" "$pkgdir/usr/lib/nimbus/dots/hypr/hyprland.lua"
-  install -Dm644 "$startdir/../../dots/hypr/quirks.conf" "$pkgdir/usr/lib/nimbus/dots/hypr/quirks.conf"
   install -Dm644 "$startdir/../../dots/nimbus/defaults.conf" "$pkgdir/usr/lib/nimbus/dots/defaults.conf"
   install -Dm755 "$startdir/../../dots/nimbus/nimbus-start" "$pkgdir/usr/lib/nimbus/dots/nimbus-start"
 }

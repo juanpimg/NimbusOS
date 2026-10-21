@@ -8,7 +8,7 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "dots" / "hypr" / "hyprland.lua"
-QUIRKS = ROOT / "dots" / "hypr" / "quirks.conf"
+PKGBUILD = ROOT / "packages" / "nimbus-dots" / "PKGBUILD"
 
 REQUIRED_BINDS = {
     "SUPER + Return": "kitty",
@@ -64,9 +64,10 @@ def test_config_is_valid_lua():
 
 
 def test_layout_is_floating():
-    quirks = QUIRKS.read_text(encoding="utf-8")
-    assert re.search(r"^\s*layout\s*=\s*floating", quirks, re.M)
-    assert "floating" in CONFIG.read_text(encoding="utf-8")
+    # En modo Lua no se lee ningun .conf: el layout vive en hl.config().
+    text = CONFIG.read_text(encoding="utf-8")
+    assert re.search(r"hl\.config\s*\(", text)
+    assert re.search(r'general\s*=\s*\{[^}]*layout\s*=\s*"floating"', text, re.S)
 
 
 def test_required_bindings_are_present():
@@ -89,5 +90,31 @@ def test_emergency_session_is_declared_and_bound():
 
 
 def test_emergency_terminal_is_fullscreen():
-    quirks = QUIRKS.read_text(encoding="utf-8")
-    assert re.search(r"windowrule.*fullscreen.*emergency", quirks, re.I)
+    # La regla de ventana es nativa (hl.window_rule), no sintaxis clasica.
+    text = CONFIG.read_text(encoding="utf-8")
+    assert re.search(r"hl\.window_rule\s*\(", text)
+    assert re.search(r"fullscreen\s*=\s*true", text)
+    assert re.search(r'match\s*=\s*\{\s*class\s*=\s*"emergency"\s*\}', text)
+
+
+def test_no_classic_window_rules_in_repo():
+    # En modo Lua los .conf no se cargan: ninguna regla clasica llegaria al
+    # compositor, asi que el repo no debe contener ninguna.
+    offenders = []
+    for path in sorted((ROOT / "dots").rglob("*")):
+        if path.is_file() and re.search(
+            r"(?m)^\s*windowrule\s*=", path.read_text(encoding="utf-8")
+        ):
+            offenders.append(str(path.relative_to(ROOT)))
+    assert offenders == []
+
+
+def test_quirks_conf_is_gone():
+    # Regression: en modo Lua un .conf junto a hyprland.lua nunca se carga.
+    assert not (ROOT / "dots" / "hypr" / "quirks.conf").exists()
+
+
+def test_pkgbuild_does_not_install_quirks_conf():
+    text = PKGBUILD.read_text(encoding="utf-8")
+    assert "quirks.conf" not in text
+    assert "hyprland.lua" in text
