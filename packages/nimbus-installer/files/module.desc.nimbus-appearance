@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Descriptor del módulo nimbus-appearance para Calamares: job en Python, como cada
+# módulo `interface: python` de cachyos-calamares-next.
+---
+type:       "job"
+name:       "nimbus-appearance"
+interface:  "python"
+script:     "nimbus-appearance.py"

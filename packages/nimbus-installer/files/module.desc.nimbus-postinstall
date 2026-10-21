@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Descriptor del módulo nimbus-postinstall para Calamares: job en Python, como cada
+# módulo `interface: python` de cachyos-calamares-next.
+---
+type:       "job"
+name:       "nimbus-postinstall"
+interface:  "python"
+script:     "nimbus-postinstall.py"

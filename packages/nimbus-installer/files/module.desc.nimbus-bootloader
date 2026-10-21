@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Descriptor del módulo nimbus-bootloader para Calamares: job en Python, como cada
+# módulo `interface: python` de cachyos-calamares-next.
+---
+type:       "job"
+name:       "nimbus-bootloader"
+interface:  "python"
+script:     "nimbus-bootloader.py"

@@ -1,0 +1,107 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+pkgname=nimbus-installer
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Instalador Calamares de Nimbus: 6 modulos propios, tema SDDM y herramientas"
+arch=('any')
+license=('GPL-3.0-or-later')
+url="https://github.com/juanpimg/NimbusOS"
+depends=('cachyos-calamares-next' 'sddm')
+# Monorepo: se compila desde el árbol local, sin descargar nada.
+# Cuando el repo se divida por subsistema, esto pasa a
+# source=('installer::git+https://github.com/juanpimg/NimbusOS.git').
+source=()
+sha256sums=()
+backup=('etc/calamares/settings.conf' 'etc/sddm.conf.d/nimbus.conf')
+package() {
+  # --- Módulos Calamares de Nimbus: código + descriptor + config ---
+  # Código en /usr/lib/calamares/modules/ (lo que `modules-search: [ local ]`
+  # resuelve: ver Settings.cpp de Calamares) y config en
+  # /etc/calamares/modules/ (ruta que libcalamares usa para %1).
+  # module.desc es obligatorio: sin descriptor Calamares no descubre el
+  # módulo. Todos son `type: job` como cada módulo `interface: python`
+  # de cachyos-calamares-next (mount, displaymanager, ...): los 6 definen
+  # run() con protocolo de job.
+  install -Dm644 "$startdir/../../installer/calamares/modules/nimbus-dualboot/nimbus-dualboot.py" \
+    "$pkgdir/usr/lib/calamares/modules/nimbus-dualboot/nimbus-dualboot.py"
+  install -Dm644 "$startdir/files/module.desc.nimbus-dualboot" \
+    "$pkgdir/usr/lib/calamares/modules/nimbus-dualboot/module.desc"
+  install -Dm644 "$startdir/../../installer/calamares/modules/nimbus-dualboot/nimbus-dualboot.conf" \
+    "$pkgdir/etc/calamares/modules/nimbus-dualboot.conf"
+  install -Dm644 "$startdir/../../installer/calamares/modules/nimbus-appearance/nimbus-appearance.py" \
+    "$pkgdir/usr/lib/calamares/modules/nimbus-appearance/nimbus-appearance.py"
+  install -Dm644 "$startdir/files/module.desc.nimbus-appearance" \
+    "$pkgdir/usr/lib/calamares/modules/nimbus-appearance/module.desc"
+  install -Dm644 "$startdir/../../installer/calamares/modules/nimbus-appearance/nimbus-appearance.conf" \
+    "$pkgdir/etc/calamares/modules/nimbus-appearance.conf"
+  install -Dm644 "$startdir/../../installer/calamares/modules/nimbus-software/nimbus-software.py" \
+    "$pkgdir/usr/lib/calamares/modules/nimbus-software/nimbus-software.py"
+  install -Dm644 "$startdir/files/module.desc.nimbus-software" \
+    "$pkgdir/usr/lib/calamares/modules/nimbus-software/module.desc"
+  install -Dm644 "$startdir/../../installer/calamares/modules/nimbus-software/nimbus-software.conf" \
+    "$pkgdir/etc/calamares/modules/nimbus-software.conf"
+  install -Dm644 "$startdir/../../installer/calamares/modules/nimbus-bootloader/nimbus-bootloader.py" \
+    "$pkgdir/usr/lib/calamares/modules/nimbus-bootloader/nimbus-bootloader.py"
+  install -Dm644 "$startdir/files/module.desc.nimbus-bootloader" \
+    "$pkgdir/usr/lib/calamares/modules/nimbus-bootloader/module.desc"
+  install -Dm644 "$startdir/../../installer/calamares/modules/nimbus-bootloader/nimbus-bootloader.conf" \
+    "$pkgdir/etc/calamares/modules/nimbus-bootloader.conf"
+  install -Dm644 "$startdir/../../installer/calamares/modules/nimbus-postinstall/nimbus-postinstall.py" \
+    "$pkgdir/usr/lib/calamares/modules/nimbus-postinstall/nimbus-postinstall.py"
+  install -Dm644 "$startdir/files/module.desc.nimbus-postinstall" \
+    "$pkgdir/usr/lib/calamares/modules/nimbus-postinstall/module.desc"
+  install -Dm644 "$startdir/../../installer/calamares/modules/nimbus-postinstall/nimbus-postinstall.conf" \
+    "$pkgdir/etc/calamares/modules/nimbus-postinstall.conf"
+  install -Dm644 "$startdir/../../installer/calamares/modules/nimbus-verify/nimbus-verify.py" \
+    "$pkgdir/usr/lib/calamares/modules/nimbus-verify/nimbus-verify.py"
+  install -Dm644 "$startdir/files/module.desc.nimbus-verify" \
+    "$pkgdir/usr/lib/calamares/modules/nimbus-verify/module.desc"
+  install -Dm644 "$startdir/../../installer/calamares/modules/nimbus-verify/nimbus-verify.conf" \
+    "$pkgdir/etc/calamares/modules/nimbus-verify.conf"
+
+  # --- Flujo del instalador y tabla i18n compartida ---
+  # /etc/calamares/settings.conf tiene prioridad sobre el settings.conf
+  # por defecto de /usr/share/calamares/ y no colisiona con ningún
+  # fichero de cachyos-calamares-next. Los 6 módulos la buscan en
+  # parents[2]/nimbus_i18n.py, que instalado es /usr/lib/calamares/.
+  install -Dm644 "$startdir/../../installer/calamares/settings.conf" \
+    "$pkgdir/etc/calamares/settings.conf"
+  install -Dm644 "$startdir/../../installer/calamares/nimbus_i18n.py" \
+    "$pkgdir/usr/lib/calamares/nimbus_i18n.py"
+
+  # --- Herramientas que los módulos invocan por ruta relativa ---
+  install -Dm755 "$startdir/../../installer/tools/nimbus-postinstall" \
+    "$pkgdir/usr/bin/nimbus-postinstall"
+  install -Dm755 "$startdir/../../installer/tools/nimbus-partitionsafe" \
+    "$pkgdir/usr/bin/nimbus-partitionsafe"
+  # nimbus-postinstall calcula TOOL_PATH como parents[2]/tools/... desde
+  # su módulo en /usr/lib/calamares/modules/ y lo ejecuta sin fallback:
+  # sin este symlink el job de post-instalación falla.
+  install -d "$pkgdir/usr/lib/calamares/tools"
+  ln -s /usr/bin/nimbus-postinstall \
+    "$pkgdir/usr/lib/calamares/tools/nimbus-postinstall"
+  # nimbus-dualboot usa parents[3]/tools/... (un nivel más arriba que el
+  # anterior): instalado eso es /usr/lib/tools/. Raro pero es lo que el
+  # código computa; el symlink lo deja cableado.
+  install -d "$pkgdir/usr/lib/tools"
+  ln -s /usr/bin/nimbus-partitionsafe \
+    "$pkgdir/usr/lib/tools/nimbus-partitionsafe"
+
+  # --- Tema SDDM: el nombre del directorio manda (Current=nimbus) ---
+  install -Dm644 "$startdir/../../installer/greeter/nimbus-greeter/Main.qml" \
+    "$pkgdir/usr/share/sddm/themes/nimbus/Main.qml"
+  install -Dm644 "$startdir/../../installer/greeter/nimbus-greeter/metadata.desktop" \
+    "$pkgdir/usr/share/sddm/themes/nimbus/metadata.desktop"
+  install -Dm644 "$startdir/../../installer/greeter/nimbus-greeter/theme.conf" \
+    "$pkgdir/usr/share/sddm/themes/nimbus/theme.conf"
+  install -Dm644 "$startdir/../../installer/greeter/nimbus-greeter/background.svg" \
+    "$pkgdir/usr/share/sddm/themes/nimbus/background.svg"
+  install -Dm644 "$startdir/../../installer/greeter/nimbus-greeter/avatar-placeholder.svg" \
+    "$pkgdir/usr/share/sddm/themes/nimbus/avatar-placeholder.svg"
+  install -Dm644 "$startdir/../../installer/greeter/nimbus-greeter/logo.svg" \
+    "$pkgdir/usr/share/sddm/themes/nimbus/logo.svg"
+
+  # --- SDDM en live: tema propio + autologin del usuario nimbus ---
+  install -Dm644 "$startdir/files/sddm-nimbus.conf" \
+    "$pkgdir/etc/sddm.conf.d/nimbus.conf"
+}
