@@ -26,8 +26,8 @@ El proyecto ha completado los hitos **M0 ("cimientos")**, **M1 (shell)** y **M2 
 
 **Lo que no existe todavía** (sin adornos):
 
-- El perfil gameready completo (M3): sesión gaming, VRR/HDR, gestión de energía y gráficos híbridos. El instalador ya ofrece un perfil de software `gaming` (lista de paquetes en `nimbus-software.conf`), pero eso no es el perfil de un clic.
-- Secure Boot con shim firmado (M6; las betas usan MOK provisional), el sistema de actualizaciones maduro (`nimbus-update`, M3) y la publicación del repo de paquetes (el repo `nimbus` aún no está alojado; la ISO se construye contra un repo local de bootstrap, ver [docs/BUILDING.md](docs/BUILDING.md)).
+- El perfil gameready (M3) está parcial y sin verificar en hardware real: en el árbol están el metapaquete `nimbus-gaming` (T1), `nimbus-energy` (T3), `nimbus-scheduler` con las reglas de ananicy (T4) y `nimbus-gaming-tune` con los presets (T5), en `packages/nimbus-gaming` y `packages/nimbus-energy`. Faltan la sesión `nimbus-gaming-session` con `gamescope-vrr-check` y `nimbus-gaming.desktop` (T2) y la pantalla de Ajustes `SettingsGaming.qml` (T6). Sin T6, el único camino para energía y gaming es la terminal: lo que hay es fontanería para la futura pantalla de Ajustes, no una característica disponible. Los presets (`gamescope.conf`, `mangohud.conf`, `90-nimbus-gaming.conf`) se distribuyen, todavía no los aplica nadie. El instalador ya ofrece un perfil de software `gaming` (lista de paquetes en `installer/calamares/modules/nimbus-software/nimbus-software.conf`), pero eso no es el perfil de un clic.
+- Secure Boot con shim firmado (M5; las betas usan MOK provisional), el sistema de actualizaciones maduro (`nimbus-update`, M5) y la publicación del repo de paquetes (el repo `nimbus` aún no está alojado; la ISO se construye contra un repo local de bootstrap, ver [docs/BUILDING.md](docs/BUILDING.md)).
 - La verificación visual del escritorio en una sesión real (ver nota sobre QEMU arriba).
 
 ## Estructura del repositorio
@@ -103,7 +103,7 @@ Sobre `cachyos-v3`: la ISO en vivo usa siempre los repos genéricos, porque tien
 - [docs/README.md](docs/README.md) — índice y orden de lectura.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — cómo encaja el sistema.
 - [docs/BUILDING.md](docs/BUILDING.md) — guía de construcción y pruebas.
-- [docs/ROADMAP.md](docs/ROADMAP.md) — hitos M0…M6.
+- [docs/ROADMAP.md](docs/ROADMAP.md) — hitos M0…M5.
 - [docs/superpowers/specs/2026-10-21-nimbus-design.md](docs/superpowers/specs/2026-10-21-nimbus-design.md) — documento de diseño (fuente de verdad).
 - [CONTRIBUTING.md](CONTRIBUTING.md) — cómo contribuir.
 - [packages/README.md](packages/README.md) — modelo de pins `testing`/`stable`.
