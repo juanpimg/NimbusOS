@@ -5,5 +5,17 @@ set -euo pipefail
 # Aplica el layout flotante antes de que entre el shell.
 hyprctl keyword layout floating >/dev/null 2>&1 || true
 
-# Espera a que el compositor esté listo y arranca el shell.
-exec /usr/bin/nimbus-shell
+# Si el shell no esta instalado, cae a un terminal de emergencia para que el
+# usuario pueda diagnosticar en vez de quedarse con una sesion muda.
+if [ ! -x /usr/bin/nimbus-shell ]; then
+    echo "nimbus-start: /usr/bin/nimbus-shell no encontrado, lanzo terminal de emergencia" >&2
+    kitty --class emergency &
+    echo "nimbus-start: terminal de emergencia con PID $!" >&2
+    exit 1
+fi
+
+# Sin exec: el proceso que Hyprland lanzo sigue supervisando; el shell va en
+# segundo plano y queda su PID registrado.
+/usr/bin/nimbus-shell &
+echo "nimbus-start: shell lanzado con PID $!"
+wait "$!"

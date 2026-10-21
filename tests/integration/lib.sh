@@ -3,6 +3,9 @@
 set -euo pipefail
 
 NIMBUS_MARKER="NIMBUS_LIVE_READY"
+# Lo escribe nimbus-live-ready cuando la sesion NO llega a estar lista: el
+# harness debe tratarlo como FALLO con diagnostico, nunca como exito.
+NIMBUS_TIMEOUT_MARKER="NIMBUS_LIVE_TIMEOUT"
 
 # `-cpu max` no es cosmetico: el modelo por defecto de QEMU (qemu64) NO expone
 # AVX2, asi que cualquier binario compilado para x86-64-v3 aborta con SIGILL
@@ -36,9 +39,16 @@ qemu_run() {
   echo $!
 }
 
+# Espera el marcador en el log serie. Estados:
+#   0: NIMBUS_LIVE_READY (sesion lista)
+#   2: NIMBUS_LIVE_TIMEOUT (la sesion fallo: Hyprland o el shell no responden)
+#   1: tiempo agotado sin ningun marcador
 wait_for_marker() {
   local log="$1" timeout="$2" waited=0
   while [ "$waited" -lt "$timeout" ]; do
+    if grep -q "$NIMBUS_TIMEOUT_MARKER" "$log" 2>/dev/null; then
+      return 2
+    fi
     if grep -q "$NIMBUS_MARKER" "$log" 2>/dev/null; then
       return 0
     fi
