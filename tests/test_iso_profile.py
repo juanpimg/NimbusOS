@@ -63,3 +63,39 @@ def test_iso_is_smaller_than_3gb_budget():
     iso_dir = ROOT / "iso"
     for iso in iso_dir.glob("*.iso"):
         assert iso.stat().st_size < budget, f"{iso.name} excede el presupuesto de 3 GB"
+
+
+BUILD_SH = ROOT / "iso" / "build.sh"
+
+
+def test_build_uses_pkgdest_and_not_packagelist():
+    text = BUILD_SH.read_text(encoding="utf-8")
+    assert 'PKGDEST="$REPO_DIR" makepkg' in text
+    assert "--packagelist" not in text
+
+
+def test_build_indexes_repo_with_valid_db_extension():
+    text = BUILD_SH.read_text(encoding="utf-8")
+    assert "repo-add" in text
+    assert "nimbus.db.tar.gz" in text
+
+
+def test_build_fails_loudly_when_no_package_was_built():
+    text = BUILD_SH.read_text(encoding="utf-8")
+    assert 'compgen -G "$REPO_DIR/*.pkg.tar.*"' in text
+    assert "no se ha construido ningun paquete" in text
+    assert "build-*.log" in text
+
+
+def test_build_checks_required_binaries():
+    text = BUILD_SH.read_text(encoding="utf-8")
+    assert "command -v archiso" in text
+    assert "command -v makepkg" in text
+    assert "command -v repo-add" in text
+
+
+def test_local_repo_is_a_flag_without_argument():
+    text = BUILD_SH.read_text(encoding="utf-8")
+    assert "--local-repo) LOCAL_REPO=1; shift ;;" in text
+    assert "--local-repo) LOCAL_REPO=\"$2\"" not in text
+    assert 'if [ "$LOCAL_REPO" -eq 1 ]' in text
