@@ -1,5 +1,8 @@
 # Nimbus
 
+[![CI](https://github.com/juanpimg/NimbusOS/actions/workflows/ci.yml/badge.svg)](https://github.com/juanpimg/NimbusOS/actions/workflows/ci.yml)
+[![ISO](https://github.com/juanpimg/NimbusOS/actions/workflows/iso.yml/badge.svg)](https://github.com/juanpimg/NimbusOS/actions/workflows/iso.yml)
+
 > **Note for English-speaking contributors:** this project is documented in Spanish first (the owner and the primary audience are Spanish-speaking). An English version of every document will follow. Code, identifiers and commit messages stay in English.
 
 Nimbus es una distribución Linux basada en CachyOS con un escritorio estilo macOS, construido con Hyprland y un shell propio en Quickshell (QML).
@@ -8,15 +11,18 @@ Está pensada para personas que nunca van a abrir una terminal. El objetivo: un 
 
 ## Estado
 
+Si llegas nuevo, empieza por [docs/STATUS.md](docs/STATUS.md): un único sitio que dice qué
+funciona (y cómo se verifica), qué no funciona todavía y qué puedes coger.
+
 El proyecto ha completado los hitos **M0 ("cimientos")**, **M1 (shell)** y **M2 (instalador)**: el código de los tres está en el repo con tests. El escritorio visual (barra, Dock, Spotlight, Centro de Control, notificaciones, switcher, capturas, QuickLook, fondos, bloqueo, Ajustes, Store, tour de bienvenida) y el instalador completo (seis módulos de Calamares, herramientas de post-instalación y tema de SDDM) existen como código verificado por tests, no como maquetas.
 
 **Sé honesto con lo verificado aquí:** el arranque de la sesión live en la ISO se verifica con QEMU (el harness espera el marcador `NIMBUS_LIVE_READY`, que solo se escribe cuando Hyprland y el shell responden de verdad). **El escritorio de verdad solo se verá cuando la integración del M1 termine**: nadie ha visto aún estas pantallas en una sesión real, y no se promete ninguna captura que no exista.
 
-**Lo que funciona hoy** (verificado con los tres suites de tests: 189 pytest + 13 bats + 249 QML, ver salidas en [docs/BUILDING.md](docs/BUILDING.md)):
+**Lo que funciona hoy** (verificado con los tres suites de tests: 251 pytest + 13 bats + 249 QML, ver salidas en [docs/BUILDING.md](docs/BUILDING.md)):
 
 - Andamiaje del monorepo, control de licencias SPDX (`tools/check_spdx.py`, verificado con `python tools/check_spdx.py --root .`) y CI (`ci.yml` con lint + tests, `iso.yml` que construye la ISO y la arranca en QEMU).
 - Cadena de confianza: generación del keyring (`tools/genkeyring.sh`), firma offline (`tools/sign_repo.sh`) y promoción `testing` → `stable` con verificación (`tools/promote.sh`, `tools/verify_repo.sh`).
-- Paquetes `nimbus-keyring`, `nimbus-shell` y `nimbus-dots` con sus PKGBUILDs.
+- Paquetes `nimbus-keyring`, `nimbus-shell`, `nimbus-dots`, `nimbus-gaming` y `nimbus-energy` con sus PKGBUILDs.
 - Shell completo (M1): singletons `Theme`, `Config`, `Translations`, `ShellController`, `Ipc`, `Services` y `PolkitAgent`; biblioteca de componentes (`shell/src/Nimbus/lib/`); superficies (`shell/src/Nimbus/modules/`: TopBar, Dock, Spotlight, Centro de Control, notificaciones, switcher, capturas, QuickLook, fondos, bloqueo); aplicaciones (`shell/src/Nimbus/apps/`: Ajustes, Store, tour). Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (§ "Arquitectura del shell").
 - Configuración de Hyprland (`dots/hypr/hyprland.lua`, API Lua nativa): layout flotante, atajos estilo macOS y sesión de emergencia con terminal (`SUPER + MAYÚS + E`).
 - Perfil de ISO para **archiso 91** (`iso/profiles/nimbus/`) y constructor (`iso/build.sh --local-repo`), con banco de pruebas rootless (`tools/build-iso-rootless.sh`).
@@ -40,7 +46,7 @@ El proyecto ha completado los hitos **M0 ("cimientos")**, **M1 (shell)** y **M2 
 | `dots/` | Configuración de Hyprland (layout flotante, atajos estilo macOS, sesión de emergencia) y defaults del sistema. |
 | `iso/` | Perfil archiso 91 y constructor de la ISO (`build.sh --local-repo`). |
 | `installer/` | Configuración de Calamares (`settings.conf`), seis módulos propios (`nimbus-dualboot`, `nimbus-appearance`, `nimbus-software`, `nimbus-bootloader`, `nimbus-postinstall`, `nimbus-verify`), tabla i18n (`nimbus_i18n.py`), herramientas (`tools/`) y tema de SDDM (`greeter/nimbus-greeter/`). |
-| `tests/` | Tests pytest (189) y bats (13); `tests/integration/` con el harness QEMU (`boot_live.sh`, espera `NIMBUS_LIVE_READY`). |
+| `tests/` | Tests pytest (251) y bats (13); `tests/integration/` con el harness QEMU (`boot_live.sh`, espera `NIMBUS_LIVE_READY`). |
 | `docs/` | Índice, arquitectura, guía de construcción, roadmap y documentos de diseño. |
 | `third_party/` | Código vendorizado de terceros (MIT); hoy solo existe como convención documentada: el directorio no existe aún en el árbol. |
 | `.github/` | Workflows de CI (`ci.yml`: lint + tests; `iso.yml`: construye la ISO y la arranca en QEMU). |
@@ -100,6 +106,7 @@ Sobre `cachyos-v3`: la ISO en vivo usa siempre los repos genéricos, porque tien
 
 ## Documentación
 
+- [docs/STATUS.md](docs/STATUS.md) — estado verificable: qué funciona, qué no y qué coger.
 - [docs/README.md](docs/README.md) — índice y orden de lectura.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — cómo encaja el sistema.
 - [docs/BUILDING.md](docs/BUILDING.md) — guía de construcción y pruebas.
@@ -110,6 +117,8 @@ Sobre `cachyos-v3`: la ISO en vivo usa siempre los repos genéricos, porque tien
 
 ## Licencia
 
-Nimbus es software libre bajo **GPL-3.0-or-later**. Ver [LICENSE](LICENSE) y [LICENSES.md](LICENSES.md) para la procedencia de cada componente (el código vendorizado de MacShell es MIT y vive bajo `third_party/`).
+Nimbus es software libre bajo **GPL-3.0-or-later**. Ver [LICENSE](LICENSE) y [LICENSES.md](LICENSES.md).
+Hoy no se distribuye código de terceros: no existe `third_party/`; los créditos de Ajustes →
+Acerca de nombran los proyectos ascendentes (MacShell, WhiteSur, Quickshell), no código vendorizado.
 
 Nimbus **no está afiliado a Apple**. Los nombres estilo macOS se usan de forma descriptiva; ningún asset, logotipo ni tipografía de Apple se incluye ni se distribuye en este repositorio.

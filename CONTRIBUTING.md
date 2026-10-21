@@ -28,7 +28,7 @@ Ejecútalos siempre antes de abrir un PR. Cubren cosas distintas:
 /tmp/opencode/nimbus-venv/bin/python -m pytest tests -v
 ```
 
-Cubre la lógica en Python: cabeceras SPDX, configuración de Hyprland (`test_hyprland_config.py`), perfil de la ISO (`test_iso_profile.py`), Calamares (`test_calamares_settings.py`, `test_calamares_behavior.py`, `test_dualboot_safety.py`, `test_bootloader_rollback.py`, `test_postinstall.py`, `test_greeter_theme.py`) y punto de entrada del shell (`test_shell_entrypoint.py`). 189 tests. El comando canónico es `python -m pytest tests -v` (funciona en cuanto instalas `python-pytest`); en este contenedor `pytest` no está en el PATH y se usa el venv del proyecto.
+Cubre la lógica en Python: cabeceras SPDX, configuración de Hyprland (`test_hyprland_config.py`), perfil de la ISO (`test_iso_profile.py`), Calamares (`test_calamares_settings.py`, `test_calamares_behavior.py`, `test_dualboot_safety.py`, `test_bootloader_rollback.py`, `test_postinstall.py`, `test_greeter_theme.py`) y punto de entrada del shell (`test_shell_entrypoint.py`). 251 tests. El comando canónico es `python -m pytest tests -v` (funciona en cuanto instalas `python-pytest`); en este contenedor `pytest` no está en el PATH y se usa el venv del proyecto.
 
 ```bash
 PATH="$HOME/.local/bin:$PATH" bats tests/*.bats
@@ -49,12 +49,12 @@ Las trampas reales (un `.conf` suelto junto a `hyprland.lua` que nunca se carga,
 El repo ya tiene 8 zonas con código y tests. Elige una y empieza por el fichero y el test que se indican:
 
 1. **Tooling** (`tools/`): `genkeyring.sh`, `sign_repo.sh`, `promote.sh`, `verify_repo.sh`, `check_spdx.py`, `build-iso-rootless.sh`. Empieza leyendo `packages/README.md` (contratos de `promote.sh` y `verify_repo.sh`) y ejecuta `PATH="$HOME/.local/bin:$PATH" bats tests/*.bats`.
-2. **Paquetes** (`packages/`): `nimbus-keyring`, `nimbus-shell`, `nimbus-dots` (PKGBUILDs). Empieza por `packages/README.md` (modelo `testing`/`stable`, rotación de clave) y comprueba que `makepkg` está disponible; recuerda que `makepkg` no corre como root.
+2. **Paquetes** (`packages/`): `nimbus-keyring`, `nimbus-shell`, `nimbus-dots`, `nimbus-gaming`, `nimbus-energy` (PKGBUILDs). Empieza por `packages/README.md` (modelo `testing`/`stable`, rotación de clave) y comprueba que `makepkg` está disponible; recuerda que `makepkg` no corre como root.
 3. **Shell/QML** (`shell/`): singletons `Theme`, `Config`, `Translations`, `ShellController`, `Ipc`, `Services` y `PolkitAgent` en `shell/src/Nimbus/`; biblioteca en `shell/src/Nimbus/lib/`; superficies en `shell/src/Nimbus/modules/`; aplicaciones en `shell/src/Nimbus/apps/` (Ajustes, Store, tour); punto de entrada `shell/src/shell.qml`; tests en `shell/tests/`. Empieza ejecutando el comando QML de arriba y leyendo [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (§ "Arquitectura del shell"). Toda cadena visible va a `Translations` y todo color/métrica a `Theme` (ver "Cómo traducir" y "Reglas del proyecto" abajo). Para registrar un componente nuevo se añade su línea al `qmldir` (`singleton <Nombre> 1.0 <Fichero>.qml` para singletons, `<Nombre> 1.0 <ruta>.qml` para el resto).
 4. **Configuración de Hyprland** (`dots/`): `dots/hypr/hyprland.lua` (API Lua nativa: layout flotante, atajos estilo macOS, sesión de emergencia), `dots/nimbus/defaults.conf`, `dots/nimbus/nimbus-start`. Empieza con `/tmp/opencode/nimbus-venv/bin/python -m pytest tests/test_hyprland_config.py -v`. Necesitas `lua` para validar la sintaxis fuera de Hyprland.
 5. **ISO** (`iso/`): perfil archiso 91 en `iso/profiles/nimbus/` (`profiledef.sh`, `pacman.conf`, `packages.x86_64`, `airootfs/`) y `iso/build.sh --local-repo`. Empieza con `/tmp/opencode/nimbus-venv/bin/python -m pytest tests/test_iso_profile.py -v` y leyendo [docs/BUILDING.md](docs/BUILDING.md) (§ "Construir la ISO").
 6. **Instalador** (`installer/`): `installer/calamares/settings.conf` (la secuencia, con el porqué del orden en [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)) y los seis módulos `nimbus-dualboot`, `nimbus-appearance`, `nimbus-software`, `nimbus-bootloader`, `nimbus-postinstall`, `nimbus-verify`; tabla i18n en `installer/calamares/nimbus_i18n.py`; herramientas en `installer/tools/`; tema de SDDM en `installer/greeter/nimbus-greeter/`. Empieza con `/tmp/opencode/nimbus-venv/bin/python -m pytest tests/test_calamares_settings.py tests/test_calamares_behavior.py -v`. Solo necesitas `cachyos-calamares-next` si vas a validar `installer/` contra Calamares real.
-7. **Tests** (`tests/`, `shell/tests/`): pytest (189), bats (13) y qmltestrunner (249) más el harness de integración (`tests/integration/boot_live.sh`, marcador `NIMBUS_LIVE_READY`). Empieza ejecutando los tres comandos de arriba en orden. Si añades código, añade o actualiza su test en el mismo PR.
+7. **Tests** (`tests/`, `shell/tests/`): pytest (251), bats (13) y qmltestrunner (249) más el harness de integración (`tests/integration/boot_live.sh`, marcador `NIMBUS_LIVE_READY`). Empieza ejecutando los tres comandos de arriba en orden. Si añades código, añade o actualiza su test en el mismo PR.
 8. **Documentación** (`README.md`, `CONTRIBUTING.md`, `docs/`, `packages/README.md`): en español, términos técnicos en inglés, sin adjetivos de marketing, sin hechos inventados ("pendiente de decidir" si algo no está decidido), enlaces relativos y sin assets ni marcas de Apple. Empieza comprobando que cada enlace interno resuelve y que ningún "no existe" describe algo que ya existe.
 
 ## Convención de commits
@@ -74,9 +74,13 @@ Mensajes en **inglés**, estilo convencional:
 Cada fichero fuente lleva su licencia en los primeros 600 bytes, y `tools/check_spdx.py` lo verifica en CI:
 
 - `SPDX-License-Identifier: GPL-3.0-or-later` en todo el código propio.
-- `SPDX-License-Identifier: MIT` bajo `third_party/`.
+- `SPDX-License-Identifier: MIT` bajo `third_party/`, si ese directorio llega a existir
+  (hoy no existe: no se distribuye código de terceros, ver [LICENSES.md](../LICENSES.md)).
 
-El porqué: `third_party/` contiene código vendorizado de MacShell con su licencia original MIT. Si un fichero MIT se mezclara sin marcar entre el código GPL, la procedencia dejaría de ser auditable y el proyecto no podría demostrar qué licencia aplica a cada línea. La regla existe para que un auditor externo pueda comprobar el origen de cualquier fichero en segundos. Antes de abrir un PR, ejecuta:
+El porqué: si algún día se vendoriza código de terceros con su licencia original MIT, tiene que
+ir marcado para que la procedencia siga siendo auditable y el proyecto pueda demostrar qué
+licencia aplica a cada línea. La regla existe para que un auditor externo pueda comprobar el
+origen de cualquier fichero en segundos. Antes de abrir un PR, ejecuta:
 
 ```bash
 python tools/check_spdx.py --root .
@@ -108,7 +112,7 @@ Hoy las cadenas viven en la tabla de `shell/src/Nimbus/Translations.qml`, con fa
 2. Añade un test en `shell/tests/tst_config.qml` que fije `Config.setLocale("<tu-idioma>")` y compruebe `Config.translated(...)`.
 3. Ejecuta el runner QML de arriba y confirma que pasa.
 
-Esta tabla es la infraestructura de traducción disponible hoy (la que la tabla de decisiones del [documento de diseño](docs/superpowers/specs/2026-10-21-nimbus-design.md) pide desde el principio): el instalador usa el mismo patrón con tabla propia en `installer/calamares/nimbus_i18n.py` (función `translated(clave, locale)` con fallback al inglés) y el shell en el singleton `Translations`. Un catálogo gettext completo, que permitirá ampliar idiomas sin tocar el shell, llega más adelante (M5/M6).
+Esta tabla es la infraestructura de traducción disponible hoy (la que la tabla de decisiones del [documento de diseño](docs/superpowers/specs/2026-10-21-nimbus-design.md) pide desde el principio): el instalador usa el mismo patrón con tabla propia en `installer/calamares/nimbus_i18n.py` (función `translated(clave, locale)` con fallback al inglés) y el shell en el singleton `Translations`. Un catálogo gettext completo, que permitirá ampliar idiomas sin tocar el shell, llega más adelante (M5).
 
 ## Cómo informar de un bug
 
