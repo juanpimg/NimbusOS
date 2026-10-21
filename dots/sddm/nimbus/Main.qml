@@ -68,12 +68,12 @@ Item {
             }
         }
         if (typeof sessionModel !== "undefined") {
-            for (var i = 0; i < sessionModel.rowCount(); ++i) {
-                var file = sessionModel.data(sessionModel.index(i, 0), Qt.UserRole + 4)
-                if (typeof file === "string" && file.indexOf("nimbus") !== -1) {
-                    sessionCombo.currentIndex = i
-                    root.sessionIndex = i
-                }
+            // Preselecciona la sesion de Nimbus por su nombre visible, sin
+            // suponer numeros de rol del modelo (API privada de SDDM).
+            var idx = sessionCombo.find("Nimbus")
+            if (idx !== -1) {
+                sessionCombo.currentIndex = idx
+                root.sessionIndex = idx
             }
         }
     }
