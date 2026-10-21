@@ -56,33 +56,87 @@ Sobre la clave que hay hoy en el repo: es una **clave de bootstrap de prueba**, 
 
 ## Arquitectura del shell
 
-Hoy el shell es un punto de entrada mínimo (`shell/src/shell.qml`, raíz `ShellRoot` de Quickshell) más tres singletons registrados en `shell/src/Nimbus/qmldir` bajo el módulo `Nimbus` (se importan con `import Nimbus`):
+El shell es una app **Quickshell** (QML) sobre **Hyprland**. La API de Quickshell 0.3.2 que usa el proyecto, **verificada leyendo el `.qmltypes` del paquete** durante M0:
 
-- **`Theme`** (`shell/src/Nimbus/Theme.qml`) — tokens de diseño de solo lectura: colores de fondo/superficie/texto/separador/acento para modo claro y oscuro, material de cristal (`glass`) con su fallback opaco (`glassOpaque`), métricas (`radius` 12, `spacing` 8, `barHeight` 28, `dockSize` 64) y tipografía (`Inter`). `setMode("light"|"dark"|"auto")` cambia el esquema; `setAccent(color)` fija el acento elegido por el usuario, que gana en ambos modos.
-- **`Config`** (`shell/src/Nimbus/Config.qml`) — configuración persistida con versionado (`schemaVersion`, hoy 2): `mode`, `accent` (hex en minúsculas, sin `#`), `locale` (código BCP-47). `migrateFrom(n)` migra esquemas antiguos sin romper el arranque; `translated(clave)` resuelve cadenas en el idioma activo.
-- **`Translations`** (`shell/src/Nimbus/Translations.qml`) — tabla ES/EN con fallback: idioma activo → inglés → la propia clave. Nunca muestra una clave sin traducir pudiendo mostrar inglés.
+- la raíz de una config es **`ShellRoot`** (`import Quickshell`);
+- `PanelWindow`, `FloatingWindow` y `PopupWindow` se importan con **`import Quickshell.Wayland`** (no `Window` de QtQuick ni un `Loader` cargando otro fichero);
+- los servicios (`Notifications`, `Polkit`, `Pam`, `Mpris`, `UPower`, `SystemTray`, `Pipewire`, `Greetd`) están en **`Quickshell.Services`**.
 
-La regla de **una sola verdad visual** se implementa así: todo lo visible lee de `Theme`. Cambiar el modo o el acento cambia todo el sistema de una vez, porque no hay ningún color literal fuera de los tokens.
+El módulo propio `Nimbus` se registra con un `qmldir` en **`shell/src/Nimbus/`** (no en `shell/src/`): QML resuelve un módulo buscando un **directorio** con ese nombre en el `QML2_IMPORT_PATH`, así que un `qmldir` plano en `shell/src/` **no** funciona. El import path debe ser su padre, `shell/src`. Fijado por `tests/test_shell_entrypoint.py`.
 
-Los módulos del escritorio (TopBar, Dock, Spotlight, Centro de Control, notificaciones, switcher, capturas, QuickLook, fondos, bloqueo, Ajustes, Store, Tour) son hito M1 y no existen aún. La biblioteca de componentes compartidos y el procedimiento para añadir un módulo nuevo están **pendientes de decidir en M1**.
+### Estructura de `shell/src/Nimbus/`
 
-### Contrato IPC (previsto, pendiente de implementar)
+Punto de entrada: `shell/src/shell.qml` (raíz `ShellRoot`; monta cada superficie tras un `Loader` con vigilancia de `status`, ver "Aislamiento de fallos" abajo). El launcher (`shell/nimbus-shell`) ejecuta `qs -c /usr/lib/nimbus/shell/src`.
 
-Definido en el plan M0 (Task 5) y ya declarado en `dots/hypr/hyprland.lua` (los binds llaman a `nimbus-shell ipc call <acción>`). El shell expondrá `nimbus-shell ipc call <acción>` y Hyprland lo invocará desde sus binds:
+| Zona | Contenido |
+|------|-----------|
+| Singletons | `Theme`, `Config`, `Translations`, `ShellController`, `Ipc`, `Services`, `PolkitAgent` (todos con `pragma Singleton`, registrados en el `qmldir` con su línea `singleton <Nombre> 1.0 <Fichero>.qml`). |
+| `lib/` | Biblioteca de componentes compartidos: `Button`, `Glass`, `Icon`, `ListRow`, `Popup`, `SearchField`, `SectionHeader`, `Slider`, `Toggle`, `Tooltip`. |
+| `modules/` | Superficies: `TopBar`, `TopBarMenu`, `Dock` (+ `DockItem`), `Spotlight`, `ControlCenter`, `Notifications`, `Switcher`, `Screenshot`, `QuickLook`, `Wallpaper`, `LockScreen`. |
+| `apps/` | Aplicaciones: Ajustes (`Settings/` con 11 páginas), Store (`Store/` con `Store`, `StoreHome`, `StoreDetail`, `StoreUpdates` más `store_backend.py` con backend Flatpak y fallback nativo) y tour (`Tour/` con `Tour` y `TourStep`). |
 
-| Tecla | Llamada | Efecto |
-|-------|---------|--------|
-| `SUPER`+`D` | `nimbus-shell ipc call dock toggle` | Mostrar/ocultar el Dock |
-| `SUPER`+`Espacio` | `nimbus-shell ipc call spotlight toggle` | Abrir el buscador |
-| `SUPER`+`Tab` | `nimbus-shell ipc call switcher next` | Cambiar de ventana |
-| `Impr Pant` | `nimbus-shell ipc call screenshot region` | Captura de región |
+Qué hace cada singleton:
 
-El resto de atajos (terminal, cerrar ventana, copiar/pegar, workspaces 1–9, bloqueo, sesión de emergencia con terminal) son llamadas directas del compositor, no IPC del shell. El launcher actual (`shell/nimbus-shell`) aún no implementa el subcomando `ipc`.
+- **`Theme`** (`shell/src/Nimbus/Theme.qml`) — tokens de diseño de solo lectura: colores de fondo/superficie/texto/separador/acento para modo claro y oscuro, material de cristal (`glass`) con su fallback opaco (`glassOpaque`), métricas (`radius` 12, `spacing` 8, `barHeight` 28, `dockSize` 64), tipografía (`Inter`) y constantes de superficies y animaciones del contrato M1 (`spotlightMaxWidth` 640, `switcherWidth` 800, `animStandard` 150…). `setMode("light"|"dark"|"auto")` cambia el esquema; `setAccent(color)` fija el acento elegido, que gana en ambos modos.
+- **`Config`** (`shell/src/Nimbus/Config.qml`) — configuración persistida con versionado (`schemaVersion`, hoy 2): `mode`, `accent` (hex en minúsculas, sin `#`), `locale` (código BCP-47) y `tourCompleted`. `migrateFrom(n)` migra esquemas antiguos sin romper el arranque; `translated(clave)` resuelve cadenas en el idioma activo.
+- **`Translations`** (`shell/src/Nimbus/Translations.qml`) — tabla ES/EN con fallback: idioma activo → inglés → la propia clave.
+- **`ShellController`** (`shell/src/Nimbus/ShellController.qml`) — propietario de qué superficie está abierta (ver "Una sola superficie abierta" abajo).
+- **`Ipc`** (`shell/src/Nimbus/Ipc.qml`) — bus IPC (ver "Contrato IPC" abajo).
+- **`Services`** (`shell/src/Nimbus/Services.qml`) — adaptador de servicios con estado plano (bool, string, number, list), sin tipos de Quickshell en la API pública para que los tests no dependan del framework. Sin D-Bus todo vale `false`/`"unknown"` y el shell arranca igual; el cableado a los servicios reales entra detrás de los mismos flags `...Available`.
+- **`PolkitAgent`** (`shell/src/Nimbus/PolkitAgent.qml`) — agente de polkit propio (sin KDE ni GNOME instalados, `polkit-gnome` sería una ventana ajena al diseño). Defensivo: si el bus no está disponible el shell arranca igual y las acciones privilegiadas aparecen deshabilitadas con un mensaje. Nunca guarda la contraseña.
+
+### La regla de oro
+
+Todo componente visible lee sus colores, radios y métricas de **`Theme`**, y todo texto visible pasa por **`Config.translated(clave)`**. Una clave ausente **cae al inglés**, y si tampoco está en inglés, se devuelve **la propia clave** (nunca se queda una cadena vacía en pantalla). El test `test_shell_entrypoint.py` caza literales sueltos: asignar texto visible a las propiedades `text`, `title`, `label`, `placeholderText`, `tooltip`, `description`, `message` o `subtitle`, o un color hex literal fuera de `Theme`, falla el test.
+
+### Contrato IPC
+
+El bus es `nimbus-shell ipc call <target> <función>`: `shell.qml` expone un `IpcHandler` con target `nimbus` que delega en `Ipc.call(target, fn)`, y los binds de Hyprland (`dots/hypr/hyprland.lua`) lo invocan desde el teclado. La tabla de targets y funciones válidas vive en `Ipc.validCalls`; ante un target o una función desconocidos **no lanza**: avisa por `console.warn` y no cambia `lastTarget`/`lastFunction`. Un fallo nunca tumba el shell.
+
+| Target | Funciones | Efecto |
+|--------|-----------|--------|
+| `dock` | `toggle`, `open`, `close` | Mostrar/ocultar el Dock |
+| `spotlight` | `toggle`, `open`, `close`, `apps`, `files` | Abrir el buscador |
+| `switcher` | `next`, `prev`, `commit`, `cancel` | Cambiar de ventana |
+| `screenshot` | `region`, `window`, `screen` | Captura |
+| `quicklook` | `toggle`, `open`, `close` | Vista rápida |
+| `wallpaper` | `toggle`, `open`, `close`, `next`, `prev` | Fondos |
+| `controlcenter` | `toggle`, `open`, `close` | Centro de control |
+| `notifications` | `toggle`, `clear` | Notificaciones (`clear` vacía la cola vía `Services`) |
+| `settings` | `open` | Abrir los Ajustes |
+| `store` | `open` | Abrir la Store |
+| `tour` | `start` | Reabrir el tour (llega como `surfaceRequested("tour", "start")`) |
+| `lock` | `lock` | Cierra todo y bloquea (llega como `surfaceRequested("lock", "lock")`) |
+
+`toggle`/`open`/`close` pasan por `ShellController` (exclusividad de superficies); las acciones con argumento viajan como `surfaceRequested(target, fn)` y las consumen sus superficies. Binds fijados en `dots/hypr/hyprland.lua`: `SUPER+D` → `dock toggle`, `SUPER+Espacio` → `spotlight toggle`, `SUPER+Tab` → `switcher next`, `Impr Pant` → `screenshot region`. El resto de atajos (terminal, cerrar ventana, copiar/pegar, workspaces 1–9, bloqueo, sesión de emergencia con terminal) son llamadas directas del compositor, no IPC del shell.
+
+### Una sola superficie abierta
+
+`ShellController` garantiza **una sola superficie abierta a la vez**: `open(surface)` cierra la anterior; los nombres sin booleano dedicado (p. ej. `"settings"`, `"store"`) se gestionan de forma genérica vía `activeSurface`. Es lo que hace que el shell se sienta como un sistema y no como cuatro ventanas sueltas. El tour solo se muestra en el primer arranque (`!Config.tourCompleted`).
 
 ### Aislamiento de fallos
 
-Principio previsto: un módulo que falle al cargar no debe tumbar el shell entero. El mecanismo concreto (proceso separado, `Loader` con fallback, sesión de emergencia) está **pendiente de decidir en M1**; hoy no hay nada que aislar porque solo existen los singletons. Lo que sí existe es la red de seguridad de fuera del shell: si Hyprland o Quickshell rompen, el modelo de pins contiene la rotura en `testing` y los snapshots permiten rollback.
+Cada módulo del `shell.qml` va tras un `Loader` con vigilancia de `status`: si uno falla al cargar, `onStatusChanged` cuenta el fallo en `moduleFailures` (propiedad del `shell.qml`) y **el shell sigue arrancando**. Como QML no tiene try/catch, la guarda es `status === Loader.Error`. Cubierto por `shell/tests/tst_controller.qml`.
 
-## Dónde vive cada módulo y cómo se añade uno nuevo
+## Instalador Calamares
 
-Hoy: `shell/src/Nimbus/*.qml` (singletons) + `shell/src/shell.qml` (punto de entrada) + `shell/tests/tst_*.qml` (tests). Para registrar un singleton nuevo se añade el fichero a `shell/src/Nimbus/` y su línea `singleton <Nombre> 1.0 <Fichero>.qml` al `qmldir`; los tests lo importan con `import Nimbus` y `QML2_IMPORT_PATH` apuntando a `shell/src`. El empaquetado (`packages/nimbus-shell/PKGBUILD`) instala el árbol en `/usr/lib/nimbus/shell/src` y el launcher en `/usr/bin/nimbus-shell`. La convención para módulos visuales completos (dónde cuelgan del `shell.qml`, cómo se prueban aislados) se define en M1.
+Calamares (vía el fork que ya mantiene CachyOS, `cachyos-calamares-next`) con seis módulos propios en `installer/calamares/modules/`:
+
+- **`nimbus-dualboot`** — arranque dual con Windows: detecta la instalación, detecta Fast Boot (si está activo **bloquea** con el mensaje que explica cómo desactivarlo) y respalda la tabla de particiones con `nimbus-partitionsafe backup`. Reutiliza la partición EFI existente y avisa a los pasos siguientes para que `bootloader` use GRUB.
+- **`nimbus-appearance`** — dos páginas (tema claro/oscuro/auto, 12 presets de acento); escribe `/etc/nimbus/appearance.conf` y lo aplica con `kwriteconfig`.
+- **`nimbus-software`** — perfiles de software (`base`, `gaming`, `creative`, `development`, `communication`, `office`, definidos en `nimbus-software.conf`); comprueba conectividad antes de empezar e instala con `pacman -S --needed --noconfirm` vía `target_env_command`.
+- **`nimbus-bootloader`** — elige **GRUB** si hay Windows y **systemd-boot** si el disco es solo de Nimbus. Sobre Btrfs el menú ofrece además `Nimbus (última versión conocida buena)` y `Nimbus (modo seguro)`; sin Btrfs instala el kernel LTS `linux-cachyos-lts` como red de seguridad. Sin Btrfs real en CI, la lógica es inyectable (`snapshot_provider`).
+- **`nimbus-postinstall`** — invoca `installer/tools/nimbus-postinstall --root <raíz>`: deja el sistema listo (keyring, repos, confianza, servicios, greeter, energía, híbridos, skel). Un paso opcional que falla avisa pero no hunde el job; uno crítico (keyring o repos) sí lo hace fracasar.
+- **`nimbus-verify`** — 14 comprobaciones sobre el sistema instalado (`gpu`, `graphics-hybrid`, `audio`, `network`, `bluetooth`, `webcam`, `suspend`, `battery`, `disk-space`, `bootloader`, `dual-boot`, `snapshots`, `updates`, `keyring`). Cada check devuelve `(bool, str)` con mensaje accionable; el hardware opcional ausente se omite sin fallar; ninguna comprobación lanza excepción y un fallo nunca aborta la instalación.
+
+### Orden de los módulos y por qué
+
+La secuencia vive en `installer/calamares/settings.conf`:
+
+`welcome` → `locale` → **`nimbus-dualboot`** → `partition` → `lukspass` → `users` → `nimbus-appearance` → `nimbus-software` → `hardware` → `bootloader` → **`nimbus-bootloader`** → **`nimbus-postinstall`** → **`nimbus-verify`** → `finished`.
+
+**`nimbus-dualboot` va antes de `partition`** porque su copia de seguridad de la tabla de particiones y la detección de Fast Boot tienen que ocurrir **antes de que Calamares toque el disco**; después sería tarde para ambas. **`nimbus-bootloader` va después del `bootloader` de Calamares** porque necesita el sistema ya montado para añadir las entradas de rollback al menú. **`nimbus-verify` va el último** porque comprueba el sistema ya instalado. Cubierto por `tests/test_calamares_settings.py` y `tests/test_calamares_behavior.py` (más `test_dualboot_safety.py`, `test_bootloader_rollback.py` y `test_postinstall.py`).
+
+### i18n del instalador
+
+`installer/calamares/nimbus_i18n.py` sigue el mismo patrón que `Translations.qml`: tabla ES/EN (`TRANSLATIONS`) y función de búsqueda `translated(clave, locale)` con fallback al inglés. `locale` puede ser `"es"`, `"en"` o un locale completo (`"es_ES.UTF-8"`, solo se usa la parte del idioma); si es `None` se detecta con `active_locale()` (`LC_ALL`/`LANG`/`LANGUAGE`, o inglés). Una clave inexistente en ambos idiomas devuelve la propia clave. No depende de `libcalamares`, para que los módulos sigan siendo importables en CI/test. Cada módulo registra sus claves (`appearance.*`, `software.*`, `verify.*`, `postinstall.*`, más las de arranque dual y bootloader) en la misma tabla.
