@@ -108,7 +108,9 @@ ShellRoot {
 
         // Firmada para IPC: los argumentos sin tipo llegan como QVariant y
         // Quickshell no puede cruzarlos ("cannot be used across IPC").
-        function call(target: string, fn: string): void {
+        // SIN anotacion de retorno `: void`: a qmllint (Qt 6.9) le hace
+        // abortar en silencio (exit 255) con esa anotacion.
+        function call(target: string, fn: string) {
             Ipc.call(target, fn)
         }
     }
