@@ -64,7 +64,8 @@ temas de terceros pegados con cinta.
 ### Anti-objetivos — qué harían fracasar Nimbus aunque "funcione"
 
 - **A1.** El usuario tiene que abrir una terminal para una tarea normal.
-- **A2.** El escritorio parece "Linux con un fondo de pantalla de macOS".
+- **A2.** El escritorio parece "Linux con un fondo de pantalla de macOS" — o peor, un collage
+  de cuatro proyectos ajenos pegados. Un solo lenguaje visual, un solo sistema de tokens.
 - **A3.** Una actualización de Hyprland, Quickshell o Mesa rompe el escritorio y el usuario no
   tiene forma de volver atrás.
 - **A4.** Instalar Nimbus tarda más de 10 minutos.
@@ -78,7 +79,7 @@ reunión explícita:
 | Decisión | Valor | Razón |
 |----------|-------|--------|
 | Base | **CachyOS** | Repos con x86-64-v3/v4 + LTO/PGO/BOLT, kernel propio con sched-ext/LAVD/BORE, `chwd` para autodetección de hardware, zram, ananicy-cpp, firejail, Calamares ya mantenido |
-| Escritorio | **Hyprland + shell propio en Quickshell (QML)** | Único camino a Liquid Glass real y a un modelo de interacción Apple completo |
+| Escritorio | **Hyprland + shell propio en Quickshell (QML)**, construido sobre código vendorizado de MacShell (MIT) y reimplementando patrones de Mainstream OS / end-4 | Único camino a Liquid Glass real y a un modelo de interacción Apple completo. "Propio" significa **código nuestro y vendorizado**, no código escrito desde un folio en blanco |
 | Sesiones | **Solo Hyprland + nuestro shell** | Una sola experiencia, coherente y mantenible |
 | Distribución de apps | **Híbrida** — Flatpak (Flathub) para escritorio, nativo/AUR para juegos y drivers | Sensación de App Store sin perder rendimiento en gaming |
 | Tienda | **Nimbus Store, propia en Quickshell** | Coherencia con el resto; nada de "app de Linux pegada en el escritorio" |
@@ -128,7 +129,7 @@ corregir el diseño:
 - **D9. Scope del shell en v1:** barra de menú global, dock, Spotlight, Centro de Control,
   notificaciones, switcher, capturas, pantalla de bloqueo, selector de fondos, Ajustes del
   sistema, Nimbus Store, tour. Los widgets de escritorio (clima, reloj) son **post-v1**:
-  sononga la parte más frágil del shell y la de menor valor para un novato.
+  es la parte más frágil del shell y la de menor valor para un novato.
 - **D10. Steam:** **nativo** desde nuestro repo (no Flatpak) — mismo criterio que SteamOS,
   mejor rendimiento y mejor integración con Proton/gamescope. El Flatpak de Steam se ofrece
   como alternativa en la tienda.
@@ -143,6 +144,61 @@ corregir el diseño:
   sin hibernación en v1.** LUKS2 **solo con passphrase**, sin TPM2/`systemd-cryptenroll`: un
   TPM reseteado por el fabricante dejaría el disco inaccesible, y ese riesgo no compensa en
   v1. Reconsiderado en v2.
+- **D14. Licencia del shell: GPL-3.0**, obligatoriamente, porque vendorizamos código GPL-3.0
+  de Mainstream OS / end-4 y porque el resto de la distro (Calamares, archiso) ya lo es. Es
+  además la licencia correcta para un proyecto comunitario: cualquiera puede auditar y
+  reutilizar Nimbus. El código MIT de MacShell es compatible sin problema.
+
+### Procedencia del código: qué tomamos de dónde
+
+Reutilizar código es una decisión de ingeniería, no un accidente. La regla de Nimbus:
+
+> **Tomamos prestada la implementación. Nunca la identidad.**
+
+**Permitido, con atribución:**
+- **MacShell (MIT)** — el shader de refracción de cristal, la estructura de módulos QML, el
+  patrón del lock screen, la lógica del Spotlight. Se **vendoriza**: el código vive en
+  nuestro repo, con el historial de licencias intacto. **No es una dependencia en runtime**
+  — si el GitHub de MacShell desaparece mañana, Nimbus sigue funcionando igual.
+- **Mainstream OS (GPL-3.0)** — los *patrones* (snapshot antes de cada actualización,
+  verificación post-instalación, sesión de juegos, repo con firma offline). El código se
+  **reimplementa** salvo que la reimplementación no aporte nada, y entonces se documenta el
+  origen.
+- **end-4/dots-hyprland (GPL-3.0)** — configuración de Hyprland, estructura de la config
+  Lua, integraciones de IPC.
+- **WhiteSur (GPL-3.0)** — iconos.
+
+**Prohibido:**
+- Instalar el shell de otro proyecto tal cual y llamarlo Nimbus.
+- Que Nimbus dependa en runtime de un repositorio externo para funcionar.
+- Que un componente visible no use nuestros tokens de diseño. **Si algo no pasa por el
+  sistema de tokens, no entra.** Esto es lo que garantiza que no parezca un collage.
+
+**Regla operativa:** todo componente visible que no sea nuestro se **reimplementa o se adapta
+hasta que pase por nuestros tokens**. Si al final se parece a su original, se admite — pero
+entonces ya es código nuestro, y el original queda como referencia histórica en el commit
+message.
+
+**El bug que se hereda y hay que arreglar.** Tomar la captura de ventanas en vivo de MacShell
+significa heredar su crash conocido: `wl_display: invalid object` cuando muchas ventanas
+abren y cierran — que es exactamente lo que pasa cuando arranca un juego. **No se reproduce:
+se corrige de raíz antes de la beta**, porque el stack de juegos depende de ello. Es el
+precio de heredar código: también se heredan sus defectos, y hay que pagarlos.
+
+#### Licencias y compatibilidad
+
+El shell de Nimbus es **GPL-3.0**. Compatibilidad verificada antes de vendorizar nada:
+
+| Origen | Licencia | ¿Compatible con GPL-3.0? |
+|--------|----------|--------------------------|
+| MacShell | MIT | Sí — MIT es permisiva y compatible |
+| Mainstream OS, end-4/dots-hyprland, WhiteSur | GPL-3.0 | Sí — el derivado debe ser GPL-3.0 |
+| Inter | SIL OFL 1.1 | Sí |
+| Calamares, archiso | GPL-3.0 | Sí — ya son forks |
+
+Todo el código vendorizado conserva sus cabeceras de licencia, aparece en `LICENSES.md` y en
+los créditos de Ajustes → Acerca de. Los assets de Apple (logo, SF Pro, capturas) quedan
+excluidos por marca registrada.
 
 ### Requisitos de Secure Boot
 
@@ -220,6 +276,15 @@ gestionar (rebasear sobre `testing`, resolver conflictos, probar la promoción).
 stack de escritorio se mantiene lo más pequeño posible: menos piezas = menos desfase.
 
 ### 4.3 Escritorio: Hyprland + shell propio
+
+El shell de Nimbus es **código nuestro, no código ajeno instalado**. Nace de tomar la
+implementación de referencia (MacShell, MIT) y convertirla en un producto con su propia
+identidad: nuestros tokens, nuestros componentes, nuestro nombre, nuestro ciclo de
+lanzamiento. Ver §3 "Procedencia del código".
+
+El criterio de calidad no es "qué porcentaje es nuevo" sino **"¿se siente como un producto
+único?"**. Si un usuario ve Nimbus y no puede decir de qué proyecto salió cada parte, hemos
+acertado.
 
 #### 4.3.1 Por qué Hyprland
 
@@ -603,22 +668,30 @@ establecido aquí. Se listan para que ninguna se tome por accidente:
     Hyprland y cuáles a nivel shell, y cómo se documenta el mapa completo para el usuario
     (objetivo: un `⌘`-style sheet en Ajustes → Teclado).
 
-## 8. Referencia: qué aprendimos de los proyectos existentes
+## 8. Referencia: de dónde sale cada pieza
 
-Rec researched y **no** copiado:
+No copiamos proyectos: **aprendemos de ellos y declaramos la deuda**. Esto es lo que Nimbus
+toma de cada uno y en qué condiciones.
 
 - **Mainstream OS** (Arch + Hyprland + Quickshell): resolvió la maquinaria — repo firmado,
   ISO firmada, snapshots antes de cada actualización, rollback en el menú de arranque,
-  verificación post-instalación de 19 comprobaciones, modo consola de juegos. **Adoptamos los
-  patrones.** No su código ni su marca.
-- **MacShell** (MIT): demonstrated que un shell Quickshell con refracción real puede parecer
-  Tahoe. **Nos dio el diseño de referencia y el aprendizaje de sus límites** (crash de
-  `wl_display` con muchas ventanas, dependencia de Hyprland con config Lua). No lo forked.
-- **CachyOS**: motor, kernel, repos optimizados, `chwd`, Calamares, Proton parcheado.
+  verificación post-instalación de 19 comprobaciones, modo consola de juegos.
+  **Tomamos los patrones, reimplementamos el código.** No su marca ni sus nombres de paquete.
+- **MacShell** (MIT): demostró que un shell Quickshell con refracción real puede parecer
+  Tahoe. **Vendorizamos su implementación** — el shader de cristal, la estructura de módulos,
+  el lock screen, el Spotlight — integrada en nuestros tokens.
+  **No lo forked como dependencia**: el código vive en nuestro repo y si su GitHub muere,
+  Nimbus no se entera. **Sus límites también son nuestros**: heredamos el crash de
+  `wl_display` con muchas ventanas y está en nuestra lista de bugs a corregir antes de la beta.
+- **CachyOS**: motor, kernel, repos optimizados, `chwd`, Calamares, Proton parcheado, y sus claves de firma en los que confiamos para el Secure Boot.
 - **Omarchy**: prueba de que "Arch + Hyprland + cero terminal" es un mercado real. Nos
-  inspirations su positional de "todo preinstalado"; su estética no es la nuestra.
-- **SteamOS / Zorin / elementary**: los patrones de "instalador que se siente como un producto"
-  y "actualizaciones con red de seguridad".
+  inspira su posición de "todo preinstalado"; su estética no es la nuestra.
+- **SteamOS / Zorin / elementary**: los patrones de "instalador que se siente como un
+  producto" y "actualizaciones con red de seguridad".
+- **WhiteSur** (GPL-3.0): iconos, con atribución.
+
+Lo que **no** tomamos de ninguno: el nombre del logo de Apple, SF Pro, capturas de macOS, ni
+los nombres "Finder"/"Spotlight" para nuestros componentes.
 
 ## 9. Definición de terminado (v1.0)
 
