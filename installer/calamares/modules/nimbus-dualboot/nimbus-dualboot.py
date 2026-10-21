@@ -1,0 +1,399 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Modulo Calamares de arranque dual con Windows (Nimbus).
+
+Se ejecuta **antes** de `partition` y hace:
+
+1. Detectar una instalacion de Windows (os-prober o `*/Windows/System32`).
+2. Detectar Fast Boot / inicio rapido: si esta activo, **bloquea** con un
+   mensaje que explica como desactivarlo en Windows (`powercfg /h off` y
+   en la BIOS). Continuar garantizaria un arranque roto.
+3. Respaldar la tabla de particiones con `nimbus-partitionsafe backup`
+   **antes** de que Calamares toque el disco.
+4. Reutilizar la particion EFI existente de Windows (no crear una segunda).
+5. Avisar a los pasos siguientes (globalstorage) de que hay Windows para
+   que `bootloader` use **GRUB** y no systemd-boot.
+
+Toda cadena visible pasa por `translated()` (ES/EN). Las claves
+`dualboot.*` se registran en la tabla al importar si aun no existen
+(estan declaradas para subir a `nimbus_i18n.py`; ver informe M2T1).
+"""
+
+import logging
+import pathlib
+import re
+import subprocess
+
+try:  # Calamares provee libcalamares en el ISO live; ausente en CI/test.
+    import libcalamares
+except ImportError:  # pragma: no cover - entorno sin Calamares
+    libcalamares = None
+
+try:
+    from nimbus_i18n import TRANSLATIONS, active_locale, translated
+    _i18n_table = TRANSLATIONS
+except ImportError:  # cargado por ruta (Calamares/test) sin paquete
+    import importlib.util as _importlib_util
+    import sys as _sys
+
+    _i18n_module = _sys.modules.get("nimbus_i18n")
+    if _i18n_module is None:
+        _i18n_path = (
+            pathlib.Path(__file__).resolve().parents[2] / "nimbus_i18n.py"
+        )
+        _i18n_spec = _importlib_util.spec_from_file_location(
+            "nimbus_i18n", _i18n_path)
+        _i18n_module = _importlib_util.module_from_spec(_i18n_spec)
+        _sys.modules["nimbus_i18n"] = _i18n_module
+        _i18n_spec.loader.exec_module(_i18n_module)
+    TRANSLATIONS = _i18n_module.TRANSLATIONS
+    active_locale = _i18n_module.active_locale
+    translated = _i18n_module.translated
+    _i18n_table = TRANSLATIONS
+
+logger = logging.getLogger(__name__)
+
+# Directorio persistente del respaldo (no temporal): sobrevive al live y
+# queda disponible para `verify` tras particionar.
+DEFAULT_BACKUP_DIR = pathlib.Path("/var/lib/nimbus/partitionsafe")
+
+# Deteccion de Windows via os-prober y via arbol NTFS montado.
+WINDOWS_SYSTEM32 = pathlib.Path("Windows/System32")
+
+_EFI_GUID = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+_PARTITION_LINE_RE = re.compile(r"^\s*(/dev/\S+)\s*:.*\bstart\s*=")
+
+DUALBOOT_TRANSLATIONS = {
+    "es": {
+        "dualboot.pretty_name": "Arranque dual",
+        "dualboot.pretty_status": "Preparando el arranque dual con Windows.",
+        "dualboot.fastboot.blocked": (
+            "Fast Boot de Windows esta activo. Con el inicio rapido "
+            "GRUB no aparece y Windows puede no arrancar. Desactivalo "
+            "antes de continuar: en Windows ejecuta "
+            "`powercfg /h off` como administrador y desactiva "
+            "Fast Boot en la BIOS/UEFI."
+        ),
+        "dualboot.windows.found": "Windows detectado: se instalara junto a el.",
+        "dualboot.windows.none": "Sin Windows detectable: instalacion unica.",
+        "dualboot.backup.ok": "Tabla de particiones respaldada en {dest}.",
+        "dualboot.backup.error": (
+            "No se pudo respaldar la tabla de particiones ({detail})."
+        ),
+        "dualboot.efi.reuse": (
+            "Se reutilizara la particion EFI existente en {efi}."
+        ),
+        "dualboot.efi.create": "No hay particion EFI: se creara una nueva.",
+        "dualboot.bootloader.grub": "grub",
+        "dualboot.bootloader.default": "systemd-boot",
+    },
+    "en": {
+        "dualboot.pretty_name": "Dual boot",
+        "dualboot.pretty_status": "Preparing dual boot with Windows.",
+        "dualboot.fastboot.blocked": (
+            "Windows Fast Boot is enabled. With fast startup GRUB "
+            "will not show and Windows may fail to boot. Disable it "
+            "before continuing: in Windows run "
+            "`powercfg /h off` as administrator and disable "
+            "Fast Boot in the BIOS/UEFI."
+        ),
+        "dualboot.windows.found": "Windows detected: installing alongside it.",
+        "dualboot.windows.none": "No Windows detected: single installation.",
+        "dualboot.backup.ok": "Partition table backed up to {dest}.",
+        "dualboot.backup.error": (
+            "Could not back up the partition table ({detail})."
+        ),
+        "dualboot.efi.reuse": "Reusing the existing EFI partition at {efi}.",
+        "dualboot.efi.create": "No EFI partition: a new one will be created.",
+        "dualboot.bootloader.grub": "grub",
+        "dualboot.bootloader.default": "systemd-boot",
+    },
+}
+
+
+def _ensure_translations():
+    """Registra las claves dualboot.* si aun no estan en la tabla."""
+    try:
+        table = _i18n_table
+    except NameError:
+        return
+    for lang, entries in DUALBOOT_TRANSLATIONS.items():
+        bucket = table.setdefault(lang, {})
+        for key, value in entries.items():
+            bucket.setdefault(key, value)
+
+
+_ensure_translations()
+
+PARTITIONSAFE_BIN = (
+    pathlib.Path(__file__).resolve().parents[3]
+    / "tools" / "nimbus-partitionsafe"
+)
+
+
+def _current_locale(locale=None):
+    """Idioma efectivo: parametro, ajuste del instalador o entorno."""
+    if locale is not None:
+        return locale
+    if libcalamares is not None:
+        try:
+            storage = libcalamares.globalstorage
+            for key in ("nimbusLocale", "locale", "lang"):
+                value = storage.value(key)
+                if value:
+                    return str(value)
+        except Exception:
+            pass
+    return active_locale()
+
+
+def pretty_name(locale=None):
+    return translated("dualboot.pretty_name", _current_locale(locale))
+
+
+def pretty_status_message(locale=None):
+    return translated("dualboot.pretty_status", _current_locale(locale))
+
+
+def fast_boot_message(locale=None):
+    return translated("dualboot.fastboot.blocked", _current_locale(locale))
+
+
+def _read_first_bytes(path, limit=65536):
+    try:
+        with open(str(path), "rb") as handle:
+            return handle.read(limit)
+    except OSError:
+        return b""
+
+
+def is_fast_boot_enabled(efivars_dir="/sys/firmware/efi/efivars",
+                         bootmgfw_paths=None, read_bytes=None):
+    """Detecta Fast Boot / inicio rapido de Windows.
+
+    Senales (cualquiera basta para bloquear, por seguridad):
+
+    - Una variable EFI cuyo nombre contenga ``fastboot`` (p. ej. un
+      marcador `FastBoot-*`), o cuyo contenido mencione FastBoot.
+    - El gestor `bootmgfw.efi` de Windows contiene la marca FastBoot y
+      el contenido indica inicio rapido.
+
+    Nunca lanza: ante la duda devuelve False (sin pruebas) solo si no
+    hay ninguna senal legible. ``read_bytes`` permite inyectar lectura
+    en tests.
+    """
+    try:
+        base = pathlib.Path(str(efivars_dir))
+        if base.is_dir():
+            for entry in base.iterdir():
+                try:
+                    name = entry.name
+                except OSError:
+                    continue
+                if "fastboot" in name.lower():
+                    return True
+                try:
+                    if read_bytes is not None:
+                        content = read_bytes(entry)
+                    else:
+                        content = _read_first_bytes(entry, limit=4096)
+                except Exception:
+                    continue
+                if isinstance(content, str):
+                    content = content.encode("utf-8", "replace")
+                if b"fastboot" in content.lower():
+                    return True
+    except Exception:
+        pass
+    candidates = tuple(bootmgfw_paths) if bootmgfw_paths is not None else (
+        "/boot/efi/EFI/Microsoft/Boot/bootmgfw.efi",
+    )
+    for candidate in candidates:
+        try:
+            path = pathlib.Path(str(candidate))
+            if not path.is_file():
+                continue
+            content = _read_first_bytes(path)
+            if b"fastboot" in content.lower():
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _run_os_prober_lines():
+    try:
+        result = subprocess.run(
+            ["os-prober"], capture_output=True, text=True, timeout=30)
+    except (FileNotFoundError, subprocess.SubprocessError, OSError):
+        return []
+    except Exception:
+        return []
+    return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def windows_detected(os_prober_lines=None, roots=None, exists=None):
+    """True si hay una instalacion de Windows detectable."""
+    if os_prober_lines is None:
+        lines = _run_os_prober_lines()
+    else:
+        lines = list(os_prober_lines)
+    for line in lines:
+        if "windows" in str(line).lower():
+            return True
+    check_exists = exists or pathlib.Path.exists
+    for root in (roots or []):
+        try:
+            candidate = pathlib.Path(str(root)) / WINDOWS_SYSTEM32
+            if check_exists(candidate):
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def find_existing_efi(dump_text):
+    """Particion EFI existente en el volcado, o "" (no crea nada)."""
+    for line in str(dump_text or "").splitlines():
+        match = _PARTITION_LINE_RE.match(line)
+        if not match:
+            continue
+        lowered = line.lower()
+        if _EFI_GUID in lowered:
+            return match.group(1)
+        if re.search(r"type\s*=\s*u\b", lowered):
+            return match.group(1)
+        if "efi" in lowered:
+            return match.group(1)
+    return ""
+
+
+def should_create_efi(existing_efi):
+    """False si ya hay EFI (reutilizar); True solo si falta."""
+    return not bool((existing_efi or "").strip())
+
+
+def bootloader_choice(windows_found):
+    """Con Windows se exige GRUB; sin el, systemd-boot."""
+    lang = _current_locale()
+    if windows_found:
+        return translated("dualboot.bootloader.grub", lang)
+    return translated("dualboot.bootloader.default", lang)
+
+
+def _backup_table(device, dest_dir):
+    """Respalda con nimbus-partitionsafe (lista de args, sin shell)."""
+    dest = pathlib.Path(str(dest_dir))
+    dest.mkdir(parents=True, exist_ok=True)
+    try:
+        completed = subprocess.run(
+            [str(PARTITIONSAFE_BIN), "backup", str(device), str(dest)],
+            capture_output=True, text=True, timeout=120, check=False,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError, OSError) as exc:
+        raise RuntimeError(str(exc)) from exc
+    if getattr(completed, "returncode", 1) != 0:
+        detail = (getattr(completed, "stderr", "")
+                  or getattr(completed, "stdout", "") or "").strip()
+        raise RuntimeError(detail or "partitionsafe backup failed")
+    return dest
+
+
+def _live_dump_text(device):
+    try:
+        completed = subprocess.run(
+            [str(PARTITIONSAFE_BIN), "efi", str(device)],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+        return getattr(completed, "stdout", "")
+    except Exception:
+        return ""
+
+
+def run_with_paths(efivars_dir=None, bootmgfw_paths=None, locale=None,
+                   os_prober_lines=None, roots=None, dump_text=None,
+                   backup_dir=None, device="/dev/sda", exists=None):
+    """Flujo testeable: bloquea con Fast Boot, respalda, reutiliza EFI.
+
+    Devuelve None al exito o el mensaje de bloqueo/error (Calamares marca
+    el job como fallido con cualquier retorno no None).
+    """
+    lang = _current_locale(locale)
+    probe_dir = efivars_dir if efivars_dir is not None else (
+        "/sys/firmware/efi/efivars")
+    probe_boot = bootmgfw_paths if bootmgfw_paths is not None else (
+        "/boot/efi/EFI/Microsoft/Boot/bootmgfw.efi",
+    )
+    if is_fast_boot_enabled(efivars_dir=probe_dir,
+                            bootmgfw_paths=probe_boot):
+        message = translated("dualboot.fastboot.blocked", lang)
+        if libcalamares is not None:
+            libcalamares.utils.warning(message)
+        else:
+            logger.warning("%s", message)
+        return message
+    if os_prober_lines is None and roots is None and exists is None:
+        windows = windows_detected()
+    else:
+        windows = windows_detected(
+            os_prober_lines=os_prober_lines, roots=roots, exists=exists)
+    dest = pathlib.Path(str(backup_dir)) if backup_dir is not None else (
+        DEFAULT_BACKUP_DIR)
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        if dump_text is not None:
+            import hashlib as _hashlib
+
+            text = str(dump_text)
+            basename = pathlib.Path(str(device)).name
+            dump_path = dest / f"{basename}.sfdisk.dump"
+            dump_path.write_text(text, encoding="utf-8")
+            digest = _hashlib.sha256(text.encode("utf-8")).hexdigest()
+            (dest / f"{dump_path.name}.sha256").write_text(
+                f"{digest}  {dump_path.name}\n", encoding="utf-8")
+        else:
+            _backup_table(device, dest)
+    except Exception as exc:
+        message = translated(
+            "dualboot.backup.error", lang).format(detail=exc)
+        if libcalamares is not None:
+            libcalamares.utils.warning(message)
+        else:
+            logger.warning("%s", message)
+        return message
+    if dump_text is not None:
+        efi = find_existing_efi(dump_text)
+    else:
+        efi = find_existing_efi(_live_dump_text(device))
+    if efi:
+        notice = translated(
+            "dualboot.efi.reuse", lang).format(efi=efi)
+    else:
+        notice = translated("dualboot.efi.create", lang)
+    choice = "grub" if windows else bootloader_choice(False)
+    if windows:
+        info = translated("dualboot.windows.found", lang)
+    else:
+        info = translated("dualboot.windows.none", lang)
+    if libcalamares is not None:
+        try:
+            libcalamares.utils.debug(
+                translated("dualboot.backup.ok", lang).format(dest=dest))
+            if windows:
+                libcalamares.utils.debug(info)
+            libcalamares.utils.debug(notice)
+            libcalamares.globalstorage.insert(
+                "nimbusDualbootHasWindows", bool(windows))
+            libcalamares.globalstorage.insert(
+                "nimbusDualbootEfiPartition", efi)
+            libcalamares.globalstorage.insert(
+                "nimbusBootloaderChoice", choice)
+        except Exception:
+            pass
+    else:
+        logger.debug("%s %s %s", info, notice, choice)
+    return None
+
+
+def run():
+    """Punto de entrada de Calamares (antes de `partition`)."""
+    return run_with_paths()
