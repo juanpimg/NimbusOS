@@ -92,14 +92,14 @@ TestCase {
         compare(menuProbe.sectionCount(), 0)
         verify(!menuProbe.menuOpen)
         compare(menuProbe.rowHeight, Theme.spacing * 7)
-        compare(menuProbe.implicitWidth, Theme.barHeight * 10)
+        compare(menuProbe.implicitWidth, Theme.menuWidth)
     }
 
     function test_bar_height_is_theme_bar_height() {
         // Contrato que TopBar.qml fija como height y exclusiveZone del
         // PanelWindow. El PanelWindow necesita compositor y no se instancia
         // bajo qmltestrunner; el binding se verifica con qmllint + revision.
-        compare(Theme.barHeight, 28)
+        compare(Theme.barHeight, 24)
     }
 
     function test_battery_item_hidden_without_battery() {

@@ -23,8 +23,8 @@ TestCase {
     SignalSpy { id: movedSpy; target: sliderProbe; signalName: "moved" }
 
     function test_theme_fixed_values() {
-        compare(Theme.barHeight, 28)
-        compare(Theme.dockSize, 64)
+        compare(Theme.barHeight, 24)
+        compare(Theme.dockSize, 86)
         compare(Theme.radius, 12)
         compare(Theme.spacing, 8)
     }
@@ -32,7 +32,7 @@ TestCase {
     function test_theme_animation_and_surface_tokens() {
         compare(Theme.animStandard, 150)
         compare(Theme.animSurface, 200)
-        compare(Theme.dockMagnify, 1.25)
+        compare(Theme.dockMagnify, 1.6)
         compare(Theme.popupOffset, 24)
         compare(Theme.spotlightMaxWidth, 640)
         compare(Theme.spotlightMaxHeight, 420)

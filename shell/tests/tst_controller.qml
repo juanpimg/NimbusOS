@@ -11,10 +11,19 @@ TestCase {
         ShellController.closeAll()
     }
 
-    function test_only_one_surface_can_be_open() {
+    function test_only_one_overlay_can_be_open() {
+        ShellController.open("spotlight")
+        ShellController.open("notifications")
+        verify(!ShellController.spotlightOpen, "el spotlight debe cerrarse al abrir notificaciones")
+        verify(ShellController.notificationsOpen)
+    }
+
+    function test_dock_persists_when_overlays_open() {
+        // El Dock no es un overlay: abrir un overlay no lo cierra (macOS:
+        // el Dock esta siempre visible).
         ShellController.open("dock")
         ShellController.open("spotlight")
-        verify(!ShellController.dockOpen, "el dock debe cerrarse al abrir el spotlight")
+        verify(ShellController.dockOpen, "el dock debe seguir abierto al abrir el spotlight")
         verify(ShellController.spotlightOpen)
     }
 
@@ -39,11 +48,12 @@ TestCase {
         compare(ShellController.activeSurface, "")
     }
 
-    function test_close_all_closes_everything() {
+    function test_close_all_closes_overlays_but_keeps_dock() {
         ShellController.open("dock")
         ShellController.open("notifications")
         ShellController.closeAll()
-        verify(!ShellController.dockOpen)
+        // El Dock persiste: no es un overlay bajo demanda.
+        verify(ShellController.dockOpen)
         verify(!ShellController.spotlightOpen)
         verify(!ShellController.controlCenterOpen)
         verify(!ShellController.switcherOpen)

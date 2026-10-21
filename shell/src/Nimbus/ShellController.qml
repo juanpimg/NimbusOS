@@ -3,13 +3,16 @@ pragma Singleton
 import QtQuick
 
 // Propietario de que superficie esta abierta. REGLA DE EXCLUSIVIDAD: solo
-// una superficie puede estar abierta a la vez; `open(surface)` cierra la
-// anterior. Los nombres sin booleano dedicado (p. ej. "settings") se
-// gestionan de forma generica via `activeSurface`.
+// una superficie OVERLAY puede estar abierta a la vez; `open(surface)` cierra
+// la anterior. El Dock NO es un overlay: en macOS esta siempre visible, asi
+// que `dockOpen` arranca en true y `closeAll()` lo conserva (abrir o cerrar
+// overlays nunca lo toca); ademas la ventana del Dock ya no depende de el.
+// Los nombres sin booleano dedicado (p. ej. "settings") se gestionan de forma
+// generica via `activeSurface`.
 QtObject {
     id: root
 
-    property bool dockOpen: false
+    property bool dockOpen: true
     property bool spotlightOpen: false
     property bool controlCenterOpen: false
     property bool switcherOpen: false
@@ -97,7 +100,8 @@ QtObject {
     }
 
     function closeAll() {
-        dockOpen = false
+        // El Dock persiste: no es un overlay bajo demanda (macOS).
+        dockOpen = true
         spotlightOpen = false
         controlCenterOpen = false
         switcherOpen = false

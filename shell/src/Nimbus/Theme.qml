@@ -19,15 +19,49 @@ QtObject {
 
     readonly property int radius: 12
     readonly property int spacing: 8
-    readonly property int barHeight: 28
-    readonly property int dockSize: 64
+    // M4 (medidas macOS verificadas): barra de 24 px con zona exclusiva 24;
+    // Dock en franja de 86 px (icono 60) con zona exclusiva 86.
+    readonly property int barHeight: 24
+    readonly property int dockSize: 86
+    readonly property int dockIconSize: 60
     readonly property string fontFamily: "Inter"
+
+    // M4 (Task shell-mounting): la barra y el Dock leen TODO de aqui, sin
+    // numeros sueltos en los componentes.
+    // Tipografia por rol (macOS: cuerpo 13, pequeno 11, titulo 15).
+    readonly property int fontSizeSmall: 11
+    readonly property int fontSizeBody: 13
+    readonly property int fontSizeTitle: 15
+    // Radios por superficie (Dock macOS: franja 12, baldosa 10).
+    readonly property int dockRadius: 12
+    readonly property int dockIconRadius: 10
+    readonly property int menuWidth: 280
+    // Punto de ejecucion del Dock (5 px) y magnificacion (1.6x).
+    readonly property int runningDotSize: 5
+    // Opacidad del contenido deshabilitado (items no disponibles).
+    readonly property real disabledOpacity: 0.4
+    // Sombra difusa del Dock (dy 4): desenfoque en escala MultiEffect 0..1
+    // (1.0 = radio maximo `shadowRadius`, 24 px) y desplazamiento en px.
+    readonly property real shadowBlur: 0.8
+    readonly property int shadowRadius: 24
+    readonly property int shadowOffsetY: 4
+    // Linea fina de borde y sombra de superficies flotantes.
+    readonly property color hairline: dark ? "#33FFFFFF" : "#1A000000"
+    readonly property color shadow: "#40000000"
+    // Baldosas del Dock: hues del sistema macOS (iguales en ambos modos).
+    readonly property color appBlue: "#0A84FF"
+    readonly property color appGreen: "#30D158"
+    readonly property color appOrange: "#FF9F0A"
+    readonly property color appPurple: "#BF5AF2"
+    readonly property color appRed: "#FF453A"
+    readonly property color appGray: "#8E8E93"
 
     // M1 (Task 1): valores fijos del contrato de superficies y animaciones.
     // Las tareas 2-12 los usan tal cual; no se negocian.
+    // M4: la magnificacion del Dock es 1.6x (medida macOS verificada).
     readonly property int animStandard: 150
     readonly property int animSurface: 200
-    readonly property real dockMagnify: 1.25
+    readonly property real dockMagnify: 1.6
     readonly property int popupOffset: 24
     readonly property int spotlightMaxWidth: 640
     readonly property int spotlightMaxHeight: 420

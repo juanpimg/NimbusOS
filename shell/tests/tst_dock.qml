@@ -29,7 +29,7 @@ TestCase {
 
     function test_defaults() {
         compare(emptyProbe.autoHide, false)
-        compare(emptyProbe.magnification, 1.25)
+        compare(emptyProbe.magnification, 1.6)
         compare(emptyProbe.magnification, Theme.dockMagnify)
         compare(emptyProbe.hoverX, -1)
         verify(!emptyProbe.cursorOnDock)
@@ -46,14 +46,14 @@ TestCase {
     function test_magnified_scale_is_docksize_times_magnification() {
         var center = dockProbe.itemCenterX(1)
         var peak = dockProbe.itemSize(1, center)
-        fuzzyCompare(peak, Theme.dockSize * dockProbe.magnification, 0.001)
+        fuzzyCompare(peak, Theme.dockIconSize * dockProbe.magnification, 0.001)
     }
 
     function test_far_items_stay_at_base_size() {
         var far = dockProbe.itemSize(0, dockProbe.itemCenterX(2) + dockProbe.cellWidth * 10)
-        fuzzyCompare(far, Theme.dockSize, 0.001)
+        fuzzyCompare(far, Theme.dockIconSize, 0.001)
         var none = dockProbe.itemSize(0, -1)
-        fuzzyCompare(none, Theme.dockSize, 0.001)
+        fuzzyCompare(none, Theme.dockIconSize, 0.001)
     }
 
     function test_magnification_is_continuous_not_a_step() {
