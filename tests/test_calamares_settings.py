@@ -128,6 +128,40 @@ def test_installer_requires_connectivity_step():
     assert "connectivity" in text.lower()
 
 
+# --- D2: Btrfs por defecto + subvolumenes del contrato de rollback ----------
+
+
+def _partition_section():
+    parser = configparser.ConfigParser()
+    parser.read(SETTINGS, encoding="utf-8")
+    return parser["partition"]
+
+
+def test_default_filesystem_is_btrfs():
+    """D2: el spec (D6, §4.4) exige Btrfs; sin el no hay rollback (§9.7)."""
+    assert _partition_section()["defaultFileSystemType"].strip() == "btrfs"
+
+
+def test_btrfs_is_offered_first():
+    """D2: Btrfs abre la lista de sistemas de ficheros ofertados."""
+    offered = [
+        line.strip()
+        for line in _partition_section()["availableFileSystemTypes"]
+        .strip().splitlines()
+        if line.strip()
+    ]
+    assert offered[0] == "btrfs"
+    assert "ext4" in offered  # sigue disponible, con aviso (sin rollback)
+
+
+def test_partition_section_documents_subvolume_layout():
+    """D2: el layout @ / @home / @snapshots queda escrito en settings.conf
+    (contrato con nimbus-bootloader y nimbus-snapshots)."""
+    text = SETTINGS.read_text(encoding="utf-8")
+    for subvol in ("@", "@home", "@snapshots"):
+        assert subvol in text, f"falta el subvolumen {subvol}"
+
+
 # --- nimbus-verify: las 14 comprobaciones honestas (M2 tarea 5) ---------------
 
 EXPECTED_VERIFY_CHECKS = [
