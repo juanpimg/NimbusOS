@@ -22,6 +22,8 @@ StoreUpdates 1.0 apps/Store/StoreUpdates.qml
 Switcher 1.0 modules/Switcher.qml
 Toggle 1.0 lib/Toggle.qml
 Tooltip 1.0 lib/Tooltip.qml
+TopBar 1.0 modules/TopBar.qml
+TopBarMenu 1.0 modules/TopBarMenu.qml
 Tour 1.0 apps/Tour/Tour.qml
 TourStep 1.0 apps/Tour/TourStep.qml
 Wallpaper 1.0 modules/Wallpaper.qml
