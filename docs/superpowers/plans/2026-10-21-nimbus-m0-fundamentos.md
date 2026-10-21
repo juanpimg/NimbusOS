@@ -331,7 +331,7 @@ teardown() {
   [[ "$output" == *"nimbus@example.org"* ]]
 }
 
-@test "el keybox exportado verifica con la clave pública, sin la clave privada" {
+@test "nimbus.gpg verifica con la clave pública, sin la clave privada" {
   bash "$REPO_ROOT/tools/genkeyring.sh" --outdir "$TESTDIR/out" --uid "Nimbus Signing <nimbus@example.org>" --email "nimbus@example.org"
   FPR="$(gpg --homedir "$TESTDIR/out/gnupg" --list-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
   printf 'contenido\n' > "$TESTDIR/datos.txt"
@@ -342,6 +342,18 @@ teardown() {
   chmod 700 "$TESTDIR/verifyhome"
   run gpg --homedir "$TESTDIR/verifyhome" --no-default-keyring --keyring "$TESTDIR/out/nimbus.gpg" --verify "$TESTDIR/datos.txt.sig" "$TESTDIR/datos.txt"
   [ "$status" -eq 0 ]
+}
+
+@test "el ownertrust y el populate estan bien formados" {
+  bash "$REPO_ROOT/tools/genkeyring.sh" --outdir "$TESTDIR/out" --uid "Nimbus Signing <nimbus@example.org>" --email "nimbus@example.org"
+  FPR="$(gpg --homedir "$TESTDIR/out/gnupg" --list-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
+  # El ownertrust debe referenciar la clave con nivel 6 (ultimate). Sin esto,
+  # pacman-key importa la clave pero no le da confianza y toda firma del repo
+  # falla con "signature from unknown trust".
+  grep -q ":6:" "$TESTDIR/out/nimbus-keyring/nimbus-trusted"
+  grep -q "$FPR" "$TESTDIR/out/nimbus-keyring/nimbus-trusted"
+  # Y el .install debe ejecutar el populate, que es lo que aplica el ownertrust.
+  grep -q "pacman-key --populate nimbus" "$TESTDIR/out/nimbus-keyring/nimbus-keyring.install"
 }
 
 @test "sign_repo firma la base de datos y se niega a firmar dos veces" {
