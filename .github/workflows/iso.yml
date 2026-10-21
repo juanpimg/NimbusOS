@@ -9,29 +9,32 @@ on:
 jobs:
   build-and-boot:
     runs-on: ubuntu-latest
+    container: archlinux:latest
     steps:
       - uses: actions/checkout@v4
       - name: Preparar repos CachyOS
         run: |
-          sudo tee -a /etc/pacman.d/mirrorlist >/dev/null <<'EOF'
-          Server = https://archlinux.cachyos.org/repo/$repo/os/$arch
-          EOF
-          sudo tee /etc/pacman.d/mirrorlist.cachyos >/dev/null <<'EOF'
-          Server = https://cdn77.cachyos.org/repo/$arch/$repo
-          EOF
-          sudo tee /etc/pacman.d/mirrorlist.cachyos-v3 >/dev/null <<'EOF'
-          Server = https://cdn77.cachyos.org/repo/$arch_v3/$repo
-          EOF
+          printf 'Server = %s\n' \
+            'https://archlinux.cachyos.org/repo/$repo/os/$arch' \
+            | tee -a /etc/pacman.d/mirrorlist
+          printf '[cachyos]\nServer = %s\n' \
+            'https://cdn77.cachyos.org/repo/$arch/$repo' \
+            > /etc/pacman.d/mirrorlist.cachyos
+          printf '[cachyos-v3]\nServer = %s\n' \
+            'https://cdn77.cachyos.org/repo/$arch_v3/$repo' \
+            > /etc/pacman.d/mirrorlist.cachyos-v3
           for r in cachyos cachyos-v3; do
-            echo "[$r]" | sudo tee -a /etc/pacman.conf
-            echo "Include = /etc/pacman.d/mirrorlist.$r" | sudo tee -a /etc/pacman.conf
+            printf '[%s]\nInclude = %s\n' "$r" \
+              "/etc/pacman.d/mirrorlist.$r" >> /etc/pacman.conf
           done
       - name: Instalar dependencias
-        run: sudo pacman -Sy --noconfirm archiso repo qemu-desktop
+        run: pacman -Sy --noconfirm archiso repo qemu-desktop
       - name: Construir la ISO
         run: bash iso/build.sh --outdir "$RUNNER_TEMP/iso" --local-repo
       - name: Comprobar el arranque en QEMU
-        run: bash tests/integration/boot_live.sh --iso "$RUNNER_TEMP"/iso/nimbus-*.iso --timeout 900
+        run: |
+          bash tests/integration/boot_live.sh \
+            --iso "$RUNNER_TEMP"/iso/nimbus-*.iso --timeout 900
       - name: Subir la ISO
         uses: actions/upload-artifact@v4
         with:
