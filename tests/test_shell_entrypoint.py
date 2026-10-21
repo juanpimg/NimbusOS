@@ -632,3 +632,45 @@ def test_unlock_never_compares_passwords_in_memory():
         r"""['"][^'"\s][^'"]*['"]\s*==+\s*password|password\s*==+\s*['"][^'"\s]""",
         evil,
     )
+
+
+# --- T6a: la Store se monta CON su backend ---
+#
+# `shell.qml` montaba la Store sin `backend` (modo "sin backend" siempre,
+# aunque el sistema tuviera backend). Ahora instancia `StoreBackend` (puente
+# real a `store_backend.py` por CLI JSON) y se lo asigna al cargar; la Store
+# prefiere el camino asincrono (`installNow`/`actionFinished`) cuando el
+# backend lo ofrece y conserva el sincrono para los dobles de test.
+
+
+def test_store_is_mounted_with_backend_in_shell():
+    shell = _strip_line_comments(_shell_text())
+    assert "StoreBackend" in shell, (
+        "shell.qml debe instanciar el puente StoreBackend"
+    )
+    assert re.search(r"\.backend\s*=\s*storeBackend", shell), (
+        "shell.qml debe asignar el backend a la Store al cargarla"
+    )
+    assert "refreshNow" in shell, (
+        "al montar con backend hay que lanzar la primera recarga"
+    )
+
+
+def test_store_prefers_async_backend_when_available():
+    store = (ROOT / "shell" / "src" / "Nimbus" / "apps" / "Store" / "Store.qml").read_text(
+        encoding="utf-8"
+    )
+    store = _strip_line_comments(store)
+    assert "installNow" in store and "uninstallNow" in store, (
+        "Store.qml debe preferir installNow/uninstallNow si el backend los ofrece"
+    )
+    assert "actionFinished" in store, (
+        "Store.qml debe escuchar actionFinished del backend asincrono"
+    )
+    # El camino sincrono se conserva para los dobles de test.
+    assert "backend.install(appId)" in store, (
+        "Store.qml debe conservar el camino sincrono"
+    )
+    assert "backend.uninstall(appId)" in store, (
+        "Store.qml debe conservar el camino sincrono"
+    )

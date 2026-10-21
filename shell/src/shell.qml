@@ -178,6 +178,12 @@ ShellRoot {
         return pam
     }
 
+    // Puente REAL de la Store (T6a): delega en `store_backend.py` por CLI
+    // JSON. Sin el, la Store queda vacia en modo "sin backend".
+    StoreBackend {
+        id: storeBackend
+    }
+
     IpcHandler {
         target: "nimbus"
 
@@ -429,6 +435,12 @@ ShellRoot {
             id: storeLoader
             anchors.fill: parent
             source: "Nimbus/apps/Store/Store.qml"
+            onLoaded: {
+                // Monta la Store CON su backend y lanza la primera recarga
+                // (los cambios llegan solos por `dataChanged` -> refresh()).
+                item.backend = storeBackend
+                storeBackend.refreshNow()
+            }
             onStatusChanged: {
                 if (status === Loader.Error)
                     root.logModuleFailure("Store", "load error")

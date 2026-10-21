@@ -29,6 +29,7 @@ SettingsUsers 1.0 apps/Settings/SettingsUsers.qml
 Slider 1.0 lib/Slider.qml
 Spotlight 1.0 modules/Spotlight.qml
 Store 1.0 apps/Store/Store.qml
+StoreBackend 1.0 apps/Store/StoreBackend.qml
 StoreDetail 1.0 apps/Store/StoreDetail.qml
 StoreHome 1.0 apps/Store/StoreHome.qml
 StoreUpdates 1.0 apps/Store/StoreUpdates.qml

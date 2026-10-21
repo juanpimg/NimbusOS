@@ -235,3 +235,77 @@ def list_updates():
         return updates
     except Exception:
         return []
+
+
+def main(argv=None):
+    """CLI JSON para el puente QML (`StoreBackend.qml`).
+
+    Uso: store_backend.py --json <op> [args]
+      list-apps [categoria] | search <q> | get <id> |
+      install <id> | uninstall <id> | updates | flatpak
+
+    Imprime el resultado por stdout como JSON y sale con 0; con uso
+    incorrecto sale con 2. Nunca vuelca trazas (los errores viajan en el
+    JSON o por stderr como texto). No cambia la API de modulo: los tests
+    existentes siguen importando las funciones sin pasar por aqui.
+    """
+    import json
+    import sys
+
+    args = list(sys.argv[1:] if argv is None else argv)
+    if len(args) < 2 or args[0] != "--json":
+        print(
+            "Uso: store_backend.py --json "
+            "<list-apps [categoria]|search <q>|get <id>|"
+            "install <id>|uninstall <id>|updates|flatpak>",
+            file=sys.stderr,
+        )
+        return 2
+    op = args[1]
+    rest = args[2:]
+    try:
+        if op == "list-apps":
+            print(json.dumps(list_apps(rest[0] if rest else "")))
+        elif op == "search":
+            if not rest:
+                print("falta la consulta de busqueda", file=sys.stderr)
+                return 2
+            print(json.dumps(search(rest[0])))
+        elif op == "get":
+            if not rest:
+                print("falta el id de la aplicacion", file=sys.stderr)
+                return 2
+            print(json.dumps(get_app(rest[0])))
+        elif op == "install":
+            if not rest:
+                print("falta el id de la aplicacion", file=sys.stderr)
+                return 2
+            ok, message = install(rest[0])
+            print(json.dumps({"ok": ok, "message": message}))
+        elif op == "uninstall":
+            if not rest:
+                print("falta el id de la aplicacion", file=sys.stderr)
+                return 2
+            ok, message = uninstall(rest[0])
+            print(json.dumps({"ok": ok, "message": message}))
+        elif op == "updates":
+            print(json.dumps(list_updates()))
+        elif op == "flatpak":
+            print(
+                json.dumps(
+                    {"available": flatpak_available(), "error": flatpak_error()}
+                )
+            )
+        else:
+            print("operacion desconocida: %s" % op, file=sys.stderr)
+            return 2
+    except Exception as exc:
+        print("store_backend: %s" % exc, file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main())
