@@ -147,8 +147,8 @@ Debe comprobar, sin tocar ningún disco real:
 ### Task 3: Post-instalación — dejar el sistema listo sin tocar nada
 
 **Files:**
-- Create: `installer/modules/nimbus-postinstall/nimbus-postinstall.conf`
-- Create: `installer/modules/nimbus-postinstall/nimbus-postinstall.py`
+- Create: `installer/calamares/modules/nimbus-postinstall/nimbus-postinstall.conf`
+- Create: `installer/calamares/modules/nimbus-postinstall/nimbus-postinstall.py`
 - Create: `installer/tools/nimbus-postinstall`
 - Create: `tests/test_postinstall.py`
 

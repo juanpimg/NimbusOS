@@ -9,6 +9,9 @@ SETTINGS = CALAMARES / "settings.conf"
 EXPECTED_SEQUENCE = [
     "welcome",
     "locale",
+    # nimbus-dualboot copia la tabla de particiones y detecta Fast Boot:
+    # tiene que ejecutarse ANTES de que Calamares toque el disco.
+    "nimbus-dualboot",
     "partition",
     "lukspass",
     "users",
@@ -16,6 +19,9 @@ EXPECTED_SEQUENCE = [
     "nimbus-software",
     "hardware",
     "bootloader",
+    # nimbus-bootloader anade las entradas de rollback al menu de arranque.
+    "nimbus-bootloader",
+    "nimbus-postinstall",
     "nimbus-verify",
     "finished",
 ]

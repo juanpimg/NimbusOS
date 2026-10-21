@@ -1,22 +1,23 @@
 module Nimbus
-singleton Theme 1.0 Theme.qml
-singleton Config 1.0 Config.qml
-singleton Translations 1.0 Translations.qml
-singleton ShellController 1.0 ShellController.qml
-singleton Ipc 1.0 Ipc.qml
-singleton Services 1.0 Services.qml
-singleton PolkitAgent 1.0 PolkitAgent.qml
-ControlCenter 1.0 modules/ControlCenter.qml
-Glass 1.0 lib/Glass.qml
-Popup 1.0 lib/Popup.qml
-Icon 1.0 lib/Icon.qml
 Button 1.0 lib/Button.qml
-Toggle 1.0 lib/Toggle.qml
-Slider 1.0 lib/Slider.qml
-SearchField 1.0 lib/SearchField.qml
-ListRow 1.0 lib/ListRow.qml
-SectionHeader 1.0 lib/SectionHeader.qml
-Tooltip 1.0 lib/Tooltip.qml
-DockItem 1.0 modules/DockItem.qml
+ControlCenter 1.0 modules/ControlCenter.qml
 Dock 1.0 modules/Dock.qml
+DockItem 1.0 modules/DockItem.qml
+Glass 1.0 lib/Glass.qml
+Icon 1.0 lib/Icon.qml
+ListRow 1.0 lib/ListRow.qml
 Notifications 1.0 modules/Notifications.qml
+Popup 1.0 lib/Popup.qml
+SearchField 1.0 lib/SearchField.qml
+SectionHeader 1.0 lib/SectionHeader.qml
+Slider 1.0 lib/Slider.qml
+Switcher 1.0 modules/Switcher.qml
+Toggle 1.0 lib/Toggle.qml
+Tooltip 1.0 lib/Tooltip.qml
+singleton Config 1.0 Config.qml
+singleton Ipc 1.0 Ipc.qml
+singleton PolkitAgent 1.0 PolkitAgent.qml
+singleton Services 1.0 Services.qml
+singleton ShellController 1.0 ShellController.qml
+singleton Theme 1.0 Theme.qml
+singleton Translations 1.0 Translations.qml
