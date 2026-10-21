@@ -11,7 +11,7 @@ install=nimbus-gaming.install
 source=()
 sha256sums=()
 package() {
-  # Metapaquete: solo dependencias, ningun fichero propio todavia.
-  # (La Task 5 instala aqui los presets y nimbus-gaming-tune.)
-  :
+  install -Dm644 "$startdir/../../packages/nimbus-gaming/files/mangohud.conf" "$pkgdir/usr/share/nimbus/gaming/mangohud.conf"
+  install -Dm644 "$startdir/../../packages/nimbus-gaming/files/gamescope.conf" "$pkgdir/usr/share/nimbus/gaming/gamescope.conf"
+  install -Dm755 "$startdir/../../packages/nimbus-gaming/files/nimbus-gaming-tune" "$pkgdir/usr/bin/nimbus-gaming-tune"
 }
