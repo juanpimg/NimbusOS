@@ -29,6 +29,19 @@ TRANSLATIONS = {
     "es": {
         "appearance.pretty_name": "Apariencia",
         "appearance.pretty_status": "Configurando la apariencia de Nimbus.",
+        "appearance.theme.light": "Claro",
+        "appearance.theme.dark": "Oscuro",
+        "appearance.theme.auto": "Automático",
+        "appearance.accent.invalid": (
+            "Acento no válido: {value}. "
+            "Usa un hexadecimal de 6 dígitos (p. ej. 007AFF)."
+        ),
+        "appearance.mode.invalid": (
+            "Modo no válido: {mode} (usa {valid})."
+        ),
+        "appearance.theme.invalid": (
+            "Tema no válido: {label} (usa {valid})."
+        ),
         "software.pretty_name": "Software",
         "software.pretty_status": "Instalando el software seleccionado.",
         "software.no_connectivity": (
@@ -110,6 +123,19 @@ TRANSLATIONS = {
     "en": {
         "appearance.pretty_name": "Appearance",
         "appearance.pretty_status": "Setting up the Nimbus appearance.",
+        "appearance.theme.light": "Light",
+        "appearance.theme.dark": "Dark",
+        "appearance.theme.auto": "Automatic",
+        "appearance.accent.invalid": (
+            "Invalid accent: {value}. "
+            "Use a 6-digit hex code (e.g. 007AFF)."
+        ),
+        "appearance.mode.invalid": (
+            "Invalid mode: {mode} (use {valid})."
+        ),
+        "appearance.theme.invalid": (
+            "Invalid theme: {label} (use {valid})."
+        ),
         "software.pretty_name": "Software",
         "software.pretty_status": "Installing the selected software.",
         "software.no_connectivity": (

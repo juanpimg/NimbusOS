@@ -35,7 +35,6 @@ except ImportError:  # cargado por ruta (Calamares/test) sin paquete
     translated = _i18n_module.translated
 
 NO_CONNECTIVITY_KEY = "software.no_connectivity"
-NO_CONNECTIVITY_MESSAGE = translated(NO_CONNECTIVITY_KEY)
 
 CONNECTIVITY_HOST = ("8.8.8.8", 53)
 CONNECTIVITY_TIMEOUT = 5
@@ -84,6 +83,14 @@ def _current_locale(locale=None):
 
 def no_connectivity_message(locale=None):
     """Mensaje accionable de falta de red en el idioma efectivo."""
+    return translated(NO_CONNECTIVITY_KEY, _current_locale(locale))
+
+
+# Nombre historico en mayusculas: era una cadena congelada en el import
+# (quedaba fijada con el locale de ese momento). Ahora es una funcion que
+# resuelve por locale; usar `no_connectivity_message` en codigo nuevo.
+def NO_CONNECTIVITY_MESSAGE(locale=None):  # noqa: N802 - compat historica
+    """Compat: misma funcion con el nombre historico en mayusculas."""
     return translated(NO_CONNECTIVITY_KEY, _current_locale(locale))
 
 
