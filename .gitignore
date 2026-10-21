@@ -1,7 +1,13 @@
-node_modules/
 *.iso
 build/
 out/
-.venv/
 __pycache__/
+.pytest_cache/
 *.qcow2
+*.pkg.tar.zst
+*.db
+*.db.sig
+*.sig
+keys/
+gpg/
+.superpowers/

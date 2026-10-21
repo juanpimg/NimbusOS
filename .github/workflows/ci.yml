@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cabeceras SPDX
+        run: python tools/check_spdx.py --root .
+      - name: Yamllint
+        run: |
+          pip install yamllint
+          yamllint .
+      - name: Actionlint
+        run: |
+          base=https://raw.githubusercontent.com/rhysd/actionlint
+          curl -sL "$base/main/scripts/download-actionlint.bash" | bash
+          ./actionlint -version
+          ./actionlint
+        shell: bash
+      - name: Shellcheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          sh_files="$(git ls-files '*.sh')"
+          if [ -n "$sh_files" ]; then shellcheck $sh_files; fi
+
+  test:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Preparar repos CachyOS
+        run: |
+          mirror=https://archlinux.cachyos.org/repo/$repo/os/$arch
+          printf 'Server = %s\n' "$mirror" | tee -a /etc/pacman.d/mirrorlist
+          printf '[cachyos]\nServer = %s\n' \
+            'https://cdn77.cachyos.org/repo/$arch/$repo' \
+            > /etc/pacman.d/mirrorlist.cachyos
+          printf '[cachyos-v3]\nServer = %s\n' \
+            'https://cdn77.cachyos.org/repo/$arch_v3/$repo' \
+            > /etc/pacman.d/mirrorlist.cachyos-v3
+          for r in cachyos cachyos-v3; do
+            printf '[%s]\nInclude = %s\n' "$r" \
+              "/etc/pacman.d/mirrorlist.$r" >> /etc/pacman.conf
+          done
+      - name: Instalar dependencias
+        run: pacman -Sy --noconfirm python-pytest bats qt6-declarative
+          qt6-wayland qt6-shadertools lua
+      - name: Tests Python
+        run: python -m pytest tests -v
+      - name: Tests Bats
+        run: |
+          if ls tests/*.bats >/dev/null 2>&1; then bats tests/*.bats; fi
+      - name: Tests QML
+        run: |
+          if [ -d shell/tests ]; then
+            QML2_IMPORT_PATH="$PWD/shell/src" qmltestrunner -input shell/tests
+          fi
