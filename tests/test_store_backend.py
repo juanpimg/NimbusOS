@@ -9,7 +9,8 @@ from pathlib import Path
 
 import pytest
 
-STORE_DIR = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
+STORE_DIR = ROOT / "shell" / "src" / "Nimbus" / "apps" / "Store"
 sys.path.insert(0, str(STORE_DIR))
 
 import store_backend
@@ -80,3 +81,51 @@ def test_uninstall_distinguishes_not_installed_from_error():
 
 def test_get_app_unknown_returns_empty_without_raising():
     assert store_backend.get_app("app.que.no.existe") == {}
+
+
+# Directorios que no contienen codigo fuente del repo: su contenido nunca
+# es una fuga de la suite (ver tools/check_spdx.py para el criterio).
+_IGNORED_DIRS = {
+    ".git",
+    ".superpowers",
+    "__pycache__",
+    ".pytest_cache",
+    ".hypothesis",
+    "build",
+    "out",
+    "work",
+    "node_modules",
+    ".venv",
+}
+
+# `pkg/` y `src/` son los directorios de trabajo de makepkg, pero SOLO
+# dentro de packages/ (igual que en tools/check_spdx.py).
+_MAKEDIR_SCRATCH = {"pkg", "src"}
+
+
+def test_no_test_files_live_outside_tests_dir():
+    """Guarda anti-fuga: pytest solo recoge lo que hay bajo `tests/`.
+
+    `pytest.ini` fija `testpaths = tests`, asi que un `test_*.py` fuera de
+    `tests/` pytest no lo ve: ni en local ni en la CI pasa, y nadie se
+    entera. Ya mordio una vez con el backend de la Store
+    (`shell/src/Nimbus/apps/Store/test_store_backend.py`, 7 tests sin
+    ejecutarse). Si este test falla, mueve el fichero listado a `tests/`
+    en vez de ignorarlo.
+    """
+    offenders = []
+    for path in ROOT.rglob("test_*.py"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(ROOT)
+        if _IGNORED_DIRS & set(rel.parts):
+            continue
+        if "packages" in rel.parts and _MAKEDIR_SCRATCH & set(rel.parts):
+            continue
+        if "tests" in rel.parts:
+            continue
+        offenders.append(str(rel))
+    assert not offenders, (
+        "ficheros de test fuera de tests/: pytest no los ve "
+        f"(testpaths = tests), muevelos a tests/: {sorted(offenders)}"
+    )

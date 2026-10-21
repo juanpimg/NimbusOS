@@ -67,12 +67,22 @@ jobs:
       - name: Tests Python
         run: python -m pytest tests -v
       - name: Tests Bats
-        run: |
-          if ls tests/*.bats >/dev/null 2>&1; then bats tests/*.bats; fi
+        run: bats tests/*.bats
       - name: Tests QML
         run: |
-          if [ -d shell/tests ]; then
-            QT_QPA_PLATFORM=offscreen \
-              QML2_IMPORT_PATH="$PWD/shell/src" \
-              /usr/lib/qt6/bin/qmltestrunner -input shell/tests
-          fi
+          QT_QPA_PLATFORM=offscreen \
+            QML2_IMPORT_PATH="$PWD/shell/src" \
+            /usr/lib/qt6/bin/qmltestrunner -input shell/tests
+      - name: Alcance no cubierto (verificar a mano)
+        run: |
+          cat <<'EOF'
+          La CI ejecuta las tres suites (pytest, bats y qmltestrunner Qt6).
+          Lo que la CI NO afirma se verifica a mano en la maquina de
+          referencia, sobre hardware real o con root:
+          - GPU real (/dev/dri y drivers) y portatil hibrido (PRIME):
+            los tests usan un entorno falso.
+          - Audio, bluetooth, webcam, suspension y bateria fisicos.
+          - Arranque dual con Windows y Secure Boot.
+          - Instalacion en disco USB externo, nunca sobre el sistema base.
+          - En CI QEMU usa tcg (sin /dev/kvm); kvm solo en local.
+          EOF
