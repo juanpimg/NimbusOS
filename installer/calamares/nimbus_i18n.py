@@ -70,6 +70,9 @@ TRANSLATIONS = {
         "dualboot.backup.error": (
             "No se pudo respaldar la tabla de particiones ({detail})."
         ),
+        "dualboot.backup.tool_failed": (
+            "la herramienta de respaldo no dio detalles"
+        ),
         "dualboot.efi.reuse": (
             "Se reutilizara la particion EFI existente en {efi}."
         ),
@@ -350,6 +353,9 @@ TRANSLATIONS = {
         "dualboot.backup.ok": "Partition table backed up to {dest}.",
         "dualboot.backup.error": (
             "Could not back up the partition table ({detail})."
+        ),
+        "dualboot.backup.tool_failed": (
+            "the backup tool gave no details"
         ),
         "dualboot.efi.reuse": "Reusing the existing EFI partition at {efi}.",
         "dualboot.efi.create": "No EFI partition: a new one will be created.",

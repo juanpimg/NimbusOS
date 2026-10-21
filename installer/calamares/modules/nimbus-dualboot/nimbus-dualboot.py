@@ -256,8 +256,9 @@ def _resolve_targets(device="/dev/sda", devices=None, sys_block=None):
     return [str(device)]
 
 
-def _backup_table(device, dest_dir):
+def _backup_table(device, dest_dir, locale=None):
     """Respalda con nimbus-partitionsafe (lista de args, sin shell)."""
+    lang = _current_locale(locale)
     dest = pathlib.Path(str(dest_dir))
     dest.mkdir(parents=True, exist_ok=True)
     try:
@@ -270,7 +271,8 @@ def _backup_table(device, dest_dir):
     if getattr(completed, "returncode", 1) != 0:
         detail = (getattr(completed, "stderr", "")
                   or getattr(completed, "stdout", "") or "").strip()
-        raise RuntimeError(detail or "partitionsafe backup failed")
+        raise RuntimeError(
+            detail or translated("dualboot.backup.tool_failed", lang))
     return dest
 
 

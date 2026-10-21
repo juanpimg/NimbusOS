@@ -401,6 +401,22 @@ def test_no_module_self_registers_translations():
         assert "BOOTLOADER_TRANSLATIONS" not in names, relative
 
 
+def test_i18n_table_is_exactly_symmetric():
+    """D4: ES y EN tienen exactamente las mismas claves.
+
+    Ni una clave sin traducir en un idioma, ni restos de un registro
+    parcial: cualquier asimetria rompe este test.
+    """
+    es_keys = set(i18n.TRANSLATIONS["es"])
+    en_keys = set(i18n.TRANSLATIONS["en"])
+    assert es_keys == en_keys, (
+        f"solo ES: {sorted(es_keys - en_keys)}; "
+        f"solo EN: {sorted(en_keys - es_keys)}")
+    for key in sorted(es_keys):
+        assert isinstance(i18n.TRANSLATIONS["es"][key], str)
+        assert isinstance(i18n.TRANSLATIONS["en"][key], str)
+
+
 def test_dualboot_and_bootloader_keys_are_central_and_symmetric():
     """D4: toda clave visible de dualboot/bootloader existe en ES y EN."""
     import sys as _sys
@@ -409,8 +425,9 @@ def test_dualboot_and_bootloader_keys_are_central_and_symmetric():
     keys = ["dualboot.pretty_name", "dualboot.pretty_status",
             "dualboot.fastboot.blocked", "dualboot.windows.found",
             "dualboot.windows.none", "dualboot.backup.ok",
-            "dualboot.backup.error", "dualboot.efi.reuse",
-            "dualboot.efi.create",
+            "dualboot.backup.error", "dualboot.backup.tool_failed",
+            "dualboot.efi.reuse", "dualboot.efi.create",
+            "dualboot.bootloader.grub", "dualboot.bootloader.default",
             "bootloader.pretty_name", "bootloader.pretty_status",
             "bootloader.entry.normal", "bootloader.entry.last_good",
             "bootloader.entry.safe", "bootloader.summary.rollback",
@@ -523,6 +540,9 @@ _I18N_MODULE_SOURCES = {
     "appearance": MODULES / "nimbus-appearance" / "nimbus-appearance.py",
     "software": MODULES / "nimbus-software" / "nimbus-software.py",
     "verify": MODULES / "nimbus-verify" / "nimbus-verify.py",
+    "dualboot": MODULES / "nimbus-dualboot" / "nimbus-dualboot.py",
+    "bootloader": MODULES / "nimbus-bootloader" / "nimbus-bootloader.py",
+    "postinstall": MODULES / "nimbus-postinstall" / "nimbus-postinstall.py",
 }
 
 
@@ -767,7 +787,35 @@ def test_no_user_string_bypasses_translated():
             assert _theme_page_modes_are_keys(tree), (
                 "THEME_PAGE_MODES debe contener claves de traduccion, "
                 "no texto en español")
-    # Guardarraíl generico: cualquier raise con texto en los tres modulos
+        if label == "dualboot":
+            for name in ("pretty_name", "pretty_status_message",
+                         "fast_boot_message", "run_with_paths",
+                         "bootloader_choice"):
+                assert _function_uses_translated(tree, name), (
+                    f"dualboot.{name} no usa translated()")
+            for node in _ast.walk(tree):
+                if (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                        and node.name == "run_with_paths"):
+                    assert _returns_through_translated(node), (
+                        "dualboot.run_with_paths devuelve literal sin traducir")
+        if label == "bootloader":
+            for name in ("pretty_name", "pretty_status_message",
+                         "summary_message", "entry_titles",
+                         "build_boot_entries"):
+                assert _function_uses_translated(tree, name), (
+                    f"bootloader.{name} no usa translated()")
+            for node in _ast.walk(tree):
+                if (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                        and node.name == "summary_message"):
+                    assert _returns_through_translated(node), (
+                        "bootloader.summary_message devuelve literal")
+        if label == "postinstall":
+            for node in _ast.walk(tree):
+                if (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                        and node.name == "run"):
+                    assert _returns_through_translated(node), (
+                        "postinstall.run devuelve un literal sin traducir")
+    # Guardarraíl generico: cualquier raise con texto en los modulos
     # debe pasar por translated(). Si mañana alguien añade un
     # `raise ValueError("...")` en español, este test se rompe.
     for label, path in _I18N_MODULE_SOURCES.items():
@@ -786,6 +834,13 @@ def _raises_through_translated(func_node):
     Acepta ``raise ValueError(translated(...))`` y
     ``raise ValueError(translated(...).format(...))``; cualquier f-string
     o literal con pinta de mensaje fuera de translated() falla.
+
+    Excepcion: un raise que solo re-lanza texto del sistema (p. ej.
+    ``raise RuntimeError(str(exc))``, sin ningun literal con pinta de
+    mensaje) no tiene nada que traducir: el texto lo pone el sistema y
+    se envuelve en translated() en la frontera (patron ``{detail}``,
+    como en verify). Lo que se prohibe es el mensaje redactado fuera
+    de la tabla.
     """
     for node in _ast.walk(func_node):
         if not isinstance(node, _ast.Raise) or node.exc is None:
@@ -796,8 +851,6 @@ def _raises_through_translated(func_node):
             if (isinstance(child, _ast.Call)
                 and getattr(child.func, "id", "") == "translated")
         ]
-        if not translated_calls:
-            return False
         # Un f-string en el raise es texto sin traducir (el codigo usa
         # translated(...).format(...), nunca f-strings para mensajes).
         if any(isinstance(child, _ast.JoinedStr)
@@ -810,12 +863,17 @@ def _raises_through_translated(func_node):
                 if (isinstance(arg, _ast.Constant)
                         and isinstance(arg.value, str)):
                     translated_args.add(id(arg))
-        for child in _ast.walk(exc):
+        authored = [
+            child for child in _ast.walk(exc)
             if (isinstance(child, _ast.Constant)
-                    and isinstance(child.value, str)
-                    and " " in child.value.strip()
-                    and id(child) not in translated_args):
-                return False
+                and isinstance(child.value, str)
+                and " " in child.value.strip()
+                and id(child) not in translated_args)
+        ]
+        if authored:
+            # Mensaje redactado a mano fuera de la tabla: siempre falla,
+            # haya o no translated() en el mismo raise.
+            return False
     return True
 
 
