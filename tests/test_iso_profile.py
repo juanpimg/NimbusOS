@@ -126,19 +126,24 @@ def test_live_session_is_managed_by_hyprland_for_user_nimbus():
 def test_live_units_are_enabled_at_boot():
     # Las DOS unidades live cuelgan de graphical.target, y no de multi-user.
     #
-    # Razon (la rationale anterior estaba invertida): Wants= implica After= en
-    # los targets, asi que la cadena real es
-    #   graphical.target --(After)--> multi-user.target --(After)--> ready
-    #     --(After)--> live --(Before)--> graphical.target
-    # es decir, un CICLO si ready vive en multi-user.target.wants: graphical
-    # espera a multi-user, multi-user espera a ready, ready espera a live, y
-    # live solo arranca con graphical. systemd rompe ese ciclo descartando un
-    # job, y el marcador de readiness se queda sin escribir.
+    # La regla que aplica (systemd.target(5)): "Target units will automatically
+    # complement all configured dependencies of type Wants= or Requires= with
+    # dependencies of type After=". O sea, un target espera a todo lo que
+    # quiere o requiere. Encadenando:
+    #   graphical.target Wants=nimbus-live        -> graphical AFTER live
+    #   graphical.target Requires=multi-user      -> graphical AFTER multi-user
+    #   multi-user.target Wants=nimbus-live-ready -> multi-user AFTER ready
+    #   nimbus-live-ready.service Requires+After=nimbus-live -> ready AFTER live
     #
-    # Con ready en graphical.target.wants la cadena es lineal
-    #   live --(Before)--> ready --(Before)--> graphical.target
-    # y ademas el [Install] del unit coincide con donde vive el symlink, de
-    # modo que un `systemctl enable` es idempotente y no recrea el ciclo.
+    # Con ready en multi-user.target.wants la espera circular es:
+    #   multi-user espera a ready -> ready espera a live -> live solo lo
+    #   arranca graphical.target -> graphical espera a multi-user.
+    # systemd rompe la espera descartando un job, y el marcador de readiness
+    # se queda sin escribir. Con las dos unidades en graphical.target.wants
+    # la cadena es lineal (live -> ready -> graphical) y no hay espera.
+    #
+    # Ademas el [Install] de cada unit coincide con el directorio donde vive
+    # su symlink, de modo que un `systemctl enable` es idempotente.
     wants = PROFILE / "airootfs" / "etc" / "systemd" / "system"
     assert (wants / "graphical.target.wants" / "nimbus-live.service").is_symlink()
     assert (wants / "graphical.target.wants" / "nimbus-live-ready.service").is_symlink()
@@ -158,11 +163,19 @@ def test_live_user_can_open_the_drm_device():
     # Sin los grupos video/render/input el usuario live no puede abrir
     # /dev/dri/card0 (crw-rw---- root:video) y el compositor aborta con
     # "CBackend::create() failed!". Verificado en la sesion live.
+    #
+    # Se declara con sysusers.d y NO editando /etc/group: ese fichero lo
+    # escribe el scriptlet del paquete shadow (groupadd) y el paquete
+    # filesystem lo reemplaza durante la transaccion, asi que a mano no es
+    # fiable. El tipo "m" de sysusers.d anade el miembro al grupo.
+    sysusers = PROFILE / "airootfs" / "etc" / "sysusers.d" / "nimbus.conf"
+    assert sysusers.is_file()
+    lines = [line.strip() for line in sysusers.read_text(encoding="utf-8").splitlines()]
+    members = {line for line in lines if line.startswith("m ")}
+    assert {"m nimbus video", "m nimbus render", "m nimbus input"} <= members, members
+    # Y el usuario live existe con su home y su shell.
     group = (PROFILE / "airootfs" / "etc" / "group").read_text(encoding="utf-8")
-    match = re.search(r"^nimbus:x:\d+:(.*)$", group, re.MULTILINE)
-    assert match is not None, group
-    supplementary = set(match.group(1).split(","))
-    assert {"video", "render", "input"} <= supplementary, supplementary
+    assert re.search(r"^nimbus:x:1000:", group, re.MULTILINE) is not None
 
 
 def test_live_session_uses_the_noop_libseat_backend():
