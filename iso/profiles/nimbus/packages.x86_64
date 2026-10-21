@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Perfil de la ISO de Nimbus. Netinstall puro: aquí solo lo mínimo para
+# arrancar la sesión live; el resto se descarga durante la instalación.
+base
+linux-cachyos
+linux-firmware
+linux-firmware-amdgpu
+linux-firmware-intel
+linux-firmware-nvidia
+linux-firmware-other
+linux-firmware-realtek
+systemd
+systemd-sysvcompat
+pacman
+pacman-contrib
+hyprland
+hyprlock
+hypridle
+hyprpicker
+quickshell
+qt6-declarative
+qt6-wayland
+qt6-shadertools
+qt6-svg
+xdg-desktop-portal-hyprland
+xdg-desktop-portal
+xdg-utils
+kitty
+wtype
+foot
+grim
+slurp
+wl-clipboard
+pipewire
+pipewire-pulse
+wireplumber
+networkmanager
+iwd
+bluez
+bluez-utils
+sddm
+nimbus-shell
+nimbus-dots
