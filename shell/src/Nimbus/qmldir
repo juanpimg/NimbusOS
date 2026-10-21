@@ -16,3 +16,5 @@ SearchField 1.0 lib/SearchField.qml
 ListRow 1.0 lib/ListRow.qml
 SectionHeader 1.0 lib/SectionHeader.qml
 Tooltip 1.0 lib/Tooltip.qml
+TopBar 1.0 modules/TopBar.qml
+TopBarMenu 1.0 modules/TopBarMenu.qml
