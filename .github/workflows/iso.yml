@@ -63,7 +63,17 @@ jobs:
           id builder >/dev/null 2>&1 || useradd -m builder
           echo "NIMBUS_BUILD_USER=builder" >> "$GITHUB_ENV"
       - name: Construir la ISO
-        run: bash iso/build.sh --outdir "$RUNNER_TEMP/iso" --local-repo
+        # El contenedor de GitHub MASCARA rutas de /proc (kcore, etc.), y el
+        # kernel no permite montar un /proc nuevo en un espacio de nombres de
+        # montajes con esas rutas ocultas: mkarchiso fallaba con
+        #   mount: .../airootfs/proc: permission denied
+        #   ERROR: failed to setup chroot
+        # Un espacio de nombres de PID propio permite el montaje (es el
+        # "--mount-proc" de unshare, el mismo truco que usa el banco rootless
+        # del repo, tools/build-iso-rootless.sh).
+        run: |
+          unshare --mount --pid --fork --mount-proc --ipc --uts \
+            bash iso/build.sh --outdir "$RUNNER_TEMP/iso" --local-repo
       - name: Comprobar el arranque en QEMU
         run: |
           bash tests/integration/boot_live.sh \
