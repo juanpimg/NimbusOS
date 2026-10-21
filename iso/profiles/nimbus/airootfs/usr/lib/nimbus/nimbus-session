@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Sesion wayland de Nimbus: arranca Hyprland con su wrapper start-hyprland
+# y la config Lua del proyecto. SDDM la lanza tras el autologin del
+# usuario nimbus (ver etc/sddm.conf.d/nimbus.conf del perfil).
+#
+# Sin el wrapper, Hyprland pinta el aviso rojo de "started without
+# start-hyprland" y pierde la supervision del watchdog: el wrapper es el
+# camino soportado (asi lo invoca el hyprland.desktop que trae SDDM).
+set -euo pipefail
+
+CFG="$HOME/.config/hypr/hyprland.lua"
+if [ ! -f "$CFG" ]; then
+    CFG="/usr/lib/nimbus/dots/hypr/hyprland.lua"
+fi
+
+exec /usr/bin/start-hyprland -- --config "$CFG"

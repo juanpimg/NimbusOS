@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Desktop Entry]
+Name=Nimbus
+Comment=Nimbus live session (Hyprland + Nimbus shell)
+Exec=/usr/lib/nimbus/nimbus-session
+Type=Application
+DesktopNames=Hyprland

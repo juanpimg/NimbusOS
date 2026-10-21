@@ -2,10 +2,11 @@
 [Unit]
 Description=Nimbus live session ready
 # El marcador NIMBUS_LIVE_READY lo escribe /usr/lib/nimbus/nimbus-live-ready
-# en /dev/console solo cuando Hyprland y el shell responden de verdad: el unit
-# nunca lo escribe directamente, para no declarar lista una sesion en bucle.
-Requires=nimbus-live.service
-After=nimbus-live.service
+# en /dev/console solo cuando Hyprland responde y el shell lleva vivo de
+# forma estable con el mismo PID: el unit nunca lo escribe directamente,
+# para no declarar lista una sesion en bucle o en transitorio. La sesion la
+# arranca SDDM (autologin), asi que la puerta espera al display-manager.
+After=display-manager.service
 
 [Service]
 Type=oneshot

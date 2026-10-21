@@ -22,6 +22,22 @@ hl.window_rule({
     fullscreen = true,
 })
 
+-- Nimbus live: sin la marca de Hyprland, sin el aviso del wrapper (la
+-- sesion usa start-hyprland) y con la base en el oscuro de la paleta.
+-- El fondo de Hyprland sale del renderer base integrado, que lee
+-- /usr/share/hypr/wall<N>.png: con disable_hyprland_logo no se pinta y la
+-- base la pone background_color. El fondo de verdad lo pone swaybg con el
+-- arte de Nimbus (ver dots/nimbus/nimbus-start).
+hl.config({
+    misc = {
+        disable_hyprland_logo = true,
+        disable_splash_rendering = true,
+        background_color = "rgba(1c1c1eff)",
+        force_default_wallpaper = 0,
+        disable_watchdog_warning = true,
+    },
+})
+
 local function shell(action)
     return hl.dsp.exec_cmd("nimbus-shell ipc call " .. action)
 end

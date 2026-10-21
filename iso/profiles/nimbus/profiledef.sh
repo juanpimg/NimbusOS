@@ -26,6 +26,12 @@ file_permissions=(
   ["/home/nimbus/.config"]="1000:1000:755"
   ["/home/nimbus/.config/hypr"]="1000:1000:755"
   ["/home/nimbus/.config/hypr/hyprland.lua"]="1000:1000:644"
-  # Puerta de readiness: la ejecuta el unit nimbus-live-ready.service.
+  # Fondos propios: el selector del shell lista ~/Pictures/Wallpapers.
+  ["/home/nimbus/Pictures"]="1000:1000:755"
+  ["/home/nimbus/Pictures/Wallpapers"]="1000:1000:755"
+  ["/home/nimbus/Pictures/Wallpapers/Nimbus.png"]="1000:1000:644"
+  ["/home/nimbus/Pictures/Wallpapers/Nimbus-Light.png"]="1000:1000:644"
+  # Puerta de readiness y lanzador de la sesion wayland de SDDM.
   ["/usr/lib/nimbus/nimbus-live-ready"]="0:0:755"
+  ["/usr/lib/nimbus/nimbus-session"]="0:0:755"
 )
