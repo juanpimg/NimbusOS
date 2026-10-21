@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+pkgname=nimbus-update
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Actualizaciones automáticas y rollback con snapshots Btrfs de Nimbus"
+arch=('any')
+license=('GPL-3.0-or-later')
+url="https://github.com/juanpimg/NimbusOS"
+# El snapshot usa el CLI `btrfs` directamente (btrfs-progs): sin snapper ni
+# demonios extra. pacman trae la base; flatpak es opcional (sin él, el CLI
+# actualiza el sistema e informa de que omite los flatpaks).
+depends=('btrfs-progs' 'pacman')
+optdepends=('flatpak: actualizaciones de aplicaciones Flatpak')
+backup=('etc/nimbus/update.conf')
+source=()
+sha256sums=()
+package() {
+  install -Dm755 "$startdir/files/nimbus-update" "$pkgdir/usr/bin/nimbus-update"
+  install -Dm644 "$startdir/files/nimbus-snapshots.service" "$pkgdir/usr/lib/systemd/system/nimbus-snapshots.service"
+  install -Dm644 "$startdir/files/nimbus-snapshots.timer" "$pkgdir/usr/lib/systemd/system/nimbus-snapshots.timer"
+  install -Dm644 "$startdir/files/nimbus-auto-update.service" "$pkgdir/usr/lib/systemd/system/nimbus-auto-update.service"
+  install -Dm644 "$startdir/files/nimbus-auto-update.timer" "$pkgdir/usr/lib/systemd/system/nimbus-auto-update.timer"
+  install -Dm644 "$startdir/files/update.conf" "$pkgdir/etc/nimbus/update.conf"
+}

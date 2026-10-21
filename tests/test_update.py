@@ -99,7 +99,9 @@ case "${1:-}" in
   -Q)
     printf 'nimbus-shell 0.1.0\\npacman 7.1.0\\n'
     exit 0 ;;
-  -Sy|-Su)
+  -Sy)
+    exit 0 ;;
+  -Su)
     if [ "${FAKE_PACMAN_FAIL:-0}" = "1" ]; then
       echo "falso pacman: fallo simulado en $*" >&2
       exit 1
@@ -212,12 +214,15 @@ def test_script_hygiene():
 
 
 def test_pkgbuild_declares_dep_and_no_snapper():
+    import re
     pkgbuild = (PKG / "PKGBUILD").read_text(encoding="utf-8")
     assert "SPDX-License-Identifier" in pkgbuild[:600]
     assert "pkgname=nimbus-update" in pkgbuild
     assert "source=()" in pkgbuild
     assert "btrfs-progs" in pkgbuild, "el snapshot usa el CLI btrfs"
-    assert "snapper" not in pkgbuild, "sin snapper: btrfs directo basta"
+    deps = " ".join(re.findall(r"(?:opt)?depends=\((.*?)\)",
+                              pkgbuild, re.DOTALL))
+    assert "snapper" not in deps, "sin snapper: btrfs directo basta"
     assert "etc/nimbus/update.conf" in pkgbuild
     for unit in ("nimbus-snapshots", "nimbus-auto-update"):
         assert f"{unit}.service" in pkgbuild, unit

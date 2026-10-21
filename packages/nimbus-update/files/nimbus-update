@@ -1,0 +1,384 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# nimbus-update — actualizaciones automáticas y rollback con snapshots Btrfs.
+#
+# Fontanería para Ajustes (vía polkit): el usuario final nunca ve este CLI.
+#
+# Subcomandos:
+#   check           lista actualizaciones pendientes (sistema + flatpak).
+#                   Salida 0 si no hay nada, 2 si hay, 1 ante un error.
+#   apply           snapshot primero y luego actualiza; si falla, restaura.
+#   snapshot [txt]  crea un snapshot Btrfs de / con una descripción.
+#   history         lista los snapshots con fecha y estado.
+#   rollback [id]   vuelve al snapshot indicado (el último por defecto) y
+#                   verifica que el sistema volvió; exige reiniciar.
+#   auto            modo de las units de systemd: comprueba y, si hay algo,
+#                   espera a la ventana de mantenimiento para aplicar.
+#
+# Variables de entorno (pensadas para pruebas sin disco Btrfs real):
+#   NIMBUS_UPDATE_ALLOW_UNPRIVILEGED=1  salta la puerta de privilegios
+#   NIMBUS_UPDATE_NO_REEXEC=1           no re-ejecuta con pkexec, falla
+#   NIMBUS_UPDATE_STATE_DIR             metadatos (por defecto
+#                                       /var/lib/nimbus-update)
+#   NIMBUS_UPDATE_SNAP_ROOT             snapshots (por defecto /.snapshots,
+#                                       debe vivir en el mismo Btrfs que /)
+#   NIMBUS_UPDATE_CONF                  ventana (por defecto
+#                                       /etc/nimbus/update.conf)
+#   NIMBUS_UPDATE_FS_TYPE               fuerza el tipo de FS (btrfs|ext4…)
+#   NIMBUS_UPDATE_HOUR                  fuerza la hora (HH:MM) para `auto`
+#   NIMBUS_UPDATE_IDLE                  idle|busy (puentea `who`) para `auto`
+#
+# Notas de comportamiento:
+#   - Sin Btrfs no hay snapshots: se dice claro y se sale != 0, nunca un 0
+#     silencioso (el instalador aún usa ext4 por defecto).
+#   - `apply` sin actualizaciones no crea snapshots basura.
+#   - Solo las escrituras exigen privilegios; `check` e `history` son lectura
+#     y no piden polkit (least privilege, como nimbus-energy).
+#   - Nada sale del equipo: sin telemetría (la red solo la usan pacman y
+#     flatpak para traer paquetes, como siempre).
+set -euo pipefail
+
+STATE_DIR="${NIMBUS_UPDATE_STATE_DIR:-/var/lib/nimbus-update}"
+SNAP_ROOT="${NIMBUS_UPDATE_SNAP_ROOT:-/.snapshots}"
+CONF="${NIMBUS_UPDATE_CONF:-/etc/nimbus/update.conf}"
+
+usage() {
+  cat <<'EOF' >&2
+Uso:
+  nimbus-update check
+  nimbus-update apply
+  nimbus-update snapshot [descripción]
+  nimbus-update history
+  nimbus-update rollback [id]
+  nimbus-update auto
+EOF
+  exit 2
+}
+
+die() {
+  echo "nimbus-update: $*" >&2
+  exit 1
+}
+
+require_privileges() {
+  if [ "${NIMBUS_UPDATE_ALLOW_UNPRIVILEGED:-0}" = "1" ]; then
+    return 0
+  fi
+  if [ "$(id -u)" -eq 0 ]; then
+    return 0
+  fi
+  if [ -z "${NIMBUS_UPDATE_NO_REEXEC:-}" ] && command -v pkexec >/dev/null 2>&1; then
+    exec pkexec "$0" "$@"
+  fi
+  die "se requieren privilegios (polkit): ejecute con 'pkexec nimbus-update ...'"
+}
+
+conf_default() {
+  local key="$1" fallback="$2" line value=""
+  if [ -f "$CONF" ]; then
+    while IFS= read -r line; do
+      case "$line" in
+        "$key"=*) value="${line#*=}" ;;
+      esac
+    done <"$CONF"
+  fi
+  if [ -n "$value" ]; then
+    echo "$value"
+  else
+    echo "$fallback"
+  fi
+}
+
+fs_type() {
+  if [ -n "${NIMBUS_UPDATE_FS_TYPE:-}" ]; then
+    echo "$NIMBUS_UPDATE_FS_TYPE"
+    return 0
+  fi
+  stat -f -c %T / 2>/dev/null || echo "unknown"
+}
+
+require_btrfs() {
+  local fstype
+  fstype="$(fs_type)"
+  if [ "$fstype" != "btrfs" ]; then
+    die "sin Btrfs no hay snapshots: el sistema usa '$fstype' (se esperaba Btrfs). Monte / en Btrfs para activar el rollback."
+  fi
+}
+
+# --- consulta de actualizaciones ------------------------------------------------
+
+collect_system_updates() {
+  pacman -Qu 2>/dev/null || die "no se pudo consultar pacman (-Qu)."
+}
+
+collect_flatpak_updates() {
+  if ! command -v flatpak >/dev/null 2>&1; then
+    echo "nimbus-update: flatpak no instalado: se omiten sus actualizaciones." >&2
+    return 0
+  fi
+  flatpak remote-ls --updates 2>/dev/null || {
+    echo "nimbus-update: aviso: no se pudo consultar flatpak; sigo solo con pacman." >&2
+    return 0
+  }
+}
+
+print_updates() {
+  local sys_updates="$1" flat_updates="$2"
+  if [ -n "$sys_updates" ]; then
+    echo "Actualizaciones del sistema (pacman):"
+    echo "$sys_updates" | while IFS= read -r line; do echo "  $line"; done
+  fi
+  if [ -n "$flat_updates" ]; then
+    echo "Actualizaciones de Flatpak:"
+    echo "$flat_updates" | while IFS= read -r line; do echo "  $line"; done
+  fi
+}
+
+cmd_check() {
+  local sys_updates flat_updates
+  sys_updates="$(collect_system_updates)"
+  flat_updates="$(collect_flatpak_updates)"
+  if [ -z "$sys_updates" ] && [ -z "$flat_updates" ]; then
+    echo "Sistema al día: no hay actualizaciones."
+    return 0
+  fi
+  print_updates "$sys_updates" "$flat_updates"
+  return 2
+}
+
+# --- snapshots -------------------------------------------------------------------
+
+create_snapshot() {
+  local desc="${1:-manual}" id snap_path
+  require_btrfs
+  mkdir -p "$SNAP_ROOT" "$STATE_DIR"
+  id="nimbus-$(date +%Y%m%d-%H%M%S)-$$"
+  snap_path="$SNAP_ROOT/$id"
+  btrfs subvolume snapshot -r / "$snap_path" >/dev/null || \
+    die "no se pudo crear el snapshot Btrfs en '$snap_path': revise el espacio y que '$SNAP_ROOT' viva en el mismo Btrfs que /."
+  {
+    echo "id=$id"
+    echo "date=$(date '+%Y-%m-%d %H:%M:%S %z')"
+    echo "desc=$desc"
+    echo "status=snapshot"
+  } >"$STATE_DIR/$id.info"
+  pacman -Q >"$STATE_DIR/$id.packages.txt" 2>/dev/null || \
+    echo "nimbus-update: aviso: no se pudo guardar la lista de paquetes." >&2
+  if [ -f /etc/pacman.conf ]; then
+    cp /etc/pacman.conf "$STATE_DIR/$id.pacman.conf" 2>/dev/null || \
+      echo "nimbus-update: aviso: no se pudo respaldar pacman.conf." >&2
+  fi
+  echo "nimbus-update: snapshot '$id' creado ($desc)." >&2
+  echo "$id"
+}
+
+set_snapshot_status() {
+  local id="$1" status="$2"
+  local info="$STATE_DIR/$id.info"
+  local date="" desc=""
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      date=*) date="${line#date=}" ;;
+      desc=*) desc="${line#desc=}" ;;
+    esac
+  done <"$info"
+  {
+    echo "id=$id"
+    echo "date=$date"
+    echo "desc=$desc"
+    echo "status=$status"
+  } >"$info"
+}
+
+latest_snapshot() {
+  local latest=""
+  if [ -d "$STATE_DIR" ]; then
+    latest="$(for f in "$STATE_DIR"/*.info; do
+      [ -e "$f" ] || continue
+      basename "$f" .info
+    done | sort | tail -n 1 || true)"
+  fi
+  if [ -z "$latest" ]; then
+    die "no hay snapshots: nada a lo que volver."
+  fi
+  echo "$latest"
+}
+
+cmd_snapshot() {
+  require_privileges "$@"
+  local id
+  id="$(create_snapshot "${1:-manual}")"
+  echo "Snapshot creado: $id"
+}
+
+cmd_history() {
+  local found=0 entry info id date desc status line
+  if [ -d "$STATE_DIR" ]; then
+    for info in "$STATE_DIR"/*.info; do
+      [ -e "$info" ] || break
+      found=1
+      id=""; date=""; desc=""; status=""
+      while IFS= read -r line; do
+        case "$line" in
+          id=*) id="${line#id=}" ;;
+          date=*) date="${line#date=}" ;;
+          desc=*) desc="${line#desc=}" ;;
+          status=*) status="${line#status=}" ;;
+        esac
+      done <"$info"
+      entry="$(basename "$info" .info)"
+      printf '%s | %s | %s | %s\n' "${id:-$entry}" "${date:-?}" \
+        "${status:-?}" "${desc:-}"
+    done
+  fi
+  if [ "$found" -eq 0 ]; then
+    echo "Sin snapshots."
+  fi
+  return 0
+}
+
+do_rollback() {
+  local id="$1" snap_path current
+  require_btrfs
+  if [ ! -f "$STATE_DIR/$id.info" ]; then
+    die "snapshot desconocido '$id': vea los disponibles con 'nimbus-update history'."
+  fi
+  snap_path="$SNAP_ROOT/$id"
+  btrfs subvolume set-default "$snap_path" / || \
+    die "no se pudo restaurar el snapshot '$id' (set-default falló)."
+  current="$(btrfs subvolume get-default / 2>/dev/null)" || \
+    die "no se pudo verificar el rollback: 'btrfs get-default' falló."
+  case "$current" in
+    *"$id"*) ;;
+    *) die "la verificación del rollback falló: el sistema no volvió al snapshot '$id' (get-default no lo refleja)." ;;
+  esac
+  set_snapshot_status "$id" "rolled-back $(date '+%Y-%m-%d %H:%M:%S %z')"
+  echo "Snapshot '$id' restaurado. Reinicia el equipo para completar el rollback."
+}
+
+cmd_rollback() {
+  require_privileges "$@"
+  local id="${1:-$(latest_snapshot)}"
+  do_rollback "$id"
+}
+
+# --- apply -------------------------------------------------------------------------
+
+count_lines() {
+  local text="$1"
+  if [ -z "$text" ]; then
+    echo 0
+  else
+    printf '%s\n' "$text" | wc -l | tr -d ' '
+  fi
+}
+
+do_apply() {
+  local sys_updates flat_updates snap_id n_sys n_flat
+  pacman -Sy >/dev/null || die "no se pudo sincronizar las bases de datos (pacman -Sy)."
+  sys_updates="$(collect_system_updates)"
+  flat_updates="$(collect_flatpak_updates)"
+  if [ -z "$sys_updates" ] && [ -z "$flat_updates" ]; then
+    echo "Sistema al día: nada que aplicar."
+    return 0
+  fi
+  n_sys="$(count_lines "$sys_updates")"
+  n_flat="$(count_lines "$flat_updates")"
+  print_updates "$sys_updates" "$flat_updates"
+  snap_id="$(create_snapshot "pre-apply")" || return 1
+  if [ -n "$sys_updates" ]; then
+    if ! pacman -Su --noconfirm >/dev/null; then
+      echo "nimbus-update: la actualización falló; restaurando el snapshot '$snap_id'…" >&2
+      if do_rollback "$snap_id" >/dev/null 2>&1; then
+        die "la actualización falló; sistema restaurado al snapshot '$snap_id'."
+      else
+        die "la actualización falló Y la restauración automática de '$snap_id' también falló: restaure a mano con 'nimbus-update rollback $snap_id'."
+      fi
+    fi
+  fi
+  if [ -n "$flat_updates" ] && command -v flatpak >/dev/null 2>&1; then
+    if ! flatpak update -y >/dev/null 2>&1; then
+      set_snapshot_status "$snap_id" "complete"
+      die "sistema actualizado, pero flatpak falló; snapshot '$snap_id' conservado para volver si hace falta."
+    fi
+  fi
+  set_snapshot_status "$snap_id" "complete"
+  echo "Actualización aplicada: $n_sys paquetes del sistema, $n_flat flatpaks. Snapshot $snap_id."
+}
+
+cmd_apply() {
+  require_privileges "$@"
+  do_apply
+}
+
+# --- auto: ventana de mantenimiento --------------------------------------------------
+
+to_minutes() {
+  local hm="$1" h m
+  case "$hm" in
+    *:*) h="${hm%%:*}"; m="${hm#*:}" ;;
+    *) h="$hm"; m="0" ;;
+  esac
+  echo $((10#$h * 60 + 10#$m))
+}
+
+in_window() {
+  local start end now
+  start="$(to_minutes "$(conf_default UPDATE_WINDOW_START "02:00")")"
+  end="$(to_minutes "$(conf_default UPDATE_WINDOW_END "05:00")")"
+  now="$(to_minutes "${NIMBUS_UPDATE_HOUR:-$(date +%H:%M)}")"
+  if [ "$start" -le "$end" ]; then
+    [ "$now" -ge "$start" ] && [ "$now" -lt "$end" ]
+  else
+    [ "$now" -ge "$start" ] || [ "$now" -lt "$end" ]
+  fi
+}
+
+is_idle() {
+  if [ -n "${NIMBUS_UPDATE_IDLE:-}" ]; then
+    [ "$NIMBUS_UPDATE_IDLE" = "idle" ]
+    return $?
+  fi
+  [ -z "$(who 2>/dev/null)" ]
+}
+
+cmd_auto() {
+  require_privileges "$@"
+  local sys_updates flat_updates start end
+  pacman -Sy >/dev/null || die "no se pudo sincronizar las bases de datos (pacman -Sy)."
+  sys_updates="$(collect_system_updates)"
+  flat_updates="$(collect_flatpak_updates)"
+  if [ -z "$sys_updates" ] && [ -z "$flat_updates" ]; then
+    echo "Sistema al día: nada que aplicar."
+    return 0
+  fi
+  start="$(conf_default UPDATE_WINDOW_START "02:00")"
+  end="$(conf_default UPDATE_WINDOW_END "05:00")"
+  if ! in_window; then
+    echo "Actualizaciones pendientes, pero fuera de la ventana de mantenimiento ($start–$end): se difiere al próximo pase."
+    return 2
+  fi
+  if [ "$(conf_default REQUIRE_IDLE "1")" = "1" ] && ! is_idle; then
+    echo "Actualizaciones pendientes, pero hay sesión interactiva: se difiere a la ventana de mantenimiento ($start–$end)."
+    return 2
+  fi
+  do_apply
+}
+
+# --- despacho --------------------------------------------------------------------------
+
+main() {
+  local cmd="${1:-}"
+  case "$cmd" in
+    check) cmd_check ;;
+    apply) shift; cmd_apply "$@" ;;
+    snapshot) shift; cmd_snapshot "$@" ;;
+    history) cmd_history ;;
+    rollback) shift; cmd_rollback "$@" ;;
+    auto) shift; cmd_auto "$@" ;;
+    *) usage ;;
+  esac
+}
+
+main "$@"

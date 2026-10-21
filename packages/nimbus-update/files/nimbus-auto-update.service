@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=Actualizacion automatica de Nimbus (ventana de mantenimiento)
+Documentation=file:/usr/share/doc/nimbus-update/README.md
+# Orden, no dependencia: si ambos pases coinciden, el snapshot va primero
+# (el snapshot obligatorio previo a cada transaccion lo hace `apply` igual).
+After=nimbus-snapshots.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/nimbus-update auto
