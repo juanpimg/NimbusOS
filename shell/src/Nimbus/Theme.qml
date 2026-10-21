@@ -55,6 +55,9 @@ QtObject {
     readonly property color appPurple: "#BF5AF2"
     readonly property color appRed: "#FF453A"
     readonly property color appGray: "#8E8E93"
+    // Color de contraste sobre una baldosa de color (los iconos de aplicacion
+    // son color plano con el glifo en blanco, como en macOS).
+    readonly property color iconForeground: "#FFFFFF"
 
     // M1 (Task 1): valores fijos del contrato de superficies y animaciones.
     // Las tareas 2-12 los usan tal cual; no se negocian.
