@@ -7,7 +7,7 @@ Window {
     height: 360
     visible: true
     color: Theme.background
-    title: qsTr("Nimbus")
+    title: Config.translated("app.store.title")
     Text {
         anchors.centerIn: parent
         color: Theme.text
