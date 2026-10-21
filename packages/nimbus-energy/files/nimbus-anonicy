@@ -1,19 +1,39 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # nimbus-anonicy — activa o desactiva las reglas de rendimiento de ananicy.
-# `disable` retira las reglas de juego y restaura el conjunto por defecto.
+# Modelo manual: `enable` copia la regla de juego y `disable` la retira,
+# restaurando el conjunto por defecto a nivel de ficheros. No hay deteccion
+# automatica de juegos: ningun demonio observa si se esta jugando ni aplica
+# nada solo; el administrador (o nimbus-gaming-tune) decide cuando activar.
+# Tras cada cambio se recarga el servicio ananicy-cpp para que el efecto
+# sea inmediato en runtime (`systemctl try-reload-or-restart
+# ananicy-cpp.service`); si la recarga falla, el comando falla en vez de
+# fingir que las reglas estan activas.
 #
 # Variables de entorno (pensadas para pruebas sin privilegios):
 #   NIMBUS_ANANICY_RULES_DIR   directorio de reglas (por defecto /etc/ananicy.d)
 #   NIMBUS_ANANICY_SOURCE       regla de juego empaquetada
+#   NIMBUS_ANANICY_SERVICE      unidad de systemd (por defecto ananicy-cpp.service)
 set -euo pipefail
 
 RULES_DIR="${NIMBUS_ANANICY_RULES_DIR:-/etc/ananicy.d}"
 SOURCE_RULE="${NIMBUS_ANANICY_SOURCE:-/usr/share/nimbus-energy/ananicy/50-nimbus-gaming.rules}"
 GAMING_RULE="50-nimbus-gaming.rules"
+ANANICY_SERVICE="${NIMBUS_ANANICY_SERVICE:-ananicy-cpp.service}"
 
 usage() {
   echo "Uso: nimbus-anonicy enable|disable|status" >&2
+}
+
+reload_service() {
+  if ! command -v systemctl >/dev/null 2>&1; then
+    echo "nimbus-anonicy: error: sin systemctl no se puede recargar $ANANICY_SERVICE; las reglas quedaron en disco pero el demonio no las aplica" >&2
+    return 1
+  fi
+  if ! systemctl try-reload-or-restart "$ANANICY_SERVICE"; then
+    echo "nimbus-anonicy: error: no se pudo recargar $ANANICY_SERVICE; revise 'systemctl status $ANANICY_SERVICE'" >&2
+    return 1
+  fi
 }
 
 cmd_enable() {
@@ -23,11 +43,13 @@ cmd_enable() {
   fi
   mkdir -p "$RULES_DIR"
   install -m644 "$SOURCE_RULE" "$RULES_DIR/$GAMING_RULE"
+  reload_service
   echo "Reglas de rendimiento activadas (ananicy)."
 }
 
 cmd_disable() {
   rm -f "$RULES_DIR/$GAMING_RULE"
+  reload_service
   echo "Reglas de juego retiradas; conjunto de reglas por defecto restaurado."
 }
 

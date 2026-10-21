@@ -11,6 +11,11 @@
 #   NIMBUS_SYSFS                  prefijo de sysfs falso (por defecto "")
 #   NIMBUS_GPU_HAS_NVIDIA         auto|0|1
 #   NIMBUS_GPU_STATE              fichero donde se registra el modo GPU
+#
+# Notas de comportamiento:
+#   - `charge-limit get` informa `unsupported` cuando el hardware no expone
+#     control de carga, en vez de devolver el valor por defecto (80).
+#   - Solo `set` exige privilegios; `get` es lectura y no pide polkit.
 set -euo pipefail
 
 CONF="${NIMBUS_ENERGY_CONF:-/etc/nimbus/energy-helper.conf}"
@@ -133,7 +138,9 @@ charge_get() {
     tr -d ' \n' <"$ctl"
     echo ""
   else
-    conf_default "charge-limit" "80"
+    # Sin hardware no hay valor real: informar el por defecto (80) seria
+    # mentir, asi que se distingue con un estado `unsupported` legible.
+    echo "unsupported"
   fi
 }
 
@@ -234,7 +241,12 @@ main() {
     get|set) ;;
     *) usage >&2; exit 2 ;;
   esac
-  require_privileges "$@"
+  # Least privilege: solo las escrituras exigen privilegios. Las lecturas
+  # (`get`) consultan power-profiles-daemon, sysfs o ficheros, y cualquiera
+  # puede usarlas (p. ej. un widget de bateria o el propio tune).
+  if [ "$action" = "set" ]; then
+    require_privileges "$@"
+  fi
   case "$group $action" in
     "profile get") profile_get ;;
     "profile set") profile_set "$value" ;;

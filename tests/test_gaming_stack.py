@@ -9,6 +9,7 @@ instalar el paquete abra nada solo.
 import os
 import pathlib
 import re
+import stat
 import subprocess
 
 import pytest
@@ -139,7 +140,102 @@ TUNE = PKG / "files" / "nimbus-gaming-tune"
 
 ORIG_GOVERNOR = "powersave"
 ORIG_PROFILE = "balanced"
-ORIG_GPU = "off"
+ORIG_GPU = "on-demand"
+APPLIED_GPU = "always"
+
+
+def _write_fake_tune_tools(bin_dir, sys_dir, *, ppd_fail_set=False, mangohud_log=None):
+    """Falsos `powerprofilesctl`/`prime-select`/`gamemoderun`/`mangohud`
+    (mas un `cpupower` de respaldo) para probar el tune sin root ni
+    hardware. El governor real vive en el sysfs falso (scaling_governor);
+    el `prime-select` falso solo acepta modos reales
+    (nvidia|intel|on-demand): rechaza `on`.
+    """
+    ppd_state = sys_dir / "ppd-state"
+    ppd_state.write_text(ORIG_PROFILE, encoding="utf-8")
+    gpu_state = sys_dir / "gpu-real-state"
+    gpu_state.write_text(ORIG_GPU, encoding="utf-8")
+    prime_log = sys_dir / "prime-args.log"
+    prime_log.write_text("", encoding="utf-8")
+    gov_sysfs = sys_dir / "sys" / "devices" / "system" / "cpu" / "cpu0" / "cpufreq"
+    gov_sysfs.mkdir(parents=True)
+    (gov_sysfs / "scaling_governor").write_text(ORIG_GOVERNOR + "\n", encoding="utf-8")
+
+    (bin_dir / "powerprofilesctl").write_text(
+        "#!/usr/bin/env bash\n"
+        "set -u\n"
+        'state="${PPD_STATE:?}"\n'
+        'if [ "${1:-}" = "get" ]; then cat "$state"; exit 0; fi\n'
+        'if [ "${1:-}" = "set" ]; then\n'
+        '  if [ "${PPD_FAIL_SET:-0}" = "1" ]; then echo "falso PPD: no se pudo aplicar" >&2; exit 1; fi\n'
+        '  printf "%s" "$2" > "$state"; exit 0\n'
+        "fi\n"
+        'echo "uso falso: get|set" >&2; exit 2\n',
+        encoding="utf-8",
+    )
+    (bin_dir / "cpupower").write_text(
+        "#!/usr/bin/env bash\n"
+        "set -u\n"
+        'if [ "${1:-}" = "frequency-set" ] && [ "${2:-}" = "-g" ]; then exit 0; fi\n'
+        'echo "falso cpupower: solo frequency-set -g" >&2; exit 2\n',
+        encoding="utf-8",
+    )
+    (bin_dir / "prime-select").write_text(
+        "#!/usr/bin/env bash\n"
+        "set -u\n"
+        'state="${GPU_REAL_STATE:?}"\n'
+        'log="${PRIME_ARGS_LOG:?}"\n'
+        'if [ "${1:-}" = "query" ]; then cat "$state"; exit 0; fi\n'
+        'printf "%s\\n" "$1" >> "$log"\n'
+        'case "$1" in\n'
+        '  nvidia|intel|on-demand) printf "%s" "$1" > "$state";;\n'
+        '  *) echo "falso prime-select: modo invalido \'$1\' (validos: nvidia|intel|on-demand)" >&2; exit 1;;\n'
+        "esac\n",
+        encoding="utf-8",
+    )
+    (bin_dir / "gamemoderun").write_text(
+        "#!/usr/bin/env bash\nexec \"$@\"\n", encoding="utf-8",
+    )
+    if mangohud_log is not None:
+        (bin_dir / "mangohud").write_text(
+            "#!/usr/bin/env bash\n"
+            'if [ "${1:-}" = "--dlsym" ]; then shift; fi\n'
+            'printf "%s\\n" "${MANGOHUD_CONFIGFILE:-<vacio>}" >> "$MANGOHUD_LOG"\n'
+            'exec "$@"\n',
+            encoding="utf-8",
+        )
+    else:
+        (bin_dir / "mangohud").write_text(
+            "#!/usr/bin/env bash\n"
+            'if [ "${1:-}" = "--dlsym" ]; then shift; fi\n'
+            'exec "$@"\n',
+            encoding="utf-8",
+        )
+    for name in ("powerprofilesctl", "cpupower", "prime-select", "gamemoderun", "mangohud"):
+        p = bin_dir / name
+        p.chmod(p.stat().st_mode | stat.S_IXUSR)
+    gov_file = sys_dir / "sys" / "devices" / "system" / "cpu" / "cpu0" / "cpufreq" / "scaling_governor"
+    return {
+        "PPD_STATE": str(ppd_state),
+        "CPU_GOVERNOR_FILE": str(gov_file),
+        "GPU_REAL_STATE": str(gpu_state),
+        "PRIME_ARGS_LOG": str(prime_log),
+        "PPD_FAIL_SET": "1" if ppd_fail_set else "0",
+        "NIMBUS_CPU_SYSFS": str(sys_dir),
+        "NIMBUS_MANGOHUD_CONF": str(MANGOHUD),
+    }
+
+
+def _tune_env(tmp_path, monkeypatch, **kwargs):
+    bin_dir = tmp_path / "fakebin"
+    bin_dir.mkdir()
+    sys_dir = tmp_path / "fakesys"
+    sys_dir.mkdir()
+    env = _write_fake_tune_tools(bin_dir, sys_dir, **kwargs)
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    return env
 
 
 def _seed_state(state_dir):
@@ -227,12 +323,13 @@ def test_tune_usage_and_validation():
     assert _run_tune("--help").returncode == 0
 
 
-def test_tune_applies_and_restores(tmp_path):
+def test_tune_applies_and_restores(tmp_path, monkeypatch):
     state = _seed_state(tmp_path / "state")
+    env = _tune_env(tmp_path, monkeypatch)
     probe = (
         'test "$(cat "$NIMBUS_PROBE/cpu_governor")" = performance && '
         'test "$(cat "$NIMBUS_PROBE/energy_profile")" = performance && '
-        'test "$(cat "$NIMBUS_PROBE/gpu_mode")" = on'
+        'test "$(cat "$NIMBUS_PROBE/gpu_mode")" = always'
     )
     env = dict(os.environ, NIMBUS_PROBE=str(state))
     proc = subprocess.run(
@@ -248,12 +345,13 @@ def test_tune_applies_and_restores(tmp_path):
     }, "al salir, todo vuelve a su valor anterior"
 
 
-def test_tune_restores_balanced_profile(tmp_path):
+def test_tune_restores_balanced_profile(tmp_path, monkeypatch):
     state = _seed_state(tmp_path / "state")
+    _tune_env(tmp_path, monkeypatch)
     probe = (
         'test "$(cat "$NIMBUS_PROBE/cpu_governor")" = performance && '
         'test "$(cat "$NIMBUS_PROBE/energy_profile")" = balanced && '
-        'test "$(cat "$NIMBUS_PROBE/gpu_mode")" = on'
+        'test "$(cat "$NIMBUS_PROBE/gpu_mode")" = always'
     )
     env = dict(os.environ, NIMBUS_PROBE=str(state))
     proc = subprocess.run(
@@ -265,8 +363,9 @@ def test_tune_restores_balanced_profile(tmp_path):
     assert _read_state(state)["energy_profile"] == ORIG_PROFILE
 
 
-def test_tune_propagates_game_exit_code_and_restores(tmp_path):
+def test_tune_propagates_game_exit_code_and_restores(tmp_path, monkeypatch):
     state = _seed_state(tmp_path / "state")
+    env = _tune_env(tmp_path, monkeypatch)
     proc = _run_tune("440", "--state-dir", str(state),
                      "--", "bash", "-c", "exit 42")
     assert proc.returncode == 42, "el codigo de salida del juego manda"
@@ -277,13 +376,20 @@ def test_tune_propagates_game_exit_code_and_restores(tmp_path):
     }
 
 
-def test_tune_restores_on_sigterm(tmp_path):
+def test_tune_restores_on_sigterm(tmp_path, monkeypatch):
     import signal
     import time
     state = _seed_state(tmp_path / "state")
+    env = _tune_env(tmp_path, monkeypatch)
+    # start_new_session + killpg: un supervisor (systemd, timeout) senala a
+    # todo el grupo, no solo al tune. bash difiere el trap de SIGTERM hasta
+    # que el hijo en primer plano termina; con TERM al grupo, el juego muere
+    # y el trap restaura de inmediato. Senalar solo al tune dejaria al juego
+    # corriendo y la espera seria su duracion (ver M7 del informe final).
     proc = subprocess.Popen(
         [str(TUNE), "440", "--state-dir", str(state), "--", "sleep", "30"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        start_new_session=True,
     )
     try:
         deadline = time.time() + 10
@@ -292,7 +398,7 @@ def test_tune_restores_on_sigterm(tmp_path):
                 break
             time.sleep(0.05)
         assert (state / "cpu_governor").read_text(encoding="utf-8").strip() == "performance"
-        proc.send_signal(signal.SIGTERM)
+        os.killpg(proc.pid, signal.SIGTERM)
         rc = proc.wait(timeout=10)
     finally:
         if proc.poll() is None:
@@ -303,10 +409,14 @@ def test_tune_restores_on_sigterm(tmp_path):
         "energy_profile": ORIG_PROFILE,
         "gpu_mode": ORIG_GPU,
     }, "SIGTERM tambien debe restaurar"
+    assert _read_fake_state(env) == {
+        "ppd": ORIG_PROFILE, "cpu": ORIG_GOVERNOR, "gpu": ORIG_GPU,
+    }, "SIGTERM tambien debe restaurar el sistema real"
 
 
-def test_tune_is_idempotent(tmp_path):
+def test_tune_is_idempotent(tmp_path, monkeypatch):
     state = _seed_state(tmp_path / "state")
+    _tune_env(tmp_path, monkeypatch)
     for _ in range(2):
         proc = _run_tune("440", "--state-dir", str(state),
                          "--", "bash", "-c", "true")
@@ -340,4 +450,99 @@ def test_tune_shell_hygiene():
     assert not re.search(r"(?m)(^|[;\s&|])eval(\s|$|[;&])", code), "nada de eval"
     assert "prime-select" in text, "en hibrido se fuerza la dGPU"
     assert "gamemode" in text.lower(), "gamemode segun se pida"
+    assert "|| true" not in code, \
+        "los efectos reales no pueden silenciarse: si no se aplican, el tune debe fallar"
+
+
+# ---- Revision final I1: el tune revierte el sistema real, no solo ficheros ----
+
+def _read_fake_state(env):
+    return {
+        "ppd": pathlib.Path(env["PPD_STATE"]).read_text(encoding="utf-8").strip(),
+        "cpu": pathlib.Path(env["CPU_GOVERNOR_FILE"]).read_text(encoding="utf-8").strip(),
+        "gpu": pathlib.Path(env["GPU_REAL_STATE"]).read_text(encoding="utf-8").strip(),
+    }
+
+
+def test_tune_restores_real_system_state(tmp_path, monkeypatch):
+    """Al salir, PPD, governor y GPU reales vuelven a su valor anterior."""
+    state = _seed_state(tmp_path / "state")
+    env = _tune_env(tmp_path, monkeypatch)
+    assert _read_fake_state(env) == {
+        "ppd": ORIG_PROFILE, "cpu": ORIG_GOVERNOR, "gpu": ORIG_GPU,
+    }
+    proc = _run_tune("440", "--state-dir", str(state), "--", "bash", "-c", "true")
+    assert proc.returncode == 0, proc.stderr
+    assert _read_fake_state(env) == {
+        "ppd": ORIG_PROFILE, "cpu": ORIG_GOVERNOR, "gpu": ORIG_GPU,
+    }, "el perfil performance y la dGPU no pueden quedar puestos al salir"
+
+
+def test_tune_applies_real_system_state_while_game_runs(tmp_path, monkeypatch):
+    """Mientras el juego corre, el sistema real esta en performance/dGPU."""
+    state = _seed_state(tmp_path / "state")
+    env = _tune_env(tmp_path, monkeypatch)
+    probe = (
+        'test "$(cat "$PPD_STATE")" = performance && '
+        'test "$(cat "$NIMBUS_CPU_SYSFS/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")" = performance && '
+        'test "$(cat "$GPU_REAL_STATE")" = nvidia'
+    )
+    proc = subprocess.run(
+        [str(TUNE), "440", "--state-dir", str(state), "--", "bash", "-c", probe],
+        capture_output=True, text=True, env=dict(os.environ), timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_tune_forces_dgpu_with_valid_prime_mode(tmp_path, monkeypatch):
+    """La dGPU se fuerza con `nvidia`, nunca con el modo inexistente `on`."""
+    state = _seed_state(tmp_path / "state")
+    env = _tune_env(tmp_path, monkeypatch)
+    proc = _run_tune("440", "--state-dir", str(state), "--", "bash", "-c", "true")
+    assert proc.returncode == 0, proc.stderr
+    modes = pathlib.Path(env["PRIME_ARGS_LOG"]).read_text(encoding="utf-8").split()
+    assert "nvidia" in modes, f"debe forzar la dGPU con 'nvidia', se llamo con: {modes}"
+    assert "on" not in modes, f"'on' no es un modo de prime-select: {modes}"
+
+
+def test_tune_fails_loudly_when_ppd_apply_fails(tmp_path, monkeypatch):
+    """Si el perfil no se puede aplicar, el tune falla en vez de seguir mudo."""
+    state = _seed_state(tmp_path / "state")
+    env = _tune_env(tmp_path, monkeypatch, ppd_fail_set=True)
+    proc = _run_tune("440", "--state-dir", str(state), "--", "bash", "-c", "true")
+    assert proc.returncode != 0, "si PPD no aplica el perfil, el tune debe fallar"
+    assert _read_state(state) == {
+        "cpu_governor": ORIG_GOVERNOR,
+        "energy_profile": ORIG_PROFILE,
+        "gpu_mode": ORIG_GPU,
+    }, "al fallar, los ficheros de estado tambien se restauran"
+
+
+# ---- Revision final I4: los presets tienen consumidor o se declaran inactivos ----
+
+def test_tune_passes_mangohud_preset_to_game(tmp_path, monkeypatch):
+    """El preset mangohud.conf se consume: llega via MANGOHUD_CONFIGFILE."""
+    mangohud_log = tmp_path / "mangohud-env.log"
+    mangohud_log.write_text("", encoding="utf-8")
+    state = _seed_state(tmp_path / "state")
+    env = _tune_env(tmp_path, monkeypatch, mangohud_log=str(mangohud_log))
+    monkeypatch.setenv("MANGOHUD_LOG", str(mangohud_log))
+    proc = _run_tune("440", "--state-dir", str(state), "--", "bash", "-c", "true")
+    assert proc.returncode == 0, proc.stderr
+    logged = mangohud_log.read_text(encoding="utf-8").strip().splitlines()
+    assert logged, "mangohud debio ejecutarse con el overlay activado"
+    assert logged[-1] == str(MANGOHUD), \
+        f"MANGOHUD_CONFIGFILE debe apuntar al preset, fue: {logged[-1]}"
+
+
+def test_gamescope_preset_declares_manual_use():
+    """gamescope.conf: preset de referencia inactivo; nadie lo auto-aplica."""
+    assert GAMESCOPE.is_file(), "falta files/gamescope.conf"
+    text = GAMESCOPE.read_text(encoding="utf-8")
+    lowered = text.lower()
+    assert any(word in lowered for word in ("inactivo", "inactive", "referencia", "reference", "manual")), \
+        "debe documentar que se distribuye inactivo, sin auto-activacion"
+    for claim in ("se activa solo", "al detectar", "auto-activ", "automáticament se act"):
+        assert claim not in lowered, \
+            f"afirmacion de activacion automatica sin consumidor: {claim!r}"
 

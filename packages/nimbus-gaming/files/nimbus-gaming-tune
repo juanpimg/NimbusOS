@@ -8,13 +8,31 @@
 #
 # Mientras el juego corre: governor de CPU a `performance`, perfil de
 # energia `performance` (o el pedido con --profile), dGPU forzada con
-# `prime-select on` en sistemas hibridos, y gamemode / mangohud segun se
-# pida. Al salir —incluido SIGTERM— todo vuelve a su valor anterior.
+# `prime-select nvidia` en sistemas hibridos, y gamemode / mangohud segun se
+# pida. Al salir —incluido SIGTERM— todo vuelve a su valor anterior:
+# se restauran los ajustes reales del sistema (perfil de power-profiles-daemon,
+# governor de CPU y modo de GPU), no solo los ficheros de estado.
+# Si un ajuste real no se puede aplicar, el tune falla con un error legible
+# en vez de lanzar el juego sin el rendimiento pedido.
 # Nunca baja la prioridad de nada: no hay nice, renice ni ionice aqui.
+#
+# Vocabulario de GPU: el fichero de estado `gpu_mode` usa el vocabulario de
+# `nimbus-energy` (auto|on-demand|always); `always` significa dGPU forzada y
+# se traduce a `nvidia` al llamar a `prime-select` (que solo entiende
+# nvidia|intel|on-demand). Con `prime-select query` se recuerda el modo
+# anterior y se restaura tal cual al salir.
+#
+# El preset MangoHud de Nimbus (/usr/share/nimbus/gaming/mangohud.conf) se
+# consume de verdad: se exporta como MANGOHUD_CONFIGFILE mientras el juego
+# corre. El preset gamescope.conf, en cambio, se distribuye inactivo como
+# referencia (este tune no lanza gamescope); ver su cabecera.
 #
 # Para probar sin root/GPU/Steam: --state-dir apunta a un directorio que
 # simula el estado (ficheros cpu_governor, energy_profile y gpu_mode), y
-# tras `--` se inyecta el "juego" (cualquier comando).
+# tras `--` se inyecta el "juego" (cualquier comando). Variables de entorno
+# para pruebas: NIMBUS_CPU_SYSFS (prefijo de sysfs para leer el governor),
+# NIMBUS_MANGOHUD_CONF (ruta del preset mangohud), POWERPROFILESCTL,
+# CPUPOWER y PRIME_SELECT (binarios alternativos).
 set -euo pipefail
 
 PROFILE="performance"
@@ -87,10 +105,23 @@ mkdir -p "$STATE_DIR"
 ORIG_GOVERNOR=""
 ORIG_PROFILE=""
 ORIG_GPU=""
+ORIG_GPU_REAL=""
 ORIG_GOVERNOR_EXISTS=0
 ORIG_PROFILE_EXISTS=0
 ORIG_GPU_EXISTS=0
+HAVE_PPD=0
+HAVE_SYSFS_GOV=0
+HAVE_PRIME=0
 RESTORED=0
+RESTORE_FAILED=0
+SYSFS_GOV_FILES=()
+REAL_PROFILE=""
+REAL_GPU=""
+PPD="${POWERPROFILESCTL:-powerprofilesctl}"
+CPUSET="${CPUPOWER:-cpupower}"
+PRIME="${PRIME_SELECT:-prime-select}"
+CPU_SYSFS="${NIMBUS_CPU_SYSFS:-}"
+MANGOHUD_CONF="${NIMBUS_MANGOHUD_CONF:-/usr/share/nimbus/gaming/mangohud.conf}"
 
 save_state() {
   if [[ -f "$GOV_FILE" ]]; then
@@ -104,6 +135,29 @@ save_state() {
   if [[ -f "$GPU_FILE" ]]; then
     ORIG_GPU="$(cat "$GPU_FILE")"
     ORIG_GPU_EXISTS=1
+  fi
+  # Valores reales del sistema: tienen prioridad al restaurar. Solo lo que
+  # se logra leer aqui se restaura despues; lo que no se pudo leer no se toca.
+  if command -v "$PPD" >/dev/null 2>&1; then
+    if REAL_PROFILE="$("$PPD" get 2>/dev/null)"; then
+      ORIG_PROFILE="$REAL_PROFILE"
+      ORIG_PROFILE_EXISTS=1
+      HAVE_PPD=1
+    fi
+  fi
+  shopt -s nullglob
+  SYSFS_GOV_FILES=("$CPU_SYSFS"/sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_governor)
+  shopt -u nullglob
+  if [[ "${#SYSFS_GOV_FILES[@]}" -gt 0 ]]; then
+    ORIG_GOVERNOR="$(cat "${SYSFS_GOV_FILES[0]}")"
+    ORIG_GOVERNOR_EXISTS=1
+    HAVE_SYSFS_GOV=1
+  fi
+  if command -v "$PRIME" >/dev/null 2>&1; then
+    if REAL_GPU="$("$PRIME" query 2>/dev/null)"; then
+      ORIG_GPU_REAL="$REAL_GPU"
+      HAVE_PRIME=1
+    fi
   fi
 }
 
@@ -127,6 +181,31 @@ restore_state() {
   else
     rm -f "$GPU_FILE"
   fi
+  # Sistema real: restaura lo que se habia leido. Los avisos van a stderr y
+  # quedan registrados en RESTORE_FAILED; el retorno es siempre 0 para no
+  # alterar el codigo de salida del juego o de la senal en el trap.
+  if [[ "$HAVE_PPD" -eq 1 ]]; then
+    if ! "$PPD" set "$ORIG_PROFILE" >/dev/null 2>&1; then
+      echo "nimbus-gaming-tune: aviso: no se pudo restaurar el perfil de energia a '$ORIG_PROFILE'" >&2
+      RESTORE_FAILED=1
+    fi
+  fi
+  if [[ "$HAVE_SYSFS_GOV" -eq 1 ]]; then
+    local gov_file
+    for gov_file in "${SYSFS_GOV_FILES[@]}"; do
+      if ! printf '%s' "$ORIG_GOVERNOR" > "$gov_file" 2>/dev/null; then
+        echo "nimbus-gaming-tune: aviso: no se pudo restaurar el governor a '$ORIG_GOVERNOR' en $gov_file" >&2
+        RESTORE_FAILED=1
+      fi
+    done
+  fi
+  if [[ "$HAVE_PRIME" -eq 1 ]]; then
+    if ! "$PRIME" "$ORIG_GPU_REAL" >/dev/null 2>&1; then
+      echo "nimbus-gaming-tune: aviso: no se pudo restaurar la GPU a '$ORIG_GPU_REAL'" >&2
+      RESTORE_FAILED=1
+    fi
+  fi
+  return 0
 }
 
 trap restore_state EXIT
@@ -135,15 +214,33 @@ trap 'restore_state; exit 143' TERM INT
 apply_state() {
   printf 'performance\n' > "$GOV_FILE"
   printf '%s\n' "$PROFILE" > "$PROFILE_FILE"
-  printf 'on\n' > "$GPU_FILE"
-  if command -v cpupower >/dev/null 2>&1; then
-    cpupower frequency-set -g performance >/dev/null 2>&1 || true
+  # gpu_mode usa vocabulario de nimbus-energy: `always` = dGPU forzada.
+  printf 'always\n' > "$GPU_FILE"
+  if [[ "$HAVE_SYSFS_GOV" -eq 1 ]]; then
+    local gov_file
+    for gov_file in "${SYSFS_GOV_FILES[@]}"; do
+      if ! printf 'performance' > "$gov_file" 2>/dev/null; then
+        die "no se pudo fijar el governor a 'performance' en $gov_file"
+      fi
+    done
+  elif command -v "$CPUSET" >/dev/null 2>&1; then
+    if ! "$CPUSET" frequency-set -g performance >/dev/null 2>&1; then
+      die "no se pudo fijar el governor a 'performance' con cpupower"
+    fi
+    # Sin sysfs legible se desconoce el governor original: no habra
+    # restauracion del governor real (los ficheros si se restauran).
   fi
-  if command -v powerprofilesctl >/dev/null 2>&1; then
-    powerprofilesctl set "$PROFILE" >/dev/null 2>&1 || true
+  if command -v "$PPD" >/dev/null 2>&1; then
+    if ! "$PPD" set "$PROFILE" >/dev/null 2>&1; then
+      die "no se pudo fijar el perfil de energia a '$PROFILE' con $PPD"
+    fi
   fi
-  if command -v prime-select >/dev/null 2>&1; then
-    prime-select on >/dev/null 2>&1 || true
+  if command -v "$PRIME" >/dev/null 2>&1; then
+    # prime-select solo entiende nvidia|intel|on-demand: la dGPU se fuerza
+    # con `nvidia` (ver nimbus-energy, que documenta el mismo mapeo).
+    if ! "$PRIME" nvidia >/dev/null 2>&1; then
+      die "no se pudo forzar la dGPU con 'prime-select nvidia'"
+    fi
   fi
 }
 
@@ -160,6 +257,9 @@ if command -v gamemoderun >/dev/null 2>&1; then
   FINAL_CMD=(gamemoderun "${FINAL_CMD[@]}")
 fi
 if [[ "$MANGOHUD" == "on" ]] && command -v mangohud >/dev/null 2>&1; then
+  if [[ -f "$MANGOHUD_CONF" ]]; then
+    export MANGOHUD_CONFIGFILE="$MANGOHUD_CONF"
+  fi
   FINAL_CMD=(mangohud --dlsym "${FINAL_CMD[@]}")
 fi
 
@@ -168,4 +268,8 @@ set +e
 RC=$?
 set -e
 restore_state
+if [[ "$RESTORE_FAILED" -eq 1 && "$RC" -eq 0 ]]; then
+  echo "nimbus-gaming-tune: error: el sistema no volvio por completo a su estado anterior; revise los avisos" >&2
+  exit 1
+fi
 exit "$RC"

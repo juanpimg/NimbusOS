@@ -21,7 +21,6 @@ package() {
   install -Dm755 "$startdir/files/nimbus-scheduler" "$pkgdir/usr/bin/nimbus-scheduler"
   install -Dm755 "$startdir/files/nimbus-anonicy" "$pkgdir/usr/bin/nimbus-anonicy"
   install -Dm644 "$startdir/files/energy-helper.conf" "$pkgdir/etc/nimbus/energy-helper.conf"
-  install -Dm644 "$startdir/files/90-nimbus-gaming.conf" "$pkgdir/etc/ananicy.d/90-nimbus-gaming.conf"
   install -Dm644 "$startdir/files/ananicy/ananicy.d/50-nimbus-gaming.rules" \
     "$pkgdir/usr/share/nimbus-energy/ananicy/50-nimbus-gaming.rules"
 }

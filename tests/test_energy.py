@@ -110,6 +110,29 @@ def test_charge_limit_set_80_with_fake_hw_applies(tmp_path, monkeypatch):
     assert (sysfs / "charge_control_end_threshold").read_text().strip() == "80"
 
 
+def test_charge_get_without_hw_reports_unsupported(tmp_path, monkeypatch):
+    """Sin hardware, `charge-limit get` distingue 'no soportado' de un valor."""
+    env = base_env(tmp_path, monkeypatch)
+    env["NIMBUS_CHARGE_BACKEND"] = "none"
+    env["NIMBUS_SYSFS"] = str(tmp_path / "empty-sys")
+    (tmp_path / "empty-sys").mkdir()
+    proc = run_energy("charge-limit", "get", env_extra=env)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert proc.stdout.strip() == "unsupported", \
+        f"no debe informar un valor que nunca se aplico: {proc.stdout!r}"
+
+
+def test_charge_get_with_fake_hw_reports_value(tmp_path, monkeypatch):
+    env = base_env(tmp_path, monkeypatch)
+    sysfs = tmp_path / "sys" / "class" / "power_supply" / "BAT0"
+    sysfs.mkdir(parents=True)
+    (sysfs / "charge_control_end_threshold").write_text("77\n", encoding="utf-8")
+    env["NIMBUS_SYSFS"] = str(tmp_path)
+    proc = run_energy("charge-limit", "get", env_extra=env)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert proc.stdout.strip() == "77"
+
+
 def test_gpu_set_always_without_nvidia_reports_na_and_exits_zero(
     tmp_path, monkeypatch
 ):
@@ -135,14 +158,26 @@ def test_profile_set_detects_when_ppd_did_not_apply(tmp_path, monkeypatch):
     assert proc.returncode != 0, "debe fallar si el perfil no se aplico"
 
 
-def test_cli_requires_privileges():
+def test_cli_requires_privileges_for_set():
     if hasattr(os, "geteuid") and os.geteuid() == 0:
         pytest.skip("este test necesita un usuario sin privilegios")
     env = {"NIMBUS_ENERGY_NO_REEXEC": "1"}
-    proc = run_energy("profile", "get", env_extra=env)
-    assert proc.returncode != 0, "sin privilegios no puede ejecutarse"
+    proc = run_energy("profile", "set", "performance", env_extra=env)
+    assert proc.returncode != 0, "set sin privilegios no puede ejecutarse"
     out = (proc.stdout + proc.stderr).lower()
     assert "polkit" in out or "pkexec" in out
+
+
+def test_cli_get_does_not_require_privileges(tmp_path, monkeypatch):
+    """Las lecturas no necesitan root (least privilege): `get` va sin puerta."""
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("este test necesita un usuario sin privilegios")
+    env = base_env(tmp_path, monkeypatch)
+    env.pop("NIMBUS_ENERGY_ALLOW_UNPRIVILEGED", None)
+    env["NIMBUS_ENERGY_NO_REEXEC"] = "1"
+    for args in (("profile", "get"), ("gpu", "get")):
+        proc = run_energy(*args, env_extra=env)
+        assert proc.returncode == 0, f"{' '.join(args)} no debe pedir privilegios"
 
 
 def test_pkgbuild_depends_and_no_tlp():
@@ -264,16 +299,40 @@ def test_ananicy_rules_boost_shell_and_calm_background():
         "los actualizadores en segundo plano deben bajar prioridad"
 
 
-def test_anonicy_disable_restores_defaults(tmp_path):
-    assert ANONICY.is_file(), "falta nimbus-anonicy"
+def _write_fake_systemctl(bin_dir: pathlib.Path, log: pathlib.Path, fail=False):
+    """Falso `systemctl` que registra sus argumentos; falla si se le pide."""
+    script = (
+        "#!/usr/bin/env bash\n"
+        'echo "$@" >> "$SYSTEMCTL_LOG"\n'
+    )
+    if fail:
+        script += 'echo "falso systemctl: no se pudo recargar" >&2\nexit 1\n'
+    (bin_dir / "systemctl").write_text(script, encoding="utf-8")
+    (bin_dir / "systemctl").chmod(0o755)
+    return log
+
+
+def _anonicy_env(tmp_path, monkeypatch, *, systemctl_fail=False):
     rules_dir = tmp_path / "ananicy.d"
     rules_dir.mkdir()
-    default_rules = rules_dir / "00-default.rules"
-    default_rules.write_text('{"name": "default", "nice": 0}\n', encoding="utf-8")
-    env = {
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = tmp_path / "systemctl.log"
+    log.write_text("", encoding="utf-8")
+    _write_fake_systemctl(bin_dir, log, fail=systemctl_fail)
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
+    monkeypatch.setenv("SYSTEMCTL_LOG", str(log))
+    return {
         "NIMBUS_ANANICY_RULES_DIR": str(rules_dir),
         "NIMBUS_ANANICY_SOURCE": str(GAMING_RULES),
-    }
+    }, rules_dir, log
+
+
+def test_anonicy_disable_restores_defaults(tmp_path, monkeypatch):
+    assert ANONICY.is_file(), "falta nimbus-anonicy"
+    env, rules_dir, _log = _anonicy_env(tmp_path, monkeypatch)
+    default_rules = rules_dir / "00-default.rules"
+    default_rules.write_text('{"name": "default", "nice": 0}\n', encoding="utf-8")
     enabled = run_anonicy("enable", env_extra=env)
     assert enabled.returncode == 0, enabled.stdout + enabled.stderr
     assert (rules_dir / "50-nimbus-gaming.rules").is_file()
@@ -296,9 +355,43 @@ def test_laptop_default_profile_is_balanced_not_performance():
     assert values.get("profile") != "performance"
 
 
-def test_gaming_conf_activates_only_with_game():
-    assert GAMING_CONF.is_file(), "falta 90-nimbus-gaming.conf"
-    text = GAMING_CONF.read_text(encoding="utf-8").lower()
-    assert "game" in text, "debe describir activacion al detectar un juego"
-    assert "exit" in text or "deactiv" in text or "salir" in text, \
-        "debe desactivarse al salir del juego"
+def test_anonicy_enable_reloads_service(tmp_path, monkeypatch):
+    """`enable` recarga ananicy-cpp de verdad, no solo escribe ficheros."""
+    env, _rules_dir, log = _anonicy_env(tmp_path, monkeypatch)
+    proc = run_anonicy("enable", env_extra=env)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "try-reload-or-restart ananicy-cpp.service" in log.read_text(encoding="utf-8"), \
+        "enable debe recargar el servicio ananicy-cpp"
+
+
+def test_anonicy_disable_reloads_service(tmp_path, monkeypatch):
+    """`disable` recarga ananicy-cpp: el efecto en runtime no espera al reinicio."""
+    env, _rules_dir, log = _anonicy_env(tmp_path, monkeypatch)
+    assert run_anonicy("enable", env_extra=env).returncode == 0
+    proc = run_anonicy("disable", env_extra=env)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "try-reload-or-restart ananicy-cpp.service" in log.read_text(encoding="utf-8"), \
+        "disable debe recargar el servicio ananicy-cpp"
+
+
+def test_anonicy_reload_failure_is_loud(tmp_path, monkeypatch):
+    """Si la recarga falla, enable/disable fallan en vez de fingir exito."""
+    env, _rules_dir, _log = _anonicy_env(tmp_path, monkeypatch, systemctl_fail=True)
+    assert run_anonicy("enable", env_extra=env).returncode != 0
+    assert run_anonicy("disable", env_extra=env).returncode != 0
+
+
+def test_no_unparsed_autoactivation_conf_is_shipped():
+    """No se distribuye ningun conf con dialecto de auto-activacion sin lector.
+
+    El 90-nimbus-gaming.conf afirmaba activacion 'al detectar un juego' con
+    claves que ningun codigo parsea; se retira del paquete. La activacion es
+    manual (`nimbus-anonicy enable/disable` + recarga del servicio).
+    """
+    pkgbuild = (PKG / "PKGBUILD").read_text(encoding="utf-8")
+    assert "etc/ananicy" not in pkgbuild, \
+        "nada sin consumidor real dentro del directorio de configuracion del demonio"
+    assert not GAMING_CONF.is_file(), \
+        "el conf con dialecto sin lector no debe existir en el arbol"
+    text = ANONICY.read_text(encoding="utf-8").lower()
+    assert "manual" in text, "nimbus-anonicy debe documentar el modelo manual"
