@@ -8,6 +8,7 @@ Icon 1.0 lib/Icon.qml
 ListRow 1.0 lib/ListRow.qml
 LockScreen 1.0 modules/LockScreen.qml
 Notifications 1.0 modules/Notifications.qml
+Process 1.0 lib/Process.qml
 Popup 1.0 lib/Popup.qml
 QuickLook 1.0 modules/QuickLook.qml
 Screenshot 1.0 modules/Screenshot.qml
