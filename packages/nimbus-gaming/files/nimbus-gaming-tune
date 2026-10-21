@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# nimbus-gaming-tune — ajuste reversible de rendimiento para un juego.
+#
+# Uso: nimbus-gaming-tune <appid> [--profile performance|balanced]
+#                              [--mangohud on|off]
+#                              [--state-dir DIR] [-- comando ...]
+#
+# Mientras el juego corre: governor de CPU a `performance`, perfil de
+# energia `performance` (o el pedido con --profile), dGPU forzada con
+# `prime-select on` en sistemas hibridos, y gamemode / mangohud segun se
+# pida. Al salir —incluido SIGTERM— todo vuelve a su valor anterior.
+# Nunca baja la prioridad de nada: no hay nice, renice ni ionice aqui.
+#
+# Para probar sin root/GPU/Steam: --state-dir apunta a un directorio que
+# simula el estado (ficheros cpu_governor, energy_profile y gpu_mode), y
+# tras `--` se inyecta el "juego" (cualquier comando).
+set -euo pipefail
+
+PROFILE="performance"
+MANGOHUD="on"
+STATE_DIR="${NIMBUS_GAMING_STATE_DIR:-/var/lib/nimbus-gaming}"
+APPID=""
+GAME_CMD=()
+
+usage() {
+  cat <<'EOF'
+Uso: nimbus-gaming-tune <appid> [--profile performance|balanced] [--mangohud on|off] [--state-dir DIR] [-- comando ...]
+EOF
+}
+
+die() {
+  printf 'nimbus-gaming-tune: %s\n' "$1" >&2
+  usage >&2
+  exit 2
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --profile)
+      [[ $# -ge 2 ]] || die "falta valor para --profile"
+      PROFILE="$2"
+      shift 2
+      ;;
+    --mangohud)
+      [[ $# -ge 2 ]] || die "falta valor para --mangohud"
+      MANGOHUD="$2"
+      shift 2
+      ;;
+    --state-dir)
+      [[ $# -ge 2 ]] || die "falta valor para --state-dir"
+      STATE_DIR="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      GAME_CMD=("$@")
+      break
+      ;;
+    -*)
+      die "opcion desconocida: $1"
+      ;;
+    *)
+      if [[ -n "$APPID" ]]; then
+        die "solo un appid"
+      fi
+      APPID="$1"
+      shift
+      ;;
+  esac
+done
+
+[[ -n "$APPID" ]] || die "falta <appid>"
+[[ "$APPID" =~ ^[0-9]+$ ]] || die "el appid debe ser numerico"
+[[ "$PROFILE" == "performance" || "$PROFILE" == "balanced" ]] || die "--profile debe ser performance|balanced"
+[[ "$MANGOHUD" == "on" || "$MANGOHUD" == "off" ]] || die "--mangohud debe ser on|off"
+
+GOV_FILE="$STATE_DIR/cpu_governor"
+PROFILE_FILE="$STATE_DIR/energy_profile"
+GPU_FILE="$STATE_DIR/gpu_mode"
+mkdir -p "$STATE_DIR"
+
+ORIG_GOVERNOR=""
+ORIG_PROFILE=""
+ORIG_GPU=""
+ORIG_GOVERNOR_EXISTS=0
+ORIG_PROFILE_EXISTS=0
+ORIG_GPU_EXISTS=0
+RESTORED=0
+
+save_state() {
+  if [[ -f "$GOV_FILE" ]]; then
+    ORIG_GOVERNOR="$(cat "$GOV_FILE")"
+    ORIG_GOVERNOR_EXISTS=1
+  fi
+  if [[ -f "$PROFILE_FILE" ]]; then
+    ORIG_PROFILE="$(cat "$PROFILE_FILE")"
+    ORIG_PROFILE_EXISTS=1
+  fi
+  if [[ -f "$GPU_FILE" ]]; then
+    ORIG_GPU="$(cat "$GPU_FILE")"
+    ORIG_GPU_EXISTS=1
+  fi
+}
+
+restore_state() {
+  if [[ "$RESTORED" -eq 1 ]]; then
+    return 0
+  fi
+  RESTORED=1
+  if [[ "$ORIG_GOVERNOR_EXISTS" -eq 1 ]]; then
+    printf '%s\n' "$ORIG_GOVERNOR" > "$GOV_FILE"
+  else
+    rm -f "$GOV_FILE"
+  fi
+  if [[ "$ORIG_PROFILE_EXISTS" -eq 1 ]]; then
+    printf '%s\n' "$ORIG_PROFILE" > "$PROFILE_FILE"
+  else
+    rm -f "$PROFILE_FILE"
+  fi
+  if [[ "$ORIG_GPU_EXISTS" -eq 1 ]]; then
+    printf '%s\n' "$ORIG_GPU" > "$GPU_FILE"
+  else
+    rm -f "$GPU_FILE"
+  fi
+}
+
+trap restore_state EXIT
+trap 'restore_state; exit 143' TERM INT
+
+apply_state() {
+  printf 'performance\n' > "$GOV_FILE"
+  printf '%s\n' "$PROFILE" > "$PROFILE_FILE"
+  printf 'on\n' > "$GPU_FILE"
+  if command -v cpupower >/dev/null 2>&1; then
+    cpupower frequency-set -g performance >/dev/null 2>&1 || true
+  fi
+  if command -v powerprofilesctl >/dev/null 2>&1; then
+    powerprofilesctl set "$PROFILE" >/dev/null 2>&1 || true
+  fi
+  if command -v prime-select >/dev/null 2>&1; then
+    prime-select on >/dev/null 2>&1 || true
+  fi
+}
+
+save_state
+apply_state
+
+FINAL_CMD=()
+if [[ "${#GAME_CMD[@]}" -gt 0 ]]; then
+  FINAL_CMD=("${GAME_CMD[@]}")
+else
+  FINAL_CMD=(steam "steam://rungameid/$APPID")
+fi
+if command -v gamemoderun >/dev/null 2>&1; then
+  FINAL_CMD=(gamemoderun "${FINAL_CMD[@]}")
+fi
+if [[ "$MANGOHUD" == "on" ]] && command -v mangohud >/dev/null 2>&1; then
+  FINAL_CMD=(mangohud --dlsym "${FINAL_CMD[@]}")
+fi
+
+set +e
+"${FINAL_CMD[@]}"
+RC=$?
+set -e
+restore_state
+exit "$RC"
