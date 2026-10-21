@@ -541,3 +541,94 @@ def test_launcher_plain_launch_still_boots_shell():
     assert argv == ["-c", "/usr/lib/nimbus/shell/src"], (
         "el arranque normal debe seguir siendo `qs -c <dir>`: %r" % (argv,)
     )
+
+
+# --- T5: el bloqueo tiene salida (verificacion contra el sistema) ---
+#
+# `LockScreen.qml` emite `unlockRequested(password)` y `attemptUnlock()` la
+# descarta sin retenerla. Sin receptor, bloquear es un callejon sin salida.
+# El receptor vive en shell.qml (`attemptUnlock`): verifica contra el
+# sistema via `PamContext` (Quickshell.Services.Pam, creacion dinamica) y
+# solo desbloquea con `reportAuthResult(true)` tras exito real; sin backend
+# la pantalla SIGUE bloqueada con error traducido. Nunca hay comparacion
+# en memoria contra una contrasena guardada.
+
+
+def _shell_text():
+    return SHELL_QML.read_text(encoding="utf-8")
+
+
+def test_shell_connects_lock_unlock_requested():
+    shell = _strip_line_comments(_shell_text())
+    assert "nlockRequested" in shell, (
+        "shell.qml debe escuchar unlockRequested del LockScreen"
+    )
+    assert "attemptUnlock" in shell, (
+        "shell.qml debe tener attemptUnlock como receptor del desbloqueo"
+    )
+
+
+def test_unlock_verifies_against_system_pam():
+    shell = _strip_line_comments(_shell_text())
+    assert "Quickshell.Services.Pam" in shell, (
+        "la verificacion debe usar Quickshell.Services.Pam (sistema), "
+        "no una comparacion en memoria"
+    )
+    assert "PamContext" in shell, "falta el PamContext de verificacion"
+
+
+def test_unlock_without_backend_keeps_screen_locked():
+    shell = _strip_line_comments(_shell_text())
+    # Sin backend: reporta fallo con mensaje traducido, no desbloquea.
+    assert "reportAuthResult(false" in shell, (
+        "sin backend PAM debe llamar reportAuthResult(false, ...)"
+    )
+    assert re.search(r"reportAuthResult\(false,[^)]*translated\(", shell), (
+        "el fallo de desbloqueo debe mostrar un mensaje traducido"
+    )
+
+
+def test_successful_unlock_releases_the_lock_flag():
+    shell = _strip_line_comments(_shell_text())
+    assert "reportAuthResult(true" in shell, (
+        "el exito PAM debe llamar reportAuthResult(true, ...)"
+    )
+    # La ventana de bloqueo depende de `lockRequested`: hay que soltarlo.
+    assert re.search(r"lockRequested\s*=\s*false", shell), (
+        "tras el desbloqueo hay que soltar el flag lockRequested"
+    )
+
+
+def test_unlock_never_compares_passwords_in_memory():
+    shell = _strip_line_comments(_shell_text())
+    match = re.search(r"function\s+attemptUnlock\s*\(([^)]*)\)", shell)
+    assert match, "shell.qml debe declarar attemptUnlock"
+    params = [p.strip().split(":")[0].strip() for p in match.group(1).split(",")]
+    body_start = shell.index(match.group(0)) + len(match.group(0))
+    # Extrae el cuerpo contando llaves desde la firma.
+    depth = 0
+    end = body_start
+    started = False
+    for i in range(body_start, len(shell)):
+        if shell[i] == "{":
+            depth += 1
+            started = True
+        elif shell[i] == "}":
+            depth -= 1
+            if started and depth == 0:
+                end = i
+                break
+    body = shell[body_start:end]
+    # Solo cuentan comparaciones contra literales NO vacios (el chequeo de
+    # cadena vacia es validacion de entrada, no verificacion de secreto).
+    for param in params:
+        assert not re.search(
+            r"""['"][^'"\s][^'"]*['"]\s*==+\s*%s|%s\s*==+\s*['"][^'"\s]""" % (param, param),
+            body,
+        ), "la contrasena no debe compararse contra literales en memoria"
+    # Contrapueba: el patron caza una comparacion tramposa si se introduce.
+    evil = 'function attemptUnlock(password) { if (password == "secreto") {} }'
+    assert re.search(
+        r"""['"][^'"\s][^'"]*['"]\s*==+\s*password|password\s*==+\s*['"][^'"\s]""",
+        evil,
+    )

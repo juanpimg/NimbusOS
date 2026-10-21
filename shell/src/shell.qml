@@ -47,6 +47,10 @@ ShellRoot {
     // pide bloquear (`Ipc.call("lock", "lock")` o el Centro de control).
     property bool lockRequested: false
 
+    // Contexto PAM para verificar el desbloqueo contra el sistema
+    // (creacion dinamica en `_createPamContext`; null = sin backend).
+    property var _pamContext: null
+
     // Titulo resuelto por i18n (mantiene `Config.translated(` en el entry
     // point que exige el gate de sistema de diseno).
     readonly property string storeTitle: Config.translated("app.store.title")
@@ -103,6 +107,77 @@ ShellRoot {
         Services.clearNotifications()
     }
 
+    // --- Desbloqueo con verificación contra el sistema (T5) ---
+    //
+    // `LockScreen.attemptUnlock()` emite `unlockRequested(password)` y la
+    // descarta; este receptor verifica con `PamContext`
+    // (Quickshell.Services.Pam, creado de forma dinámica para no tumbar el
+    // config si el módulo falta) y SOLO desbloquea con `reportAuthResult`
+    // tras éxito real. Sin backend, la pantalla SIGUE bloqueada con
+    // `auth.unavailable` traducido. La contraseña solo transita por
+    // `pendingResponse` del contexto hasta `respond()` y se vacía en todos
+    // los caminos; jamás se guarda ni se compara en memoria.
+    function _resolveLockItem() {
+        if (lockLoader.status === Loader.Ready && lockLoader.item)
+            return lockLoader.item
+        return null
+    }
+
+    // Punto de entrada del desbloqueo (lo llama el LockScreen).
+    function attemptUnlock(password) {
+        var lock = _resolveLockItem()
+        if (lock === null)
+            return
+        if (typeof password !== "string" || password === "") {
+            lock.reportAuthResult(false, Config.translated("lockscreen.wrongPassword"))
+            return
+        }
+        if (_pamContext === null)
+            _pamContext = _createPamContext()
+        if (_pamContext === null) {
+            lock.reportAuthResult(false, Config.translated("auth.unavailable"))
+            return
+        }
+        if (_pamContext.active)
+            _pamContext.abort()
+        _pamContext.pendingResponse = password
+        _pamContext.start()
+    }
+
+    function _createPamContext() {
+        var pam = null
+        try {
+            pam = Qt.createQmlObject(
+                        "import Quickshell.Services.Pam; PamContext {"
+                        + " property string pendingResponse: \"\";"
+                        + " signal authSucceeded(); signal authFailed();"
+                        + " onResponseRequiredChanged: { if (responseRequired && pendingResponse !== \"\")"
+                        + " { var pw = pendingResponse; pendingResponse = \"\"; respond(pw) } }"
+                        + " onCompleted: (result) => { pendingResponse = \"\";"
+                        + " if (result === PamResult.Success) authSucceeded(); else authFailed() }"
+                        + " onError: { pendingResponse = \"\"; authFailed() } }",
+                        root)
+        } catch (e) {
+            pam = null
+        }
+        if (pam === null)
+            return null
+        pam.authSucceeded.connect(function () {
+            var lock = root._resolveLockItem()
+            if (lock === null || !lock.busy)
+                return
+            lock.reportAuthResult(true, "")
+            root.lockRequested = false
+        })
+        pam.authFailed.connect(function () {
+            var lock = root._resolveLockItem()
+            if (lock === null || !lock.busy)
+                return
+            lock.reportAuthResult(false, Config.translated("lockscreen.wrongPassword"))
+        })
+        return pam
+    }
+
     IpcHandler {
         target: "nimbus"
 
@@ -142,6 +217,18 @@ ShellRoot {
         target: Config
         function onLocaleChanged() {
             root.refreshDockFavorites()
+        }
+    }
+
+    // Receptor del desbloqueo: el LockScreen emite `unlockRequested` y
+    // descarta la contrasena; el shell verifica contra el sistema
+    // (`attemptUnlock`) y el LockScreen reporta el resultado. El destino se
+    // fija al cargarse (el item no existe antes).
+    Connections {
+        id: lockConnections
+        target: null
+        function onUnlockRequested(password) {
+            root.attemptUnlock(password)
         }
     }
 
@@ -302,6 +389,7 @@ ShellRoot {
             id: lockLoader
             anchors.fill: parent
             source: "Nimbus/modules/LockScreen.qml"
+            onLoaded: lockConnections.target = item
             onStatusChanged: {
                 if (status === Loader.Error)
                     root.logModuleFailure("LockScreen", "load error")
