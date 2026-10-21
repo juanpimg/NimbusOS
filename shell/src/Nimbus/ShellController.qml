@@ -5,9 +5,10 @@ import QtQuick
 // Propietario de que superficie esta abierta. REGLA DE EXCLUSIVIDAD: solo
 // una superficie OVERLAY puede estar abierta a la vez; `open(surface)` cierra
 // la anterior. El Dock NO es un overlay: en macOS esta siempre visible, asi
-// que `dockOpen` es siempre true y `closeAll()` lo conserva (ningun overlay
-// lo cierra). Los nombres sin booleano dedicado (p. ej. "settings") se
-// gestionan de forma generica via `activeSurface`.
+// que `dockOpen` arranca en true y `closeAll()` lo conserva (abrir o cerrar
+// overlays nunca lo toca); ademas la ventana del Dock ya no depende de el.
+// Los nombres sin booleano dedicado (p. ej. "settings") se gestionan de forma
+// generica via `activeSurface`.
 QtObject {
     id: root
 
