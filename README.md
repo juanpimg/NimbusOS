@@ -86,11 +86,14 @@ bash tools/build-iso-rootless.sh --outdir out
 
 > `iso/build.sh` y `tools/build-iso-rootless.sh` existen y pasan `bash -n`, pero **no se ejecutaron en este entorno**: no hay `mkarchiso` ni root aquí, y el banco rootless exige red y mapeos en `/etc/subuid`. El arranque de la ISO resultante en QEMU se documenta en [docs/BUILDING.md](docs/BUILDING.md).
 
-Espejos de CachyOS que usa la construcción (salvo el repo `nimbus`, todo lo demás sale de aquí):
+Espejos que usa la construcción (los mismos que el perfil de la ISO en `iso/profiles/nimbus/pacman.conf`; salvo el repo `nimbus`, todo lo demás sale de aquí):
 
-- Arch (`core`, `extra`): `https://archlinux.cachyos.org/repo/$repo/os/$arch`
-- CachyOS v3: `https://cdn77.cachyos.org/repo/$arch_v3/$repo`
-- CachyOS genérico: `https://cdn77.cachyos.org/repo/$arch/$repo`
+- Arch (`core`, `extra`): `https://mirror.rackspace.com/archlinux/$repo/os/$arch` y `https://mirror.leaseweb.com/archlinux/$repo/os/$arch`.
+- CachyOS: `https://mirror.bali0531.hu/repo/$arch/$repo` (primero: el único verificado con el `glibc` nuevo) y `https://cdn77.cachyos.org/repo/$arch/$repo` (segundo).
+
+No usar `https://archlinux.cachyos.org/repo/$repo/os/$arch`: sirve un borde desfasado que devolvió 404 para `glibc` recién sincronizado y abortó la construcción de la ISO entera.
+
+Sobre `cachyos-v3`: la ISO en vivo usa siempre los repos genéricos, porque tiene que arrancar en hardware desconocido y la CPU por defecto de QEMU (`qemu64`) no tiene AVX2: un binario v3 abortaría con SIGILL. La elección de `cachyos-v3` la hace el instalador sobre el hardware real de destino.
 
 ## Documentación
 
