@@ -11,8 +11,10 @@ Trabajo verificado sobre CachyOS (Arch) x86-64. Paquetes necesarios:
 ```bash
 sudo pacman -S --needed base-devel archiso quickshell hyprland qt6-declarative \
   qt6-wayland qt6-shadertools repo bats python-pytest lua yamllint actionlint \
-  shellcheck qemu-desktop
+  shellcheck qemu-desktop cachyos-calamares-next inter-font
 ```
+
+> `cachyos-calamares-next` solo hace falta para las tareas del instalador (validar `installer/`); `inter-font` la exige el paquete `nimbus-shell`.
 
 > No verificado en este entorno: requiere CachyOS y root. Aquí se comprobó que `archiso`, `shellcheck`, `yamllint` y `actionlint` **no** están instalados, y que `repo-add`, `makepkg`, `qemu-system-x86_64` (11.1.2), `lua`/`luac`, `gpg` (2.4.9) y `bats` (1.11.0, en `~/.local/bin`) sí lo están.
 
@@ -22,7 +24,7 @@ Tres suites, todas verificadas (salidas resumidas bajo cada comando):
 
 ```bash
 python -m pytest tests -v
-# 53 passed: cabeceras SPDX, config de Hyprland, perfil de la ISO y Calamares
+# 90 passed: cabeceras SPDX, config de Hyprland, perfil de la ISO, Calamares y punto de entrada del shell
 # (en este contenedor: /tmp/opencode/nimbus-venv/bin/python -m pytest tests -v)
 
 PATH="$HOME/.local/bin:$PATH" bats tests/*.bats
@@ -56,6 +58,10 @@ bash iso/build.sh --outdir /tmp/opencode/nimbus-iso --local-repo
 bash tests/integration/boot_live.sh --iso /tmp/opencode/nimbus-iso/nimbus-*.iso --timeout 900
 ```
 
+El camino oficial es el de root (los dos primeros comandos): es el que usa el CI
+(`iso.yml`, runner con root). El banco rootless existe para máquinas de desarrollo
+donde `sudo` pide contraseña.
+
 > No verificado en este entorno: aquí no hay `mkarchiso` ni root, así que `iso/build.sh` no se ejecutó (pasa `bash -n`). En CI (`iso.yml`, runner con root) sí se ejecuta con esos mismos comandos.
 
 ### El flag `--local-repo` y por qué existe
@@ -70,13 +76,60 @@ Detalles que importan:
 
 ### Banco de pruebas rootless y sus límites
 
-`tools/build-iso-rootless.sh --outdir out` (opcional `--keep` para conservar `iso/work`) construye la ISO **sin root**: descarga `archiso`, `squashfs-tools` y `arch-install-scripts` del espejo a un prefijo local, parcha las copias de `pacstrap` (tmpfs en vez de devtmpfs, gid 5 → 0, sin montar `/run` ni `/sys`) y de `makepkg` (permite root solo con `NIMBUS_ALLOW_ROOT=1`), y ejecuta `iso/build.sh --outdir … --local-repo` dentro de `unshare --user --map-root-user …`.
+El banco rootless construye la ISO **sin root** para máquinas de desarrollo donde
+`sudo` pide contraseña:
+
+```bash
+bash tools/build-iso-rootless.sh --outdir <dir>
+```
+
+`--keep` conserva `iso/work` para inspeccionar el fallo; sin ese flag se limpia
+al terminar. El script descarga `archiso`, `squashfs-tools` y
+`arch-install-scripts` del espejo a un prefijo local (`$NIMBUS_ROOTLESS_PREFIX`,
+por defecto bajo `$TMPDIR`), parcha las copias locales y ejecuta
+`iso/build.sh --outdir … --local-repo` dentro de
+`unshare --user --map-root-user …`.
+
+Por qué hace falta parchear: un user namespace no puede montar `devtmpfs` ni
+`sysfs`, no puede hacer `chown` a uids sin mapear, y `gpg-agent` necesita un
+runtime dir propio (sin él, `pacman-key --populate` falla con
+"keyring is not writable" y aborta la transacción). El harness lo resuelve
+parcheando copias locales de `pacstrap` (tmpfs en vez de devtmpfs con bind de
+los nodos de `/dev`, gid 5 → 0, `/run` como tmpfs con stub de DNS propio,
+`/sys` como `true`, y enlaces de `/dev/stdin` para los hooks de alpm) y de
+`makepkg` (permite root solo con `NIMBUS_ALLOW_ROOT=1`), además de tolerar en
+la copia local de `mkarchiso` el `chown` al usuario live cuando el namespace no
+mapea su uid. **Nunca modifica el sistema**: todo ocurre en el prefijo local.
 
 Límites conocidos:
 
-- Necesita red (descarga los paquetes del espejo) y mapeos de uid en `/etc/subuid` y `/etc/subgid` (mapea el uid 1000 interior al usuario de la sesión live; con un solo rango falla el `chown` con "cannot change owner").
-- En CI (GitHub Actions, contenedor con root) no hace falta: allí se instala `archiso` con pacman y se construye con normalidad.
+- Necesita red (descarga los paquetes del espejo) y mapeos de uid en
+  `/etc/subuid` y `/etc/subgid`. Con doble rango (uid 0 interior mapeado al
+  usuario real y uid 1000 interior al rango de `subuid`) el `chown` al usuario
+  live funciona y la imagen es idéntica a la de CI; con un solo rango el
+  parche deja un home temporal que basta para desarrollo. Sin mapeo completo,
+  el fallo típico es `chown` con "cannot change owner" o "Invalid argument"
+  en los hooks de `systemd-sysusers`/`systemd-tmpfiles`.
+- En CI (GitHub Actions, contenedor con root) no hace falta: allí se instala
+  `archiso` con pacman y se construye con normalidad.
 - No ejecutado en este entorno (exige red y user namespaces); existe y pasa `bash -n`.
+
+Dos detalles del harness que han roto builds reales:
+
+- **Cerrojo `flock`.** Síntoma: dos builds sobre la misma caché de paquetes se
+  pisan (uno renombra el `.part` que el otro va a renombrar) y el build aborta
+  con "could not rename ...: No such file or directory". El script serializa
+  con `flock` sobre `$PREFIX/build.lock` los builds que compartan prefijo; si
+  ya hay otro en marcha, aborta con "ya hay otro build en marcha con este
+  prefijo". Si te pasa esto, espera a que termine el otro o usa otro
+  `$NIMBUS_ROOTLESS_PREFIX`.
+- **Marcador de versión del parche: `NIMBUS_ROOTLESS_PATCH_V4`.** Síntoma: tras
+  cambiar el parcheo, el build falla por causas ya resueltas. Causa: el
+  harness se salta el parcheo si el marcador ya está en el fichero; si se
+  cambia el parche sin subir el número, cree que ya está parcheado y aplica
+  solo las correcciones viejas. Regla: si se toca `patch_pacstrap`, **hay que
+  subir el número** del marcador (`V4` → `V5`, …). El marcador va detrás del
+  shebang: delante lo rompería y `env` recaería a `/bin/sh`.
 
 Espejos usados durante la construcción:
 
@@ -108,5 +161,10 @@ Reglas vigentes desde ya (documento de diseño §4.11): nunca pruebes sobre tu i
 - **`repo-add` de pacman 7 exige una extensión de base de datos válida.** Síntoma: la DB queda inutilizable para pacman. Remedio: `repo-add nimbus.db.tar.gz …` más el symlink `nimbus.db -> nimbus.db.tar.gz` (es lo que hacen `iso/build.sh` y `tools/promote.sh`); `nimbus.db` a secas ya no vale. Verificado en código (`iso/build.sh`, `tools/promote.sh`) y cubierto por `tests/test_iso_profile.py::test_build_indexes_repo_with_valid_db_extension`; `repo-add` 7.1.0 presente en este entorno.
 - **Sin `/dev/kvm`.** Síntoma: QEMU arranca pero todo va muy lento o el harness agota el timeout. Causa: sin KVM se usa `tcg`. Remedio en local: cargar el módulo KVM y tener permisos sobre `/dev/kvm`; en CI no hay remedio, es el modo esperado. Verificado: `/dev/kvm` existe en este equipo.
 - **`makepkg` se niega a correr como root.** Síntoma: `makepkg` aborta con "Running makepkg as root is not allowed". Es comportamiento propio de `makepkg`, no un bug nuestro (el plan M0 lo tiene en cuenta: los tests construyen paquetes de prueba a mano en vez de invocar `makepkg`). Remedio: compilar siempre como usuario normal, nunca con `sudo`. No ejecutado como root en este entorno, por razones obvias.
-- **Qt5 frente a Qt6 `qmltestrunner`.** Síntoma: los tests QML fallan con errores de importación o de API. Causa: `/usr/bin/qmltestrunner` es Qt5 (verificado: enlaza `libQt5QuickTest.so.5`); los tests exigen Qt6. Remedio: usar siempre `/usr/lib/qt6/bin/qmltestrunner` (verificado: enlaza `libQt6QuickTest.so.6`).
-- **`QML2_IMPORT_PATH` mal apuntado.** Síntoma: `Cannot find module "Nimbus"`. Causa: el `qmldir` vive en `shell/src/Nimbus/`, así que el import path debe ser su padre, `shell/src` (no `shell/src/Nimbus/`). Verificado: con `QML2_IMPORT_PATH="$PWD/shell/src"` los 17 tests pasan.
+- **`SigLevel = Required` es demasiado estricto para un keyring recién poblado.** Síntoma: **toda** firma de paquete sale como "signature is invalid" y la transacción se aborta, aunque las claves sean las correctas. Causa: `Required` = `PackageRequired` + `PackageTrustedOnly`, y `PackageTrustedOnly` exige confianza *ultimate* del empaquetador. Un keyring recién poblado no la alcanza: las firmas cruzadas de las claves maestras de Arch son SHA-1, que gpg 2.4+ rechaza, así que la validez se queda en torno al 78 %. Remedio: `SigLevel = PackageRequired DatabaseOptional`, que sigue exigiendo una firma **válida** (clave válida, no revocada ni caducada; un paquete manipulado sigue rechazándose) y es lo que usa el perfil de la ISO (`iso/profiles/nimbus/pacman.conf` y la copia de la sesión live, con el porqué en sus comentarios). El sistema instalado recupera el nivel estricto con `pacman-key --refresh-keys` en el post-instalación.
+- **Un `.conf` suelto junto a `hyprland.lua` no se carga nunca.** Síntoma: añades `dots/hypr/quirks.conf` (layout, window rules) y Hyprland lo ignora en silencio: el layout no cambia y las reglas no se aplican. Causa: en modo Lua los ficheros solo se cargan con `require()`; un `.conf` acompañante es un fichero muerto. Remedio: todo va **dentro** de `hyprland.lua` con la API nativa (`hl.config(...)` para el layout flotante, `hl.window_rule(...)` para la regla de emergencia). Cubierto por `tests/test_hyprland_config.py::test_quirks_conf_is_gone`, `test_no_classic_window_rules_in_repo` y `test_layout_is_floating`: el repo no contiene ningún `quirks.conf` ni `windowrule =` clásico.
+- **La API real de Hyprland 0.56 no es la de los `.conf`.** Síntoma: la config no carga o un bind no hace nada, sin error claro. Causa: los nombres clásicos no existen en modo Lua. Lo que usa el repo (verificado en `dots/hypr/hyprland.lua`, fijado por `tests/test_hyprland_config.py`): `hl.bind` toma dos argumentos, el primero un único string combinado (`"SUPER + SHIFT + E"`); los dispatchers son `hl.dsp.exec_cmd(...)`, `hl.dsp.window.close()`, `hl.dsp.focus({ workspace = N })` (con **número**, no string) y `hl.dsp.send_shortcut({ mods = ..., key = ... })`. No existen `hl.dsp.closewindow`, `hl.dsp.copy`, `hl.dsp.paste` ni `hl.dsp.workspace(N)`. La sesión de emergencia usa el dispatcher directo como el resto de binds: envolverla en una llamada intermedia rompe la carga de toda la config.
+- **La API real de Quickshell: `ShellRoot`, no `Item`.** Síntoma: `qs -c` muere al instante y no hay proceso de shell. Causa: la raíz de una config no es un `Item` de QtQuick. Lo que usa el repo (verificado en `shell/src/shell.qml`, fijado por `tests/test_shell_entrypoint.py`): la raíz es **`ShellRoot`** (módulo `Quickshell`); las superficies son **`PanelWindow`/`FloatingWindow`/`PopupWindow`** (módulo `Quickshell.Wayland`, no `Window` de QtQuick ni `Loader` cargando otro fichero); y los servicios disponibles están en **`Quickshell.Services`**: `Greetd`, `Mpris`, `Notifications`, `Pam`, `Pipewire`, `Polkit`, `SystemTray`, `UPower` (verificado leyendo los `.qmltypes` del paquete quickshell 0.3.2 durante M0). Si `shell.qml` falta o su raíz no es un tipo de Quickshell, no hay shell.
+- **Qt5 frente a Qt6 `qmltestrunner`.** Síntoma: con `/usr/bin/qmltestrunner` la suite termina sin salida (muere en silencio) o falla con errores de importación o de API. Causa: `/usr/bin/qmltestrunner` es Qt5 (verificado: enlaza `libQt5QuickTest.so.5`); los tests exigen Qt6. Remedio: usar siempre `/usr/lib/qt6/bin/qmltestrunner` (verificado: enlaza `libQt6QuickTest.so.6`) con `QT_QPA_PLATFORM=offscreen` para correr sin sesión gráfica.
+- **`QML2_IMPORT_PATH` mal apuntado y `qmldir` en el sitio equivocado.** Síntoma: `module "Nimbus" is not installed` o `Cannot find module "Nimbus"`. Causa: QML resuelve un módulo buscando un *directorio* con ese nombre en el `QML2_IMPORT_PATH`; con un `qmldir` plano en `shell/src/` el import no resuelve. Remedio: el `qmldir` va en `shell/src/Nimbus/`, y el import path debe ser su padre, `shell/src` (no `shell/src/Nimbus/`). Verificado: con `QML2_IMPORT_PATH="$PWD/shell/src"` los 17 tests pasan. Fijado por `tests/test_shell_entrypoint.py::test_qmldir_registers_the_three_singletons` y `test_launcher_import_path_contains_nimbus_module`.
+- **El test de SPDX no debe reimplementar el recorrido del checker.** Síntoma: el test pasa en verde pero comprueba otra cosa que la herramienta (por ejemplo, no sabe qué directorios ignora) y se desincroniza de ella. Causa: el test tiene su propia copia de la lógica de recorrido. Remedio: el test **usa** la herramienta (`tests/test_spdx_headers.py` invoca `tools/check_spdx.py` por subprocess en vez de duplicar su recorrido) y además comprueba que la herramienta **falla** cuando falta una cabecera (`test_check_spdx_detects_a_missing_header`): un chequeo que siempre pasa no comprueba nada.

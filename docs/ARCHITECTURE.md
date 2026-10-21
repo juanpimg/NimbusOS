@@ -39,6 +39,7 @@ Qué rueda y qué se pinea, en detalle: [../packages/README.md](../packages/READ
 - La promoción es un acto manual con la clave GPG offline: `tools/promote.sh --from <testing> --to <stable> --gpgdir <disco-offline> --key <fingerprint>`. Es atómica (o se copia todo o no se copia nada) y se niega a sobrescribir una versión ya publicada.
 - `tools/verify_repo.sh --repo <dir> --gpgdir <dir>` comprueba la firma de la DB y de cada paquete; un paquete sin `.sig` contigua cuenta como fallo.
 - **La CI nunca firma.** Compila y prueba; la firma solo ocurre en la máquina offline. La clave maestra no existe en ningún runner, en ningún artefacto ni en ningún repositorio.
+- **El repo local de bootstrap va sin firmar.** Durante el bootstrap el repo `nimbus` aún no está alojado, así que `iso/build.sh --local-repo` sirve los PKGBUILDs compilados por `file://` y la sección `[nimbus]` del `pacman.conf` del perfil lleva `SigLevel = Optional` con un `# TODO(bootstrap)` visible. Es un apaño temporal de construcción, no el modelo de firma: cuando el repo público esté alojado y firmado, esa sección pasa a `SigLevel = PackageRequired DatabaseOptional`. Detalles en [BUILDING.md](BUILDING.md) (§ "El flag `--local-repo` y por qué existe") y en el contrato de `packages/nimbus-keyring`.
 - La rotación de clave es un procedimiento de 6 pasos documentado en [../packages/README.md](../packages/README.md): generar clave nueva offline, re-firmar el repo, publicar el keyring nuevo con ambas claves, retirar la antigua.
 
 ## Cadena de confianza
@@ -50,6 +51,8 @@ Qué rueda y qué se pinea, en detalle: [../packages/README.md](../packages/READ
 5. Las actualizaciones (`nimbus-update`, pendiente: hito M3) aplican `pacman -Syu` + Flatpaks con snapshot previo automático.
 
 Sobre el formato de `nimbus.gpg`: debe ser la **exportación armored de la clave pública** (empieza por `-----BEGIN PGP PUBLIC KEY BLOCK-----`), igual que `cachyos.gpg` y `archlinux.gpg`. No sirve un keybox: `pacman-key --populate` importa el fichero con `gpg --import`, y `gpg --import` solo acepta exportaciones de clave, no bases de datos de keyring. Con un keybox responde "no valid OpenPGP data found", la clave entra sin confianza y **todas** las firmas del repo fallan. Es el tipo de detalle que rompe todo en silencio; por eso hay un test dedicado (`keyring.bats`: "nimbus.gpg es importable con gpg --import").
+
+Sobre la clave que hay hoy en el repo: es una **clave de bootstrap de prueba**, generada en local (`Nimbus Bootstrap`, fingerprint `C069CB59A56B325AFE82C05A1AB48981EB7BDCC7`). Su mitad privada está fuera de cualquier custodia documentada y **hay que rotarla antes de cualquier beta o publicación**, siguiendo los 6 pasos de [../packages/README.md](../packages/README.md) (§ "Rotación de clave" y § "Custodia de la clave offline"). Al repo solo se sube la mitad pública, que es la que se distribuye a los usuarios.
 
 ## Arquitectura del shell
 
