@@ -6,6 +6,7 @@ singleton ShellController 1.0 ShellController.qml
 singleton Ipc 1.0 Ipc.qml
 singleton Services 1.0 Services.qml
 singleton PolkitAgent 1.0 PolkitAgent.qml
+ControlCenter 1.0 modules/ControlCenter.qml
 Glass 1.0 lib/Glass.qml
 Popup 1.0 lib/Popup.qml
 Icon 1.0 lib/Icon.qml
