@@ -20,7 +20,7 @@ Orden de lectura recomendado. Los enlaces son relativos y funcionan en GitHub.
 
 7. [superpowers/specs/2026-10-21-nimbus-design.md](superpowers/specs/2026-10-21-nimbus-design.md) — documento de diseño. Si esta documentación y el diseño discrepan, **manda el diseño** y abre un issue.
 8. [superpowers/plans/2026-10-21-nimbus-roadmap.md](superpowers/plans/2026-10-21-nimbus-roadmap.md) — índice de planes de implementación.
-9. [superpowers/plans/2026-10-21-nimbus-m0-fundamentos.md](superpowers/plans/2026-10-21-nimbus-m0-fundamentos.md) — plan M0. Los planes M1…M6 están pendientes de escribir.
+9. [superpowers/plans/2026-10-21-nimbus-m0-fundamentos.md](superpowers/plans/2026-10-21-nimbus-m0-fundamentos.md) — plan M0. También están escritos los planes M1 (shell), M2 (instalador), M3 (gameready) y M4 (beta); los planes M5 y M6 están pendientes de escribir.
 
 ## Referencia operativa
 

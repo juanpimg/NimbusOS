@@ -117,6 +117,15 @@ tools/verify_repo.sh --repo /srv/repo/stable --gpgdir /run/media/offline/gnupg
 **La clave offline se guarda cifrada en dos sitios y el procedimiento
 de recuperación está escrito aquí.**
 
+**Aviso: la clave que hay hoy en el repo es de bootstrap.** `packages/nimbus-keyring/nimbus.gpg`
+(fingerprint `C069CB59A56B325AFE82C05A1AB48981EB7BDCC7`, uid `Nimbus Bootstrap`)
+es una clave de prueba generada en local: su mitad privada está fuera de
+cualquier custodia documentada y **nunca se versiona** (al repo solo se sube
+la mitad pública, que es la que se distribuye a los usuarios). Antes de
+cualquier beta o publicación hay que **rotarla** por una clave generada y
+custodiada según esta sección, siguiendo los 6 pasos de arriba; la ISO
+siguiente embebe el keyring nuevo (paso 6).
+
 - Copia 1: USB cifrado (LUKS) guardado fuera de la máquina de firma,
   con la subclave de firma y el certificado de revocación pregenerado.
 - Copia 2: segundo soporte cifrado en una ubicación física distinta,

@@ -65,7 +65,7 @@ Los módulos del escritorio (TopBar, Dock, Spotlight, Centro de Control, notific
 
 ### Contrato IPC (previsto, pendiente de implementar)
 
-Definido en el plan M0 (Task 5) para cuando exista `dots/`. El shell expondrá `nimbus-shell ipc call <acción>` y Hyprland lo invocará desde sus binds:
+Definido en el plan M0 (Task 5) y ya declarado en `dots/hypr/hyprland.lua` (los binds llaman a `nimbus-shell ipc call <acción>`). El shell expondrá `nimbus-shell ipc call <acción>` y Hyprland lo invocará desde sus binds:
 
 | Tecla | Llamada | Efecto |
 |-------|---------|--------|

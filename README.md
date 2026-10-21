@@ -8,20 +8,24 @@ Está pensada para personas que nunca van a abrir una terminal. El objetivo: un 
 
 ## Estado
 
-El proyecto está en el hito **M0 ("cimientos")** y **no hay nada utilizable como sistema todavía**: no existe ISO, no existe instalador y el shell es un punto de entrada mínimo con los singletons de diseño. Lo que sigue es honesto a fecha de este commit.
+El proyecto está en el hito **M0 ("cimientos")** y ya hay un sistema mínimo que se construye y se prueba de extremo a extremo, pero **todavía no es un sistema utilizable**: el escritorio visual (barra, Dock, Spotlight, Centro de Control) está planificado para el Plan 2 / M1 y no existe.
 
-**Lo que funciona hoy** (verificado con los tres suites de tests):
+**Lo que funciona hoy** (verificado con los tres suites de tests: 53 pytest + 13 bats + 17 QML, ver salidas en [docs/BUILDING.md](docs/BUILDING.md)):
 
-- Control de licencias SPDX (`tools/check_spdx.py`) y CI de lint.
-- Keyring GPG offline y firma de repositorios (`tools/genkeyring.sh`, `tools/sign_repo.sh`).
-- Modelo de pins con canales `testing`/`stable` y promoción manual (`tools/promote.sh`, `tools/verify_repo.sh`).
-- Tokens de diseño y configuración del shell (`Theme`, `Config`, `Translations`) con tests QML.
+- Andamiaje del monorepo, control de licencias SPDX (`tools/check_spdx.py`, 34 ficheros) y CI (`ci.yml` con lint + tests, `iso.yml` que construye la ISO y la arranca en QEMU).
+- Cadena de confianza: generación del keyring (`tools/genkeyring.sh`), firma offline (`tools/sign_repo.sh`) y promoción `testing` → `stable` con verificación (`tools/promote.sh`, `tools/verify_repo.sh`).
+- Paquetes `nimbus-keyring`, `nimbus-shell` y `nimbus-dots` con sus PKGBUILDs.
+- Sistema de diseño del shell: singletons `Theme`, `Config` y `Translations` con tests QML.
+- Configuración de Hyprland (`dots/hypr/hyprland.lua`, API Lua nativa): layout flotante, atajos estilo macOS y sesión de emergencia con terminal (`SUPER + MAYÚS + E`).
+- Perfil de ISO para **archiso 91** (`iso/profiles/nimbus/`) y constructor (`iso/build.sh --local-repo`), con banco de pruebas rootless (`tools/build-iso-rootless.sh`).
+- Instalador Calamares con los módulos `nimbus-appearance`, `nimbus-software` y `nimbus-verify`.
+- Harness de integración en QEMU (`tests/integration/boot_live.sh`) que arranca la ISO y espera el marcador `NIMBUS_LIVE_READY`.
+- Documentación: arquitectura, guía de build, guía de contribución, roadmap (este fichero y `docs/`).
 
-**Lo que no existe todavía** (hitos M0 pendientes y posteriores):
+**Lo que no existe todavía** (sin adornos):
 
-- Configuración de Hyprland (`dots/`), perfil de ISO y constructor (`iso/`), módulos de Calamares (`installer/`), harness de integración en QEMU (`tests/integration/`).
-- Módulos del escritorio (TopBar, Dock, Spotlight, …), Nimbus Store, instalador, sesión de juegos: hitos M1–M4.
-- Beta pública e i18n completa: hitos M5–M6. Ver [docs/ROADMAP.md](docs/ROADMAP.md).
+- El shell visual en sí: barra, Dock, Spotlight, Centro de Control, notificaciones y resto de módulos (Plan 2 / M1).
+- La Nimbus Store, los Ajustes del sistema, el perfil gameready, el arranque dual implementado, Secure Boot y la publicación del repo de paquetes (el repo `nimbus` aún no está alojado; la ISO se construye contra un repo local de bootstrap, ver [docs/BUILDING.md](docs/BUILDING.md)).
 
 ## Estructura del repositorio
 
@@ -30,13 +34,13 @@ El proyecto está en el hito **M0 ("cimientos")** y **no hay nada utilizable com
 | `tools/` | Scripts de la cadena de firma y promoción (bash + Python). |
 | `packages/` | PKGBUILDs del repo `nimbus` y el documento del modelo de pins. |
 | `shell/` | Shell QML/Quickshell: singletons `Theme`, `Config`, `Translations`, punto de entrada y tests. |
-| `dots/` | Configuración de Hyprland y defaults del sistema (pendiente en M0). |
-| `iso/` | Perfil archiso y constructor de la ISO (pendiente en M0). |
-| `installer/` | Configuración y módulos propios de Calamares (pendiente en M0). |
-| `tests/` | Tests pytest y bats; `tests/integration/` con el harness QEMU (pendiente en M0). |
+| `dots/` | Configuración de Hyprland (layout flotante, atajos estilo macOS, sesión de emergencia) y defaults del sistema. |
+| `iso/` | Perfil archiso 91 y constructor de la ISO (`build.sh --local-repo`). |
+| `installer/` | Configuración de Calamares y módulos propios (`nimbus-appearance`, `nimbus-software`, `nimbus-verify`). |
+| `tests/` | Tests pytest (53) y bats (13); `tests/integration/` con el harness QEMU (`boot_live.sh`, espera `NIMBUS_LIVE_READY`). |
 | `docs/` | Índice, arquitectura, guía de construcción, roadmap y documentos de diseño. |
-| `third_party/` | Código vendorizado de terceros (MIT); hoy solo existe como convención documentada. |
-| `.github/` | Workflows de CI (`ci.yml` existe; `iso.yml` pendiente en M0). |
+| `third_party/` | Código vendorizado de terceros (MIT); hoy solo existe como convención documentada: el directorio no existe aún en el árbol. |
+| `.github/` | Workflows de CI (`ci.yml`: lint + tests; `iso.yml`: construye la ISO y la arranca en QEMU). |
 
 ## Inicio rápido
 
@@ -55,18 +59,30 @@ sudo pacman -S --needed base-devel archiso quickshell hyprland qt6-declarative \
   shellcheck qemu-desktop cachyos-calamares-next inter-font
 ```
 
-Los tres suites de tests (verificados; ver salidas exactas en [docs/BUILDING.md](docs/BUILDING.md)). El comando canónico es `python -m pytest tests -v` (funciona en cuanto instalas `python-pytest`); en este contenedor `pytest` no está en el PATH y se usa el venv:
+Los tres suites de tests (verificados en este entorno; ver salidas exactas en [docs/BUILDING.md](docs/BUILDING.md)). El comando canónico es `python -m pytest tests -v` (funciona en cuanto instalas `python-pytest`); en este contenedor `pytest` no está en el PATH y se usa el venv:
 
 ```bash
-python -m pytest tests -v
-# En este entorno: /tmp/opencode/nimbus-venv/bin/python -m pytest tests -v
+# Python: no hay pytest en el PATH de forma general; el proyecto usa un venv
+/tmp/opencode/nimbus-venv/bin/python -m pytest tests -v
+# bats
 PATH="$HOME/.local/bin:$PATH" bats tests/*.bats
+# QML
 QT_QPA_PLATFORM=offscreen QML2_IMPORT_PATH="$PWD/shell/src" /usr/lib/qt6/bin/qmltestrunner -input shell/tests
 ```
 
 > Nota: `pytest` no está en el PATH de este entorno; se invoca el intérprete del venv directamente. `bats` vive en `~/.local/bin` y hay que anteponerlo al PATH. El `qmltestrunner` de `/usr/bin` es Qt5; los tests del shell exigen el de Qt6 (`/usr/lib/qt6/bin`).
 
-Construir la ISO y arrancarla en QEMU todavía **no es posible en esta rama**: `iso/build.sh` y `tests/integration/boot_live.sh` no existen aún (M0, Tasks 6 y 8 pendientes). La interfaz prevista está documentada en [docs/BUILDING.md](docs/BUILDING.md).
+Construir la ISO (requiere CachyOS; el primer comando necesita root, como en CI; el segundo es el banco de pruebas sin root del repo):
+
+```bash
+# Con root (como en CI):
+sudo pacman -S --needed archiso repo
+bash iso/build.sh --outdir out --local-repo
+# Sin root, con el banco de pruebas del repo:
+bash tools/build-iso-rootless.sh --outdir out
+```
+
+> `iso/build.sh` y `tools/build-iso-rootless.sh` existen y pasan `bash -n`, pero **no se ejecutaron en este entorno**: no hay `mkarchiso` ni root aquí, y el banco rootless exige red y mapeos en `/etc/subuid`. El arranque de la ISO resultante en QEMU se documenta en [docs/BUILDING.md](docs/BUILDING.md).
 
 Espejos de CachyOS que usa la construcción (salvo el repo `nimbus`, todo lo demás sale de aquí):
 

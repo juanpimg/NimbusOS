@@ -28,7 +28,7 @@ Ejecútalos siempre antes de abrir un PR. Cubren cosas distintas:
 python -m pytest tests -v
 ```
 
-Cubre la lógica en Python: cabeceras SPDX, configuración de Hyprland, perfil de la ISO y ajustes de Calamares (según existan en tu rama; hoy solo existe el test SPDX). En este contenedor `pytest` no está en el PATH: usa `/tmp/opencode/nimbus-venv/bin/python -m pytest tests -v`.
+Cubre la lógica en Python: cabeceras SPDX, configuración de Hyprland (`test_hyprland_config.py`), perfil de la ISO (`test_iso_profile.py`) y ajustes y comportamiento de Calamares (`test_calamares_settings.py`, `test_calamares_behavior.py`). En este contenedor `pytest` no está en el PATH: usa `/tmp/opencode/nimbus-venv/bin/python -m pytest tests -v`.
 
 ```bash
 PATH="$HOME/.local/bin:$PATH" bats tests/*.bats
@@ -41,6 +41,19 @@ QT_QPA_PLATFORM=offscreen QML2_IMPORT_PATH="$PWD/shell/src" /usr/lib/qt6/bin/qml
 ```
 
 Cubre los singletons QML (`Theme`, `Config`, `Translations`). Usa el runner de **Qt6** (`/usr/lib/qt6/bin`); el `qmltestrunner` de `/usr/bin` es Qt5 y no sirve. `QT_QPA_PLATFORM=offscreen` permite correrlos sin sesión gráfica. `QML2_IMPORT_PATH` debe apuntar a `shell/src`, que es el directorio que contiene la carpeta del módulo `Nimbus/` (no a `shell/src/Nimbus/`).
+
+## Dónde contribuir: las 8 áreas
+
+El repo ya tiene 8 zonas con código y tests. Elige una y empieza por el fichero y el test que se indican:
+
+1. **Tooling** (`tools/`): `genkeyring.sh`, `sign_repo.sh`, `promote.sh`, `verify_repo.sh`, `check_spdx.py`, `build-iso-rootless.sh`. Empieza leyendo `packages/README.md` (contratos de `promote.sh` y `verify_repo.sh`) y ejecuta `PATH="$HOME/.local/bin:$PATH" bats tests/*.bats`.
+2. **Paquetes** (`packages/`): `nimbus-keyring`, `nimbus-shell`, `nimbus-dots` (PKGBUILDs). Empieza por `packages/README.md` (modelo `testing`/`stable`, rotación de clave) y comprueba que `makepkg` está disponible; recuerda que `makepkg` no corre como root.
+3. **Shell/QML** (`shell/`): singletons `Theme`, `Config`, `Translations` en `shell/src/Nimbus/`, punto de entrada `shell/src/main.qml`, tests en `shell/tests/`. Empieza ejecutando el comando QML de arriba y leyendo [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (§ "Arquitectura del shell"). Toda cadena visible va a `Translations` (ver "Cómo traducir" abajo).
+4. **Configuración de Hyprland** (`dots/`): `dots/hypr/hyprland.lua` (API Lua nativa: layout flotante, atajos estilo macOS, sesión de emergencia), `dots/nimbus/defaults.conf`, `dots/nimbus/nimbus-start`. Empieza con `/tmp/opencode/nimbus-venv/bin/python -m pytest tests/test_hyprland_config.py -v`. Necesitas `lua` para validar la sintaxis fuera de Hyprland.
+5. **ISO** (`iso/`): perfil archiso 91 en `iso/profiles/nimbus/` (`profiledef.sh`, `pacman.conf`, `packages.x86_64`, `airootfs/`) y `iso/build.sh --local-repo`. Empieza con `/tmp/opencode/nimbus-venv/bin/python -m pytest tests/test_iso_profile.py -v` y leyendo [docs/BUILDING.md](docs/BUILDING.md) (§ "Construir la ISO").
+6. **Instalador** (`installer/`): `installer/calamares/settings.conf` y los módulos `nimbus-appearance`, `nimbus-software`, `nimbus-verify`. Empieza con `/tmp/opencode/nimbus-venv/bin/python -m pytest tests/test_calamares_settings.py tests/test_calamares_behavior.py -v`. Solo necesitas `cachyos-calamares-next` si vas a validar `installer/` contra Calamares real.
+7. **Tests** (`tests/`, `shell/tests/`): pytest, bats y qmltestrunner más el harness de integración (`tests/integration/boot_live.sh`, marcador `NIMBUS_LIVE_READY`). Empieza ejecutando los tres comandos de arriba en orden. Si añades código, añade o actualiza su test en el mismo PR.
+8. **Documentación** (`README.md`, `CONTRIBUTING.md`, `docs/`, `packages/README.md`): en español, términos técnicos en inglés, sin adjetivos de marketing, sin hechos inventados ("pendiente de decidir" si algo no está decidido), enlaces relativos y sin assets ni marcas de Apple. Empieza comprobando que cada enlace interno resuelve y que ningún "no existe" describe algo que ya existe.
 
 ## Convención de commits
 
@@ -102,7 +115,7 @@ Abre un issue con:
 - Distro y kernel (`uname -a`), GPU (`lspci | grep -i vga`) y si es portátil o sobremesa.
 - Qué esperabas y qué pasó, paso a paso para reproducirlo.
 - La salida del paso de verificación relevante (pytest, bats o qmltestrunner) si el bug es del repo; si es de hardware, qué rama de `chwd`/driver usas.
-- Si el sistema arranca pero el escritorio no, indica hasta dónde llega (¿consola? ¿greeter?) y adjunta el log relevante. La sesión de emergencia con terminal llegará con la configuración de Hyprland (M0, Task 5); hasta entonces no existe.
+- Si el sistema arranca pero el escritorio no, indica hasta dónde llega (¿consola? ¿greeter?) y adjunta el log relevante. Para depurar existe la sesión de emergencia: `SUPER + MAYÚS + E` abre un terminal a pantalla completa (`kitty --class emergency`, declarado en `dots/hypr/hyprland.lua`).
 
 ## Código de conducta
 
