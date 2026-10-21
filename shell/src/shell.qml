@@ -4,18 +4,25 @@ import Quickshell
 import Quickshell.Wayland
 import Nimbus
 
-// Entrada del shell Nimbus (M1 integrado): monta las 9 superficies y las
-// 3 aplicaciones de forma defensiva. Cada modulo va tras un Loader con
-// vigilancia de `status`: si uno falla al cargar, `moduleFailures` cuenta
-// el fallo y el shell sigue arrancando (Review Focus #4). Como QML no
-// tiene try/catch, la guarda es `onStatusChanged` + `status === Loader.Error`.
+// Entrada del shell Nimbus (M1 integrado + M4 montaje): monta las superficies
+// y las aplicaciones de forma defensiva.
 //
-// Visibilidad: cada ventana respeta `ShellController` (`dockOpen`,
-// `spotlightOpen`, `controlCenterOpen`, `switcherOpen`, `quickLookOpen`,
-// `wallpaperOpen`, `notificationsOpen`, `activeSurface`) y el bus `Ipc`
+// REGLA DE MONTAJE (M4): un `Loader` de QML solo instancia `Item`s, nunca
+// ventanas (`QQuickWindow`). Por eso cada superficie que ES una ventana
+// (TopBar: `PanelWindow`; Settings: `FloatingWindow`) se crea de forma
+// imperativa en `Component.onCompleted` con `loadModule` (`Qt.createComponent`
+// + `createObject(null)`); si el componente falla, `moduleFailures` cuenta el
+// fallo y el shell sigue arrancando, nunca muere por el. Las superficies que
+// son contenido (`Item`) van tras un `Loader` con vigilancia de `status`:
+// si uno falla al cargar, `moduleFailures` cuenta el fallo y el shell sigue.
+//
+// Visibilidad: la barra superior y el Dock estan SIEMPRE visibles (macOS);
+// Spotlight, Switcher, QuickLook, Control Center, Notificaciones y la galeria
+// de fondos son BAJO DEMANDA (se abren con atajos/IPC via `ShellController`);
+// el bloqueo arranca CERRADO. El tour solo se muestra en el primer arranque
+// (`!Config.tourCompleted`). El bus `Ipc` llega como
 // (`Ipc.call(target, fn)` -> `ShellController.toggle/open/close` o
-// `surfaceRequested`; ver `Nimbus/Ipc.qml`). El tour solo se muestra en el
-// primer arranque (`!Config.tourCompleted`).
+// `surfaceRequested`; ver `Nimbus/Ipc.qml`).
 //
 // NOTA DE API (ruling M1): la senal de finalizacion del tour se llama
 // `tourFinished()` y la propiedad `finished` se queda (el spec pedia
@@ -28,6 +35,10 @@ ShellRoot {
     // el shell sigue arrancando, nunca muere por el.
     property int moduleFailures: 0
 
+    // Ventanas montadas de forma imperativa (no pueden ir en un Loader).
+    property var topBarWindow: null
+    property var settingsWindow: null
+
     // Titulo resuelto por i18n (mantiene `Config.translated(` en el entry
     // point que exige el gate de sistema de diseno).
     readonly property string storeTitle: Config.translated("app.store.title")
@@ -39,6 +50,9 @@ ShellRoot {
 
     // Punto de carga imperativa (M0/M1): crea el componente de forma
     // guardada y devuelve null contando el fallo en vez de tumbar el shell.
+    // Para ventanas se llama con parent null (una ventana no tiene padre
+    // visual); la referencia se guarda en una property para que el GC de
+    // QML no la recoja.
     function loadModule(source, parent) {
         var component = Qt.createComponent(source)
         if (component.status !== Component.Ready) {
@@ -53,7 +67,29 @@ ShellRoot {
         return obj
     }
 
+    // Iconos del Dock: aplicaciones reales con nombre traducido y color de
+    // baldosa desde Theme (sin literales: la golden rule lo exige tambien
+    // aqui). El Dock dibuja, no decide: estos datos entran por `favorites`.
+    function defaultDockApps() {
+        return [
+            { "id": "terminal", "name": Config.translated("app.terminal"), "icon": "terminal", "color": Theme.appGray },
+            { "id": "files", "name": Config.translated("app.files"), "icon": "files", "color": Theme.appBlue },
+            { "id": "browser", "name": Config.translated("app.browser"), "icon": "browser", "color": Theme.appOrange },
+            { "id": "store", "name": Config.translated("app.store"), "icon": "store", "color": Theme.appGreen },
+            { "id": "settings", "name": Config.translated("app.settings"), "icon": "settings", "color": Theme.appPurple }
+        ]
+    }
+
+    function refreshDockFavorites() {
+        if (dockLoader.status === Loader.Ready && dockLoader.item)
+            dockLoader.item.favorites = root.defaultDockApps()
+    }
+
     Component.onCompleted: {
+        // Las ventanas no pueden ir en un Loader: se montan aqui de forma
+        // defensiva (un fallo cuenta en moduleFailures, no tumba el shell).
+        topBarWindow = loadModule("Nimbus/modules/TopBar.qml", null)
+        settingsWindow = loadModule("Nimbus/apps/Settings/Settings.qml", null)
         // Fuerza la instanciacion de los singletons base del shell.
         ShellController.closeAll()
         Services.clearNotifications()
@@ -84,9 +120,18 @@ ShellRoot {
         }
     }
 
+    // Los nombres traducidos del Dock siguen al idioma en caliente.
+    Connections {
+        target: Config
+        function onLocaleChanged() {
+            root.refreshDockFavorites()
+        }
+    }
+
     // Fondo del escritorio: capa base con el color del sistema.
     PanelWindow {
         id: backgroundWindow
+        WlrLayershell.layer: WlrLayer.Background
         anchors {
             top: true
             bottom: true
@@ -96,19 +141,12 @@ ShellRoot {
         color: Theme.background
     }
 
-    // Barra superior (PanelWindow propio): siempre visible.
-    Loader {
-        id: topBarLoader
-        source: "Nimbus/modules/TopBar.qml"
-        onStatusChanged: {
-            if (status === Loader.Error)
-                root.logModuleFailure("TopBar", "load error")
-        }
-    }
-
-    // Dock: PanelWindow inferior con zona exclusiva.
+    // Dock: PanelWindow inferior con zona exclusiva, SIEMPRE visible (macOS:
+    // el Dock no es un overlay bajo demanda). El contenido (Item) va tras un
+    // Loader defensivo; los datos entran por `favorites` al cargarse.
     PanelWindow {
         id: dockWindow
+        WlrLayershell.layer: WlrLayer.Top
         anchors {
             bottom: true
             left: true
@@ -116,11 +154,12 @@ ShellRoot {
         }
         height: Theme.dockSize
         exclusiveZone: Theme.dockSize
-        visible: ShellController.dockOpen && dockLoader.status === Loader.Ready
+        visible: dockLoader.status === Loader.Ready
         Loader {
             id: dockLoader
             anchors.fill: parent
             source: "Nimbus/modules/Dock.qml"
+            onLoaded: root.refreshDockFavorites()
             onStatusChanged: {
                 if (status === Loader.Error)
                     root.logModuleFailure("Dock", "load error")
@@ -148,6 +187,7 @@ ShellRoot {
     // Notificaciones: panel arriba-derecha.
     PanelWindow {
         id: notificationsWindow
+        WlrLayershell.layer: WlrLayer.Overlay
         anchors {
             top: true
             right: true
@@ -254,6 +294,7 @@ ShellRoot {
     // Capturas: overlay a pantalla completa; el contenido gestiona `shown`.
     PanelWindow {
         id: screenshotWindow
+        WlrLayershell.layer: WlrLayer.Overlay
         anchors {
             top: true
             bottom: true
@@ -269,16 +310,6 @@ ShellRoot {
                 if (status === Loader.Error)
                     root.logModuleFailure("Screenshot", "load error")
             }
-        }
-    }
-
-    // Ajustes: FloatingWindow propio con visibilidad por `activeSurface`.
-    Loader {
-        id: settingsLoader
-        source: "Nimbus/apps/Settings/Settings.qml"
-        onStatusChanged: {
-            if (status === Loader.Error)
-                root.logModuleFailure("Settings", "load error")
         }
     }
 

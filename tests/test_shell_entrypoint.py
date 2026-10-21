@@ -223,7 +223,7 @@ def test_no_loader_mounts_a_window():
         )
     ), "TopBar.qml ya no es PanelWindow"
     # Y el patron caza un Loader que cargue una ventana si se reintroduce.
-    assert "TopBar.qml" in _loader_sources('Loader {\nsource: "Nimbus/modules/TopBar.qml"\n}')
+    assert any("TopBar.qml" in s for s in _loader_sources('Loader {\nsource: "Nimbus/modules/TopBar.qml"\n}'))
 
 
 def test_topbar_is_a_window_not_a_loader_source():
