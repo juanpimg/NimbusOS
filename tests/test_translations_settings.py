@@ -63,6 +63,20 @@ def _service_default(prop):
     return match.group(1)
 
 
+def _service_states_list(name):
+    """Dominio declarado en Services.qml (`networkStates`, `bluetoothStates`).
+
+    Las claves traducidas deben cubrir TODO el dominio, no solo el valor
+    por defecto: el probe puede fijar cualquier valor del dominio.
+    """
+    text = SERVICES.read_text(encoding="utf-8")
+    match = re.search(r"readonly property var %s:\s*\[(.*?)\]" % name, text, re.S)
+    assert match, "Services.qml debe declarar el dominio %s" % name
+    values = re.findall(r'"([a-z]+)"', match.group(1))
+    assert values, "el dominio %s esta vacio" % name
+    return values
+
+
 def _required_keys():
     required = set()
     for path in _settings_sources():
@@ -78,9 +92,9 @@ def _required_keys():
                     "settings.appearance.mode." + mode for mode in ("light", "dark", "auto")
                 )
             elif prefix == "settings.network.state.":
-                required.add(prefix + _service_default("networkState"))
+                required.update(prefix + value for value in _service_states_list("networkStates"))
             elif prefix == "settings.bluetooth.state.":
-                required.add(prefix + _service_default("bluetoothState"))
+                required.update(prefix + value for value in _service_states_list("bluetoothStates"))
             else:  # pragma: no cover - un prefijo nuevo debe registrarse aqui
                 raise AssertionError(
                     "prefijo dinamico sin dominio conocido: %s (en %s)" % (prefix, path.name)
