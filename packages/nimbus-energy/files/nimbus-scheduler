@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# nimbus-scheduler — selecciona el scheduler de CPU entre los disponibles
+# en el kernel instalado. Cambiar de scheduler requiere reiniciar.
+#
+# Variables de entorno (pensadas para pruebas sin sysfs real):
+#   NIMBUS_SCHED_SYSBASE   base de sched_ext (por defecto /sys/kernel/sched_ext)
+#   NIMBUS_SCHED_STATE     fichero donde se registra la seleccion
+set -euo pipefail
+
+SYSBASE="${NIMBUS_SCHED_SYSBASE:-/sys/kernel/sched_ext}"
+STATE="${NIMBUS_SCHED_STATE:-/var/lib/nimbus/scheduler}"
+
+# Schedulers conocidos por Nimbus; `default` es siempre la opcion segura.
+KNOWN="sched-ext lavd bore bmq"
+
+usage() {
+  echo "Uso: nimbus-scheduler list|set <sched-ext|lavd|bore|bmq|default>" >&2
+}
+
+available() {
+  echo "default"
+  local k
+  for k in $KNOWN; do
+    if [ -e "$SYSBASE/$k" ]; then
+      echo "$k"
+    fi
+  done
+}
+
+is_available() {
+  local want="$1" a
+  while IFS= read -r a; do
+    if [ "$a" = "$want" ]; then
+      return 0
+    fi
+  done < <(available)
+  return 1
+}
+
+cmd_list() {
+  available
+}
+
+cmd_set() {
+  local want="${1:-}"
+  if [ -z "$want" ] || ! is_available "$want"; then
+    echo "nimbus-scheduler: scheduler '$want' no disponible en este kernel." >&2
+    echo "Disponibles:" >&2
+    available >&2
+    exit 1
+  fi
+  local dir
+  dir="$(dirname "$STATE")"
+  if [ ! -d "$dir" ]; then
+    mkdir -p "$dir"
+  fi
+  if ! touch "$STATE" 2>/dev/null; then
+    echo "nimbus-scheduler: sin permiso para escribir $STATE (se requieren privilegios)." >&2
+    exit 1
+  fi
+  echo "$want" >"$STATE"
+  echo "Scheduler programado: $want."
+  echo "El cambio requiere reiniciar para aplicarse."
+}
+
+main() {
+  local action="${1:-}" value="${2:-}"
+  case "$action" in
+    list) cmd_list ;;
+    set) cmd_set "$value" ;;
+    *) usage; exit 2 ;;
+  esac
+}
+
+main "$@"

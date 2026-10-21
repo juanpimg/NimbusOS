@@ -154,3 +154,151 @@ def test_pkgbuild_depends_and_no_tlp():
 
     for match in re.finditer(r"depends=\((.*?)\)", pkgbuild, re.DOTALL):
         assert "tlp" not in match.group(1), "tlp entra en conflicto con PPD"
+
+
+# --- M3 T4: scheduler, ananicy y rendimiento de escritorio --------------------
+
+SCHEDULER = FILES / "nimbus-scheduler"
+ANONICY = FILES / "nimbus-anonicy"
+GAMING_RULES = FILES / "ananicy" / "ananicy.d" / "50-nimbus-gaming.rules"
+GAMING_CONF = FILES / "90-nimbus-gaming.conf"
+
+# Procesos que JAMAS deben perder prioridad: juegos y sistema de audio.
+NEVER_DEPRIORITIZE = (
+    "steam", "gamescope", "proton", "wine",
+    "pipewire", "pulseaudio", "wireplumber", "jackd",
+)
+
+
+def run_scheduler(*args, env_extra=None):
+    env = dict(os.environ)
+    env.update(env_extra or {})
+    return subprocess.run(
+        ["bash", str(SCHEDULER), *args],
+        capture_output=True, text=True, env=env,
+    )
+
+
+def run_anonicy(*args, env_extra=None):
+    env = dict(os.environ)
+    env.update(env_extra or {})
+    return subprocess.run(
+        ["bash", str(ANONICY), *args],
+        capture_output=True, text=True, env=env,
+    )
+
+
+def fake_sched_sysdir(base: pathlib.Path, present):
+    sysdir = base / "sched_ext"
+    sysdir.mkdir(parents=True)
+    for name in present:
+        (sysdir / name).write_text("", encoding="utf-8")
+    return sysdir
+
+
+def test_scheduler_lists_only_available(tmp_path):
+    sysdir = fake_sched_sysdir(tmp_path, ("lavd", "bore"))
+    proc = run_scheduler("list", env_extra={"NIMBUS_SCHED_SYSBASE": str(sysdir)})
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    listed = proc.stdout.split()
+    for name in ("lavd", "bore", "default"):
+        assert name in listed, f"{name} deberia listarse"
+    for name in ("sched-ext", "bmq"):
+        assert name not in listed, f"{name} no esta disponible y no debe listarse"
+
+
+def test_scheduler_set_warns_reboot(tmp_path):
+    sysdir = fake_sched_sysdir(tmp_path, ("lavd",))
+    state = tmp_path / "scheduler-state"
+    env = {"NIMBUS_SCHED_SYSBASE": str(sysdir), "NIMBUS_SCHED_STATE": str(state)}
+    proc = run_scheduler("set", "lavd", env_extra=env)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "reinici" in (proc.stdout + proc.stderr).lower()
+    assert state.read_text(encoding="utf-8").strip() == "lavd"
+
+
+def test_scheduler_rejects_unknown(tmp_path):
+    sysdir = fake_sched_sysdir(tmp_path, ("lavd",))
+    env = {
+        "NIMBUS_SCHED_SYSBASE": str(sysdir),
+        "NIMBUS_SCHED_STATE": str(tmp_path / "scheduler-state"),
+    }
+    proc = run_scheduler("set", "noexiste", env_extra=env)
+    assert proc.returncode != 0
+
+
+def parse_ananicy_rules(path: pathlib.Path):
+    import json
+
+    rules = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        rules.append(json.loads(line))
+    assert rules, "el fichero de reglas no puede estar vacio"
+    return rules
+
+
+def test_ananicy_rules_never_deprioritize_games_or_audio():
+    assert GAMING_RULES.is_file(), "falta 50-nimbus-gaming.rules"
+    for rule in parse_ananicy_rules(GAMING_RULES):
+        name = str(rule.get("name", "")).lower()
+        for forbidden in NEVER_DEPRIORITIZE:
+            if forbidden in name:
+                assert rule.get("nice", 0) <= 0, (
+                    f"la regla de '{name}' baja la prioridad de un proceso "
+                    "de juego o de audio: el juego iria lento"
+                )
+
+
+def test_ananicy_rules_boost_shell_and_calm_background():
+    rules = {r["name"]: r for r in parse_ananicy_rules(GAMING_RULES)}
+    for shell_proc in ("nimbus-shell", "quickshell"):
+        assert shell_proc in rules, f"falta regla para {shell_proc}"
+        assert rules[shell_proc]["nice"] < 0, f"{shell_proc} debe subir prioridad"
+    lowered = [n for n, r in rules.items() if r.get("nice", 0) > 0]
+    assert any("baloo" in n or "tracker" in n for n in lowered), \
+        "los indexadores deben bajar prioridad"
+    assert any("packagekit" in n or "pamac" in n for n in lowered), \
+        "los actualizadores en segundo plano deben bajar prioridad"
+
+
+def test_anonicy_disable_restores_defaults(tmp_path):
+    assert ANONICY.is_file(), "falta nimbus-anonicy"
+    rules_dir = tmp_path / "ananicy.d"
+    rules_dir.mkdir()
+    default_rules = rules_dir / "00-default.rules"
+    default_rules.write_text('{"name": "default", "nice": 0}\n', encoding="utf-8")
+    env = {
+        "NIMBUS_ANANICY_RULES_DIR": str(rules_dir),
+        "NIMBUS_ANANICY_SOURCE": str(GAMING_RULES),
+    }
+    enabled = run_anonicy("enable", env_extra=env)
+    assert enabled.returncode == 0, enabled.stdout + enabled.stderr
+    assert (rules_dir / "50-nimbus-gaming.rules").is_file()
+    disabled = run_anonicy("disable", env_extra=env)
+    assert disabled.returncode == 0, disabled.stdout + disabled.stderr
+    assert not (rules_dir / "50-nimbus-gaming.rules").exists()
+    assert default_rules.is_file(), "disable no debe tocar las reglas por defecto"
+    assert "defecto" in (disabled.stdout + disabled.stderr).lower()
+
+
+def test_laptop_default_profile_is_balanced_not_performance():
+    values = {}
+    for line in CONF.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, _, val = line.partition("=")
+        values[key.strip()] = val.strip()
+    assert values.get("profile") == "balanced"
+    assert values.get("profile") != "performance"
+
+
+def test_gaming_conf_activates_only_with_game():
+    assert GAMING_CONF.is_file(), "falta 90-nimbus-gaming.conf"
+    text = GAMING_CONF.read_text(encoding="utf-8").lower()
+    assert "game" in text, "debe describir activacion al detectar un juego"
+    assert "exit" in text or "deactiv" in text or "salir" in text, \
+        "debe desactivarse al salir del juego"
