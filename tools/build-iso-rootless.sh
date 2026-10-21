@@ -222,8 +222,13 @@ if [ -n "$SUBUID" ] && [ -n "$SUBGID" ] \
               --map-groups=0:"$(id -g)":1 --map-groups=1000:"$SUBGID":1 \
               --mount true 2>/dev/null; then
   log "namespace con doble rango de uids (chown al usuario live disponible)"
-  MAP_ARGS=(--map-users=0:"$(id -u)":1 --map-users=1000:"$SUBUID":65536
-            --map-groups=0:"$(id -g)":1 --map-groups=1000:"$SUBGID":65536)
+  # El rango interno debe cubrir TODOS los uids/gids, no solo 0 y 1000+: los
+  # paquetes de Arch usan gids tipicos (42 utmp, 102 tpm2-tss, 999 systemd-journal)
+  # y un fchownat a un gid sin mapear falla con "Invalid argument", que hacia
+  # fallar los hooks de post-transaccion (systemd-sysusers, systemd-tmpfiles) y
+  # con ellos el hook de mkinitcpio que construye el initramfs.
+  MAP_ARGS=(--map-users=0:"$(id -u)":1 --map-users=1:"$SUBUID":65535
+            --map-groups=0:"$(id -g)":1 --map-groups=1:"$SUBGID":65535)
 else
   log "namespace con un solo rango (el home del live sera temporal)"
 fi
