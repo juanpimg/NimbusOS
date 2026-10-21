@@ -18,11 +18,11 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TOOL_PATH = ROOT / "installer" / "tools" / "nimbus-postinstall"
 MODULE_PATH = (
-    ROOT / "installer" / "modules" / "nimbus-postinstall"
+    ROOT / "installer" / "calamares" / "modules" / "nimbus-postinstall"
     / "nimbus-postinstall.py"
 )
 CONF_PATH = (
-    ROOT / "installer" / "modules" / "nimbus-postinstall"
+    ROOT / "installer" / "calamares" / "modules" / "nimbus-postinstall"
     / "nimbus-postinstall.conf"
 )
 
