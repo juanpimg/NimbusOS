@@ -42,6 +42,10 @@ TRANSLATIONS = {
         "appearance.theme.invalid": (
             "Tema no válido: {label} (usa {valid})."
         ),
+        "appearance.wallpaper.invalid": (
+            "Fondo no válido: {value}. Usa un nombre de una sola línea "
+            "(letras, números, puntos, guiones)."
+        ),
         "software.pretty_name": "Software",
         "software.pretty_status": "Instalando el software seleccionado.",
         "software.no_connectivity": (
@@ -227,6 +231,10 @@ TRANSLATIONS = {
         ),
         "appearance.theme.invalid": (
             "Invalid theme: {label} (use {valid})."
+        ),
+        "appearance.wallpaper.invalid": (
+            "Invalid wallpaper: {value}. Use a single-line name "
+            "(letters, digits, dots, dashes)."
         ),
         "software.pretty_name": "Software",
         "software.pretty_status": "Installing the selected software.",

@@ -275,12 +275,103 @@ def _capture_value_error(func, *args, **kwargs):
     raise AssertionError(f"{func.__name__} no lanzo ValueError")
 
 
-def test_write_appearance_conf_roundtrips_malicious_wallpaper(tmp_path):
+def test_write_appearance_conf_rejects_multiline_wallpaper():
+    """D1: un fondo con saltos de linea corromperia el INI que lee el
+    shell; render lo rechaza antes de escribir nada."""
     evil = "playa\nEOF\ntouch /tmp/pwned"
-    content = ap.render_appearance_conf("dark", "ff2d55", evil)
-    target = ap.write_appearance_conf(content, root=tmp_path)
-    assert target.read_text(encoding="utf-8") == content
-    assert "touch /tmp/pwned" in target.read_text(encoding="utf-8")
+    with pytest.raises(ValueError):
+        ap.render_appearance_conf("dark", "ff2d55", evil)
+
+
+# --- D1: apariencia sin kwriteconfig (la ISO no lo trae) ------------------------
+
+
+def test_appearance_run_never_spawns_subprocess(monkeypatch, tmp_path):
+    """D1: el paso 6 no depende de kwriteconfig6 (ausente en la ISO).
+
+    run() debe escribir /etc/nimbus/appearance.conf sin invocar ningun
+    subproceso: el modulo ni siquiera importa subprocess/shutil.
+    """
+    import ast as _ast
+
+    source = (MODULES / "nimbus-appearance"
+              / "nimbus-appearance.py").read_text(encoding="utf-8")
+    tree = _ast.parse(source)
+    imported = set()
+    for node in _ast.walk(tree):
+        if isinstance(node, _ast.Import):
+            imported.update(a.asname or a.name.split(".")[0]
+                            for a in node.names)
+        elif isinstance(node, _ast.ImportFrom):
+            imported.add((node.module or "").split(".")[0])
+    assert "subprocess" not in imported
+    assert "shutil" not in imported
+    fake = _FakeCalamares(values={
+        "nimbusAppearanceMode": "dark",
+        "nimbusAppearanceAccent": "FF2D55",
+        "nimbusAppearanceWallpaper": "nimbus-default",
+        "rootMountPoint": str(tmp_path),
+    })
+    monkeypatch.setattr(ap, "libcalamares", fake)
+    assert ap.run() is None
+    conf = tmp_path / "etc" / "nimbus" / "appearance.conf"
+    assert conf.is_file()
+
+
+def test_appearance_module_has_no_kwriteconfig_dependency():
+    """D1: fuera del docstring (que documenta por que NO se usa), el
+    nombre kwriteconfig no aparece en el codigo."""
+    import ast as _ast
+
+    source = (MODULES / "nimbus-appearance"
+              / "nimbus-appearance.py").read_text(encoding="utf-8")
+    tree = _ast.parse(source)
+    docstring_nodes = set()
+    for node in _ast.walk(tree):
+        body = getattr(node, "body", None)
+        if (isinstance(body, list) and body
+                and isinstance(body[0], _ast.Expr)
+                and isinstance(body[0].value, _ast.Constant)
+                and isinstance(body[0].value.value, str)):
+            docstring_nodes.add(id(body[0].value))
+    for node in _ast.walk(tree):
+        if id(node) in docstring_nodes:
+            continue
+        if isinstance(node, _ast.Constant) and isinstance(node.value, str):
+            assert "kwriteconfig" not in node.value.lower(), node.value
+    code_lines = [line for line in source.splitlines()
+                  if not line.strip().startswith("#")]
+    body = "\n".join(code_lines)
+    doc_text = " ".join(
+        node.value for node in _ast.walk(tree)
+        if id(node) in docstring_nodes)
+    doc_mentions = doc_text.lower().count("kwriteconfig")
+    assert body.lower().count("kwriteconfig") <= doc_mentions
+
+
+def test_appearance_conf_format_contract():
+    """D1: formato estable y parseable que leera el shell (otra pista).
+
+    [appearance] con mode/accent/wallpaper en lineas propias; el acento
+    sale normalizado a HEX sin '#'.
+    """
+    import configparser
+
+    content = ap.render_appearance_conf("dark", "#ff2d55", "nimbus-default")
+    assert content.startswith("# SPDX-License-Identifier: GPL-3.0-or-later\n")
+    parser = configparser.ConfigParser()
+    parser.read_string(content)
+    assert parser["appearance"]["mode"] == "dark"
+    assert parser["appearance"]["accent"] == "FF2D55"
+    assert parser["appearance"]["wallpaper"] == "nimbus-default"
+
+
+def test_appearance_rejects_multiline_wallpaper():
+    """D1: el fondo es un nombre de una linea; un salto corromperia el
+    fichero que lee el shell, asi que se rechaza con ValueError traducido."""
+    with pytest.raises(ValueError):
+        ap.render_appearance_conf(
+            "dark", "FF2D55", "playa\nEOF\ntouch /tmp/pwned")
 
 
 # --- nimbus-verify -------------------------------------------------------------
@@ -559,13 +650,14 @@ def test_no_user_string_bypasses_translated():
                         "software.run devuelve un literal sin traducir")
         if label == "appearance":
             for name in ("normalize_accent", "validate_mode",
-                         "theme_label_to_mode", "theme_page_labels",
-                         "theme_mode_label"):
+                         "validate_wallpaper", "theme_label_to_mode",
+                         "theme_page_labels", "theme_mode_label"):
                 assert _function_uses_translated(tree, name), (
                     f"appearance.{name} no usa translated()")
             for node in _ast.walk(tree):
                 if (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
                         and node.name in ("normalize_accent", "validate_mode",
+                                          "validate_wallpaper",
                                           "theme_label_to_mode")):
                     assert _raises_through_translated(node), (
                         f"appearance.{node.name} lanza sin translated()")

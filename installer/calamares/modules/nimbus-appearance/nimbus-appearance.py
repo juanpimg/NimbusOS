@@ -2,13 +2,27 @@
 """Modulo Calamares de apariencia de Nimbus.
 
 Dos paginas: "Tema" (claro/oscuro/auto) y "Color de acento" (12 presets).
-Escribe el resultado en /etc/nimbus/appearance.conf del sistema instalado
-y lo aplica sobre los ficheros de ~/.config/ con kwriteconfig.
+Escribe el resultado en /etc/nimbus/appearance.conf del sistema instalado;
+el shell lo lee en el primer arranque (ver CONTRATO más abajo).
+
+CONTRATO DE FORMATO (estable, lo lee otra pista en shell/src/Nimbus/):
+``/etc/nimbus/appearance.conf`` es un INI UTF-8 con cabecera SPDX y una
+sola seccion ``[appearance]`` con tres claves, cada una en su linea:
+
+    # SPDX-License-Identifier: GPL-3.0-or-later
+    [appearance]
+    mode=<light|dark|auto>
+    accent=<HEX de 6 digitos en mayusculas, sin '#'>
+    wallpaper=<nombre de fondo, una sola linea>
+
+No se escribe nada en ``~/.config/`` ni en ``kdeglobals``: Nimbus no lleva
+KDE y la ISO no trae ``kwriteconfig6`` (D1: invocarlo reventaba el paso).
+El fichero se escribe solo con pathlib, sin pasar por ningun interprete
+de comandos.
 """
 
 import pathlib
-import shutil
-import subprocess
+import re
 
 try:  # Calamares provee libcalamares en el ISO live; ausente en CI/test.
     import libcalamares
@@ -76,7 +90,7 @@ LEGACY_THEME_LABEL_TO_MODE = {
 
 DEFAULT_WALLPAPER = "nimbus-default"
 
-KWRITECONFIG_BINARIES = ("kwriteconfig6", "kwriteconfig5", "kwriteconfig")
+_WALLPAPER_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 
 def normalize_accent(value, locale=None):
@@ -146,11 +160,27 @@ def theme_label_to_mode(label, locale=None):
             label=repr(label), valid=valid))
 
 
+def validate_wallpaper(value, locale=None):
+    """Valida el nombre de fondo: una sola linea, charset restringido.
+
+    El fichero lo parsea el shell linea a linea; un salto de linea lo
+    corromperia, asi que se rechaza con ValueError traducido.
+    """
+    lang = _current_locale(locale)
+    text = str(value)
+    if not _WALLPAPER_RE.fullmatch(text):
+        raise ValueError(
+            translated("appearance.wallpaper.invalid", lang).format(
+                value=repr(value)))
+    return text
+
+
 def render_appearance_conf(mode, accent, wallpaper=DEFAULT_WALLPAPER,
                            locale=None):
-    """Genera el contenido de /etc/nimbus/appearance.conf."""
+    """Genera el contenido de /etc/nimbus/appearance.conf (ver CONTRATO)."""
     mode = validate_mode(mode, locale=locale)
     accent = normalize_accent(accent, locale=locale)
+    wallpaper = validate_wallpaper(wallpaper, locale=locale)
     return (
         "# SPDX-License-Identifier: GPL-3.0-or-later\n"
         "[appearance]\n"
@@ -158,45 +188,6 @@ def render_appearance_conf(mode, accent, wallpaper=DEFAULT_WALLPAPER,
         f"accent={accent}\n"
         f"wallpaper={wallpaper}\n"
     )
-
-
-def find_kwriteconfig():
-    """Localiza el binario kwriteconfig disponible, o None."""
-    for binary in KWRITECONFIG_BINARIES:
-        path = shutil.which(binary)
-        if path:
-            return path
-    return None
-
-
-def kwriteconfig_commands(mode, accent, locale=None):
-    """Comandos kwriteconfig que aplican tema y acento en ~/.config/."""
-    accent = normalize_accent(accent, locale=locale)
-    mode = validate_mode(mode, locale=locale)
-    color_scheme = {
-        "light": "NimbusLight",
-        "dark": "NimbusDark",
-        "auto": "NimbusAuto",
-    }[mode]
-    binary = find_kwriteconfig() or KWRITECONFIG_BINARIES[0]
-    return [
-        [binary, "--file", "kdeglobals", "--group", "General",
-         "--key", "ColorScheme", color_scheme],
-        [binary, "--file", "kdeglobals", "--group", "General",
-         "--key", "AccentColor", accent],
-        [binary, "--file", "nimbus-appearance", "--group", "Appearance",
-         "--key", "Mode", mode],
-    ]
-
-
-def apply_with_kwriteconfig(mode, accent, runner=None, locale=None):
-    """Aplica tema y acento con kwriteconfig. Devuelve la lista ejecutada."""
-    runner = runner or subprocess.run
-    executed = []
-    for command in kwriteconfig_commands(mode, accent, locale=locale):
-        runner(command, check=False)
-        executed.append(command)
-    return executed
 
 
 def read_selection():
@@ -251,7 +242,10 @@ def write_appearance_conf(content, root="/"):
 
 
 def run(locale=None):
-    """Punto de entrada de Calamares: escribe y aplica la apariencia.
+    """Punto de entrada de Calamares: escribe la apariencia.
+
+    Solo escribe /etc/nimbus/appearance.conf (ver CONTRATO): no invoca
+    ningun binario externo porque la ISO no trae kwriteconfig.
 
     Calamares muestra al usuario el texto de cualquier excepcion no
     capturada, por eso los validadores reciben el locale efectivo y
@@ -269,5 +263,4 @@ def run(locale=None):
     else:  # pragma: no cover - solo en el instalador real
         root = "/"
     write_appearance_conf(content, root=root)
-    apply_with_kwriteconfig(mode, accent, locale=effective)
     return None
