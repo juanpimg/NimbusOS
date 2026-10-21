@@ -24,8 +24,12 @@ Item {
     signal activated()
     signal contextRequested()
 
-    width: Theme.dockSize * itemScale
-    height: Theme.dockSize * itemScale
+    // Caja del icono (escala con magnification) + franja fija para el punto
+    // de ejecucion: el punto mide siempre Theme.runningDotSize.
+    readonly property real iconBox: Theme.dockIconSize * itemScale
+
+    width: iconBox
+    height: iconBox + Theme.runningDotSize + Theme.spacing / 2
 
     function badgeVisible() {
         return badgeCount > 0
@@ -51,9 +55,10 @@ Item {
     // Baldosa estilo macOS: color plano con la inicial de la etiqueta.
     Rectangle {
         id: tile
-        anchors.centerIn: parent
-        width: Math.max(16, Math.min(root.width, root.height) - Theme.spacing)
-        height: width
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: root.iconBox
+        height: root.iconBox
         radius: Theme.dockIconRadius
         color: root.iconColor
 
@@ -109,16 +114,16 @@ Item {
         anchors.topMargin: Theme.spacing / 2
         anchors.horizontalCenter: parent.horizontalCenter
         visible: root.running
-        width: Theme.spacing / 2
-        height: Theme.spacing / 2
+        width: Theme.runningDotSize
+        height: Theme.runningDotSize
         radius: width / 2
         color: Theme.accent
     }
 
     Rectangle {
         id: badge
-        anchors.top: parent.top
-        anchors.right: parent.right
+        anchors.top: tile.top
+        anchors.right: tile.right
         anchors.topMargin: Theme.spacing / 2
         anchors.rightMargin: Theme.spacing / 2
         visible: root.badgeVisible()

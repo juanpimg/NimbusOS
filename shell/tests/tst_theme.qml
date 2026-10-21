@@ -22,8 +22,8 @@ TestCase {
         compare(Theme.accent, "#007aff")
         compare(Theme.radius, 12)
         compare(Theme.spacing, 8)
-        compare(Theme.barHeight, 28)
-        compare(Theme.dockSize, 64)
+        compare(Theme.barHeight, 24)
+        compare(Theme.dockSize, 86)
         compare(Theme.fontFamily, "Inter")
     }
 
@@ -74,14 +74,21 @@ TestCase {
     }
 
     function test_m4_bar_and_dock_tokens() {
-        // La barra y el Dock no usan numeros sueltos: todo sale de Theme.
+        // La barra y el Dock no usan numeros sueltos: todo sale de Theme
+        // (medidas macOS verificadas: barra 24, franja Dock 86/icono 60).
         compare(Theme.fontSizeSmall, 11)
         compare(Theme.fontSizeBody, 13)
         compare(Theme.fontSizeTitle, 15)
-        compare(Theme.dockRadius, 20)
-        compare(Theme.dockIconRadius, 12)
+        compare(Theme.dockRadius, 12)
+        compare(Theme.dockIconRadius, 10)
+        compare(Theme.dockIconSize, 60)
+        compare(Theme.runningDotSize, 5)
+        compare(Theme.dockMagnify, 1.6)
         compare(Theme.menuWidth, 280)
         verify(Theme.disabledOpacity > 0.0 && Theme.disabledOpacity < 1.0)
+        compare(Theme.shadowOffsetY, 4)
+        compare(Theme.shadowRadius, 24)
+        verify(Theme.shadowBlur > 0.0 && Theme.shadowBlur <= 1.0)
         verify(Theme.shadow.a > 0.0, "la sombra debe ser semitransparente")
         verify(Theme.hairline.a > 0.0 && Theme.hairline.a < 1.0, "hairline debe ser sutil")
         verify(Theme.appBlue.a === 1.0 && Theme.appGreen.a === 1.0)

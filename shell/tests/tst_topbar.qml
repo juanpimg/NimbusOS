@@ -99,7 +99,7 @@ TestCase {
         // Contrato que TopBar.qml fija como height y exclusiveZone del
         // PanelWindow. El PanelWindow necesita compositor y no se instancia
         // bajo qmltestrunner; el binding se verifica con qmllint + revision.
-        compare(Theme.barHeight, 28)
+        compare(Theme.barHeight, 24)
     }
 
     function test_battery_item_hidden_without_battery() {

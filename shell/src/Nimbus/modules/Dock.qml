@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import QtQuick
+import QtQuick.Effects
 import Nimbus
 
 // Contenido del dock: fila de iconos con ampliacion continua, indicadores
@@ -29,7 +30,7 @@ Item {
     property bool cursorOnDock: false
     property bool cursorOnWindow: false
 
-    readonly property real cellWidth: Theme.dockSize
+    readonly property real cellWidth: Theme.dockIconSize + Theme.spacing
     readonly property int itemCount: favorites.length + 1
     readonly property int trashIndex: favorites.length
     readonly property string trashId: "trash"
@@ -62,7 +63,7 @@ Item {
     }
 
     function itemSize(index, cursorX) {
-        return Theme.dockSize * scaleForIndex(index, cursorX)
+        return Theme.dockIconSize * scaleForIndex(index, cursorX)
     }
 
     function isRunning(appId) {
@@ -138,8 +139,23 @@ Item {
     }
 
     Glass {
+        id: dockBg
         anchors.fill: parent
         radius: Theme.dockRadius
+        // Se dibuja a traves del efecto (si ambos fueran visibles saldria
+        // doble); sigue recibiendo clicks al ser transparente.
+        visible: false
+    }
+
+    // Sombra difusa de la franja (dy 4): un unico efecto para toda la banda.
+    MultiEffect {
+        anchors.fill: dockBg
+        source: dockBg
+        shadowEnabled: true
+        shadowColor: Theme.shadow
+        shadowBlur: Theme.shadowBlur
+        blurMax: Theme.shadowRadius
+        shadowVerticalOffset: Theme.shadowOffsetY
     }
 
     MouseArea {

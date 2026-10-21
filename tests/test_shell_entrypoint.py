@@ -185,12 +185,45 @@ def test_pkgbuild_installs_shell_qml_and_launcher():
 
 # --- Regression M4: el escritorio live arrancaba sin ninguna superficie ---
 #
-# Un Loader de QML solo instancia Items: montar una ventana (PanelWindow o
-# FloatingWindow, es decir, un QQuickWindow) dentro de un Loader nunca puede
-# funcionar y deja el escritorio vacio (solo el fondo). Estos tests leen
-# shell.qml como texto y atan la regresion sin necesitar compositor.
+# La causa real (verificada con el binario de la ISO) fueron los imports:
+# `IpcHandler` vive en `Quickshell.Io` y `PanelWindow`/`FloatingWindow` en
+# `Quickshell`, asi que sin esos imports la config moria con exit 255 y no se
+# veia NADA (ni siquiera el fondo del shell). Por diseno las superficies que
+# son ventana se montan de forma imperativa (`Qt.createComponent` +
+# `createObject(null)`, con conteo en `moduleFailures`) y los `Loader` se
+# reservan para contenido `Item`; estos tests atan ese diseno sin necesitar
+# compositor. Ademas atan que el Dock no dependa de un flag que arranque
+# cerrado y que cada PanelWindow declare su capa coherente (`FloatingWindow`
+# NO tiene capa en Quickshell 0.3.2: ponerle `layer` mataria la carga).
 LOADER_SOURCE_RE = re.compile(r"^\s*source\s*:\s*\"([^\"]+)\"", re.M)
 WINDOW_ROOT_RE = re.compile(r"^\s*(PanelWindow|FloatingWindow)\s*\{", re.M)
+
+
+def _top_level_blocks(text, typename):
+    """Bloques QML de primer nivel `typename { ... }` con conteo de llaves.
+
+    Devuelve [(id, bloque)] donde id sale de `id: xxx` si existe. Sin
+    compositor no hay parser QML: el conteo de llaves sobre el texto sin
+    comentarios basta para localizar cada ventana.
+    """
+    code = _strip_line_comments(text)
+    pattern = re.compile(r"^\s*" + typename + r"\s*\{", re.M)
+    blocks = []
+    for match in pattern.finditer(code):
+        depth = 0
+        i = match.end() - 1
+        while i < len(code):
+            if code[i] == "{":
+                depth += 1
+            elif code[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        block = code[match.start():i + 1]
+        id_match = re.search(r"id\s*:\s*(\w+)", block)
+        blocks.append((id_match.group(1) if id_match else "?", block))
+    return blocks
 
 
 def _resolve_loader_source(source):
@@ -205,16 +238,17 @@ def _loader_sources(text):
 
 
 def test_no_loader_mounts_a_window():
-    # Ningun Loader de shell.qml puede cargar un fichero cuya raiz sea una
-    # ventana: TopBar.qml (PanelWindow) y Settings.qml (FloatingWindow) se
-    # montaban asi y jamas aparecian.
+    # Por diseno las ventanas se montan de forma imperativa (ver shell.qml:
+    # `loadModule` + `createObject(null)` con conteo en `moduleFailures`) y
+    # los Loader quedan para contenido Item. Ningun Loader puede apuntar a
+    # un fichero cuya raiz sea una ventana.
     for source in _loader_sources(SHELL_QML.read_text(encoding="utf-8")):
         path = _resolve_loader_source(source)
         if path is None or not path.is_file():
             continue
         root = _root_type(path.read_text(encoding="utf-8"))
         assert root not in ("PanelWindow", "FloatingWindow"), (
-            f"Loader carga ventana {source} (raiz {root}): un Loader solo instancia Items"
+            f"Loader carga ventana {source} (raiz {root}): las ventanas se montan de forma imperativa"
         )
     # Contrapueba: el detector reconoce las dos ventanas rotas.
     assert WINDOW_ROOT_RE.search(
@@ -240,6 +274,53 @@ def test_topbar_is_a_window_not_a_loader_source():
     )
 
 
+def test_shell_qml_imports_quickshell_io_for_ipc():
+    # Sin `import Quickshell.Io`, `IpcHandler` no es un tipo y la config
+    # muere entera (exit 255): este fue el fallo real que dejaba el
+    # escritorio vacio.
+    text = SHELL_QML.read_text(encoding="utf-8")
+    assert re.search(r"^\s*import\s+Quickshell\.Io\b", text, re.M), (
+        "shell.qml usa IpcHandler sin importar Quickshell.Io"
+    )
+    assert "IpcHandler" in text
+
+
+def test_ipc_handler_call_uses_typed_signature():
+    # El endpoint IPC debe ir firmado: los argumentos sin tipo llegan como
+    # QVariant y no cruzan el IPC ("cannot be used across IPC").
+    text = _strip_line_comments(SHELL_QML.read_text(encoding="utf-8"))
+    assert re.search(
+        r"function\s+call\s*\(\s*target\s*:\s*string", text
+    ), "el endpoint IPC debe firmar sus argumentos (target: string, ...)"
+
+
+def test_topbar_imports_quickshell_for_panelwindow():
+    # `PanelWindow` vive en el modulo raiz `Quickshell`, no en
+    # `Quickshell.Wayland`: sin ese import TopBar.qml no carga.
+    for rel in ("Nimbus/modules/TopBar.qml",):
+        text = (ROOT / "shell" / "src" / rel).read_text(encoding="utf-8")
+        assert re.search(r"^\s*import\s+Quickshell\b", text, re.M), (
+            f"{rel} usa PanelWindow sin importar Quickshell"
+        )
+
+
+def test_floating_windows_declare_no_layer():
+    # `FloatingWindow` NO tiene capa en Quickshell 0.3.2 (es xdg-toplevel):
+    # asignarle `layer`/`WlrLayershell.layer` es un error fatal de carga.
+    shell = SHELL_QML.read_text(encoding="utf-8")
+    blocks = _top_level_blocks(shell, "FloatingWindow")
+    assert blocks, "shell.qml debe declarar FloatingWindows"
+    for window_id, block in blocks:
+        assert "WlrLayershell.layer" not in block, (
+            f"{window_id} declara WlrLayershell.layer: no existe en FloatingWindow 0.3.2"
+        )
+        assert not re.search(r"(?<![\w.])layer\s*:", block), (
+            f"{window_id} declara layer: no existe en FloatingWindow 0.3.2"
+        )
+    # Contrapueba: el detector caza una capa intrusa si se reintroduce.
+    assert re.search(r"(?<![\w.])layer\s*:", "FloatingWindow {\nlayer: 1\n}")
+
+
 def test_dock_does_not_depend_on_a_flag_that_starts_closed():
     shell = SHELL_QML.read_text(encoding="utf-8")
     controller = (
@@ -259,12 +340,13 @@ def test_panelwindows_declare_coherent_layers():
     shell = SHELL_QML.read_text(encoding="utf-8")
     # Cada PanelWindow declarado en shell.qml debe fijar su capa con el
     # attached WlrLayershell (import Quickshell.Wayland). Sin capa coherente
-    # el compositor apila mal las superficies.
-    blocks = re.split(r"^\s*PanelWindow\s*\{", shell, flags=re.M)[1:]
+    # el compositor apila mal las superficies: el fondo opaco a pantalla
+    # completa (capa Top por defecto) taparia la barra y el Dock.
+    blocks = _top_level_blocks(shell, "PanelWindow")
     assert blocks, "shell.qml debe declarar PanelWindows"
-    for i, block in enumerate(blocks):
+    for window_id, block in blocks:
         assert "WlrLayershell.layer" in block, (
-            f"el PanelWindow #{i + 1} de shell.qml no declara WlrLayershell.layer"
+            f"{window_id} no declara WlrLayershell.layer"
         )
     topbar = (
         ROOT / "shell" / "src" / "Nimbus" / "modules" / "TopBar.qml"
