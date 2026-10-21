@@ -4,19 +4,24 @@ import Quickshell.Wayland
 import Nimbus
 
 // Barra superior del shell (menu bar estilo macOS): PanelWindow anclado
-// arriba con zona exclusiva, fondo de cristal, menu global a la izquierda
-// (logo + aplicacion activa) e items de estado + reloj a la derecha.
+// arriba con zona exclusiva, fondo de cristal, menu Nimbus a la izquierda
+// (marca + aplicacion activa) e items de estado + reloj a la derecha.
 // Dibuja, no decide:
 // - cada item de estado solo es visible si su predicado (helpers puros de
 //   TopBarMenu evaluados sobre Services) dice que existe;
 // - el reloj se formatea con Config.locale y
 //   Config.translated("bar.clock.format");
 // - las entradas del menu llegan como datos (menuEntries) y las acciones
-//   las consume quien construya esos datos (M2); la barra solo refleja si
-//   el menu esta abierto (menuOpen es alias del estado del menu).
+//   las consume quien construya esos datos (M2); sin datos se ofrece el menu
+//   Nimbus por defecto (Acerca de, Ajustes, Reiniciar, Apagar, Cerrar
+//   sesion); la barra solo refleja si el menu esta abierto (menuOpen es
+//   alias del estado del menu).
+// - los botones de Control Center y Notificaciones abren sus superficies
+//   via ShellController; la marca Nimbus se dibuja con formas (sin assets).
 PanelWindow {
     id: root
 
+    WlrLayershell.layer: WlrLayer.Top
     anchors {
         top: true
         left: true
@@ -26,7 +31,7 @@ PanelWindow {
     exclusiveZone: Theme.barHeight
 
     property alias menuOpen: appMenu.menuOpen
-    property string currentApp: ""
+    property string currentApp: Config.translated("menu.nimbus.title")
     property var menuEntries: []
     property string logoName: ""
     property string networkIconName: ""
@@ -36,6 +41,19 @@ PanelWindow {
     property string dndIconName: ""
     property var now: new Date()
 
+    // Entradas efectivas: las que lleguen como datos o, en su defecto, el
+    // menu Nimbus por defecto (macOS: la pieza mas identificativa).
+    readonly property var effectiveEntries: (Array.isArray(menuEntries) && menuEntries.length > 0) ? menuEntries : [{
+        "title": "",
+        "items": [
+            { "label": Config.translated("menu.nimbus.about"), "action": "about", "checked": false, "disabled": false },
+            { "label": Config.translated("menu.nimbus.settings"), "action": "settings", "checked": false, "disabled": false },
+            { "label": Config.translated("menu.nimbus.restart"), "action": "restart", "checked": false, "disabled": false },
+            { "label": Config.translated("menu.nimbus.shutdown"), "action": "shutdown", "checked": false, "disabled": false },
+            { "label": Config.translated("menu.nimbus.logout"), "action": "logout", "checked": false, "disabled": false }
+        ]
+    }]
+
     signal menuRequested(string appId)
 
     // M2 conecta aqui la desactivacion de la ventana del menu: sin
@@ -43,6 +61,18 @@ PanelWindow {
     // perdida de foco entra por esta funcion.
     function handleMenuFocusLost() {
         appMenu.handleFocusLost()
+    }
+
+    // Acciones del menu Nimbus por defecto: Ajustes abre su superficie; el
+    // resto viaja como `surfaceRequested("session", action)` para que la
+    // capa de sesion (M2) los consuma. Nunca lanza.
+    function handleMenuAction(action) {
+        if (action === "settings") {
+            ShellController.open("settings")
+            return
+        }
+        if (typeof action === "string" && action !== "")
+            ShellController.surfaceRequested("session", action)
     }
 
     Timer {
@@ -80,12 +110,39 @@ PanelWindow {
             }
             spacing: Theme.spacing
 
-            Icon {
+            // Marca Nimbus dibujada con formas: baldosa de acento con una N
+            // de tres barras (sin assets de terceros ni de Apple).
+            Rectangle {
+                id: mark
                 anchors.verticalCenter: parent.verticalCenter
-                visible: root.logoName !== ""
-                name: root.logoName
-                size: Theme.spacing * 2
-                color: Theme.text
+                width: Theme.fontSizeBody + 3
+                height: Theme.fontSizeBody + 3
+                radius: 4
+                color: Theme.accent
+                Rectangle {
+                    x: 4
+                    y: 3
+                    width: 2
+                    height: parent.height - 6
+                    radius: 1
+                    color: Theme.background
+                }
+                Rectangle {
+                    x: parent.width - 6
+                    y: 3
+                    width: 2
+                    height: parent.height - 6
+                    radius: 1
+                    color: Theme.background
+                }
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 2
+                    height: parent.height - 4
+                    radius: 1
+                    rotation: 28
+                    color: Theme.background
+                }
             }
 
             Text {
@@ -93,7 +150,8 @@ PanelWindow {
                 text: root.currentApp
                 color: Theme.text
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.spacing * 2
+                font.pixelSize: Theme.fontSizeBody
+                font.weight: Font.DemiBold
                 elide: Text.ElideRight
             }
         }
@@ -153,7 +211,67 @@ PanelWindow {
             text: appMenu.formatClock(root.now, Config.locale, Config.translated("bar.clock.format"))
             color: Theme.text
             font.family: Theme.fontFamily
-            font.pixelSize: Theme.spacing * 2
+            font.pixelSize: Theme.fontSizeBody
+        }
+
+        // Boton Centro de control: tres deslizadores dibujados con formas.
+        Item {
+            anchors.verticalCenter: parent.verticalCenter
+            width: Theme.spacing * 2
+            height: Theme.spacing * 2
+            Accessible.name: Config.translated("bar.controlcenter")
+            Column {
+                anchors.centerIn: parent
+                spacing: 2
+                Repeater {
+                    model: 3
+                    delegate: Rectangle {
+                        width: Theme.spacing * 2
+                        height: 2
+                        radius: 1
+                        color: Theme.text
+                    }
+                }
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: ShellController.toggle("controlcenter")
+            }
+        }
+
+        // Boton Notificaciones: campana dibujada con formas.
+        Item {
+            anchors.verticalCenter: parent.verticalCenter
+            width: Theme.spacing * 2
+            height: Theme.spacing * 2
+            Accessible.name: Config.translated("bar.notifications")
+            Rectangle {
+                anchors.top: parent.top
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: 10
+                height: 9
+                radius: 4
+                color: Theme.text
+            }
+            Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: 4
+                height: 4
+                radius: 2
+                color: Theme.text
+            }
+            MouseArea {
+                anchors.fill: parent
+                onClicked: ShellController.toggle("notifications")
+            }
+        }
+    }
+
+    Connections {
+        target: appMenu
+        function onActionTriggered(appId, action) {
+            root.handleMenuAction(action)
         }
     }
 
@@ -168,6 +286,6 @@ PanelWindow {
         width: implicitWidth
         height: implicitHeight
         visible: root.menuOpen
-        entries: root.menuEntries
+        entries: root.effectiveEntries
     }
 }

@@ -24,8 +24,7 @@ Item {
     property var entries: []
     property bool menuOpen: false
 
-    // Altura de fila = la de ListRow; el ancho deriva de Theme (sin token
-    // propio para menus en M1: 10x la altura de la barra).
+    // Altura de fila = la de ListRow; el ancho deriva de Theme.
     readonly property int rowHeight: Theme.spacing * 7
     readonly property string clockFormatKey: "bar.clock.format"
 
@@ -182,7 +181,7 @@ Item {
         return rows
     }
 
-    implicitWidth: Theme.barHeight * 10
+    implicitWidth: Theme.menuWidth
     implicitHeight: root.flatRows().length * root.rowHeight + Theme.spacing * 2
 
     Glass {
@@ -214,7 +213,7 @@ Item {
                     visible: !rowDelegate.isHeader
                     title: rowDelegate.row !== null ? rowDelegate.row.label : ""
                     selected: rowDelegate.row !== null && rowDelegate.row.checked
-                    opacity: rowDelegate.row !== null && rowDelegate.row.disabled ? 0.5 : 1.0
+                    opacity: rowDelegate.row !== null && rowDelegate.row.disabled ? Theme.disabledOpacity : 1.0
                     onActivated: root.selectItem(rowDelegate.row.s, rowDelegate.row.i)
                 }
             }

@@ -92,7 +92,7 @@ TestCase {
         compare(menuProbe.sectionCount(), 0)
         verify(!menuProbe.menuOpen)
         compare(menuProbe.rowHeight, Theme.spacing * 7)
-        compare(menuProbe.implicitWidth, Theme.barHeight * 10)
+        compare(menuProbe.implicitWidth, Theme.menuWidth)
     }
 
     function test_bar_height_is_theme_bar_height() {
