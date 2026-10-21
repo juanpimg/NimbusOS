@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+pkgname=nimbus-shell
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Shell de escritorio Nimbus para Hyprland (Quickshell/QML)"
+arch=('any')
+license=('GPL-3.0-or-later')
+depends=('quickshell>=0.3.2' 'hyprland>=0.56.2' 'qt6-declarative' 'qt6-wayland' 'qt6-shadertools' 'inter-font')
+# Monorepo: el paquete se compila desde el árbol local, sin clonar de GitHub.
+# Cuando el repo se divida por subsistema, esto pasa a
+# source=('shell::git+https://github.com/juanpimg/NimbusOS.git').
+source=()
+sha256sums=()
+package() {
+  cp -r "$startdir/../../shell/src" "$pkgdir/usr/lib/nimbus/shell/src"
+  install -Dm755 "$startdir/../../shell/nimbus-shell" "$pkgdir/usr/bin/nimbus-shell"
+}
