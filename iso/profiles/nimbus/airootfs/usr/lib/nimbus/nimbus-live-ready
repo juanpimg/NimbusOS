@@ -3,47 +3,62 @@
 #
 # Puerta de readiness de la sesion live de Nimbus.
 #
-# systemd considera "activo" a un unit que esta reiniciandose, asi que escribir
-# NIMBUS_LIVE_READY desde un ExecStart declararia la sesion lista con el
-# escritorio muerto detras (falso positivo del harness). Este script solo
-# escribe el marcador cuando la sesion esta de verdad lista:
-#   1. espera hasta TIMEOUT s a que exista un proceso qs/quickshell del
-#      usuario nimbus (el shell),
-#   2. comprueba que Hyprland responde (hyprctl instances no necesita firma;
-#      version via --instance 0 demuestra que el socket responde),
-#   3. solo entonces escribe NIMBUS_LIVE_READY en /dev/console.
-# Si se agota el tiempo NO escribe el marcador y deja NIMBUS_LIVE_TIMEOUT para
-# que el harness distinga el fallo con diagnostico.
+# Honestidad: que exista un proceso qs NO basta. El gate anterior daba verde
+# en falso: quickshell arrancaba, su QML fallaba ("IpcHandler is not a type")
+# y el proceso moria; el gate lo pillaba en transitorio y declaraba lista
+# una sesion con el escritorio roto.
+#
+# Este gate exige, en orden:
+#   1. que exista un proceso del shell (qs/quickshell/nimbus-shell) del
+#      usuario nimbus y que Hyprland responda (instances + version),
+#   2. que TRAS UNA VENTANA DE ESTABILIDAD siga vivo EL MISMO PID y el
+#      compositor siga respondiendo.
+# Un shell que muere al cargar su QML no sobrevive a la ventana y el
+# marcador no se escribe. Si se agota TIMEOUT, escribe NIMBUS_LIVE_TIMEOUT
+# (nunca NIMBUS_LIVE_READY) y sale con error para que el harness lo vea.
+#
+# Testabilidad: OUT, TIMEOUT, POLL, STABLE_FOR y los binarios pgrep/hyprctl
+# se pueden inyectar por entorno (ver tests/test_iso_profile.py).
 set -euo pipefail
 
 TIMEOUT="${NIMBUS_LIVE_READY_TIMEOUT:-90}"
+POLL="${NIMBUS_LIVE_READY_POLL:-2}"
+STABLE_FOR="${NIMBUS_LIVE_READY_STABLE_FOR:-8}"
 USER_NAME="nimbus"
 RUNTIME_DIR="/run/user/1000"
-POLL=2
+OUT="${NIMBUS_LIVE_READY_OUT:-/dev/console}"
+PGREP_BIN="${NIMBUS_LIVE_READY_PGREP:-pgrep}"
+HYPRCTL_BIN="${NIMBUS_LIVE_READY_HYPRCTL:-hyprctl}"
 
-shell_running() {
-    pgrep -u "$USER_NAME" -x qs >/dev/null 2>&1 \
-        || pgrep -u "$USER_NAME" -x quickshell >/dev/null 2>&1 \
-        || pgrep -u "$USER_NAME" -x nimbus-shell >/dev/null 2>&1
+shell_pid() {
+    { "$PGREP_BIN" -u "$USER_NAME" -x qs 2>/dev/null \
+        || "$PGREP_BIN" -u "$USER_NAME" -x quickshell 2>/dev/null \
+        || "$PGREP_BIN" -u "$USER_NAME" -x nimbus-shell 2>/dev/null; } | head -n 1
 }
 
 hyprland_responds() {
     local out
-    out="$(XDG_RUNTIME_DIR="$RUNTIME_DIR" hyprctl instances 2>/dev/null)" || return 1
+    out="$(XDG_RUNTIME_DIR="$RUNTIME_DIR" "$HYPRCTL_BIN" instances 2>/dev/null)" || return 1
     [ -n "$out" ] || return 1
-    XDG_RUNTIME_DIR="$RUNTIME_DIR" hyprctl --instance 0 version >/dev/null 2>&1
+    XDG_RUNTIME_DIR="$RUNTIME_DIR" "$HYPRCTL_BIN" --instance 0 version >/dev/null 2>&1
 }
 
 elapsed=0
 while [ "$elapsed" -lt "$TIMEOUT" ]; do
-    if shell_running && hyprland_responds; then
-        echo NIMBUS_LIVE_READY > /dev/console
-        exit 0
+    if pid="$(shell_pid)" && [ -n "$pid" ] && hyprland_responds; then
+        # Ventana de estabilidad: el MISMO pid tiene que seguir vivo y el
+        # compositor respondiendo. Asi un qs que muere al cargar su QML no
+        # cuela como sesion lista.
+        sleep "$STABLE_FOR"
+        if [ "$(shell_pid)" = "$pid" ] && hyprland_responds; then
+            echo NIMBUS_LIVE_READY > "$OUT"
+            exit 0
+        fi
     fi
     sleep "$POLL"
     elapsed=$((elapsed + POLL))
 done
 
-echo "NIMBUS_LIVE_TIMEOUT: sesion live no lista tras ${TIMEOUT}s (Hyprland o el shell no responden)" > /dev/console
-echo NIMBUS_LIVE_TIMEOUT > /dev/console
+echo "NIMBUS_LIVE_TIMEOUT: sesion live no lista tras ${TIMEOUT}s (Hyprland o el shell no responden de forma estable)" > "$OUT"
+echo NIMBUS_LIVE_TIMEOUT > "$OUT"
 exit 1

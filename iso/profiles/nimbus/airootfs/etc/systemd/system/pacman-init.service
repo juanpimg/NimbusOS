@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=Initializes Pacman keyring
+# Sin este arranque, /etc/pacman.d/gnupg no existe en la live y `pacman -Sy`
+# falla con "Public keyring not found". El mount de arriba pone un tmpfs
+# ahi; aqui se inicializa y se pueblan TODOS los keyrings que traen los
+# paquetes (archlinux, cachyos y nimbus), sin red: las claves viajan en la
+# propia imagen. Patron de archiso releng, adaptado a Nimbus.
+Requires=etc-pacman.d-gnupg.mount
+After=etc-pacman.d-gnupg.mount time-sync.target
+BindsTo=etc-pacman.d-gnupg.mount
+Before=archlinux-keyring-wkd-sync.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/pacman-key --init
+ExecStart=/usr/bin/pacman-key --populate
+
+[Install]
+WantedBy=multi-user.target

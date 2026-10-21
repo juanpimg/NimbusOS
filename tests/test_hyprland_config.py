@@ -99,12 +99,17 @@ def test_emergency_terminal_is_fullscreen():
 
 def test_no_classic_window_rules_in_repo():
     # En modo Lua los .conf no se cargan: ninguna regla clasica llegaria al
-    # compositor, asi que el repo no debe contener ninguna.
+    # compositor, asi que el repo no debe contener ninguna. Los binarios
+    # (fondos PNG) se saltan: no son texto buscable.
     offenders = []
     for path in sorted((ROOT / "dots").rglob("*")):
-        if path.is_file() and re.search(
-            r"(?m)^\s*windowrule\s*=", path.read_text(encoding="utf-8")
-        ):
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if re.search(r"(?m)^\s*windowrule\s*=", text):
             offenders.append(str(path.relative_to(ROOT)))
     assert offenders == []
 
@@ -118,3 +123,64 @@ def test_pkgbuild_does_not_install_quirks_conf():
     text = PKGBUILD.read_text(encoding="utf-8")
     assert "quirks.conf" not in text
     assert "hyprland.lua" in text
+
+
+# --- Pista ISO (T1-T2): fondo de Nimbus y arranque con el wrapper. ---
+
+NIMBUS_START = ROOT / "dots" / "nimbus" / "nimbus-start"
+WALLPAPER_DARK = "/usr/share/nimbus/backgrounds/Nimbus.png"
+
+
+def _misc_block():
+    text = CONFIG.read_text(encoding="utf-8")
+    match = re.search(r"misc\s*=\s*\{(.*?)\}", text, re.S)
+    assert match is not None, "hyprland.lua debe declarar el bloque misc"
+    return match.group(1)
+
+
+def test_misc_disables_the_hyprland_branding():
+    # La ISO no puede mostrar el fondo anime de Hyprland: el renderer base
+    # integrado lee /usr/share/hypr/wall<N>.png y se apaga con
+    # disable_hyprland_logo (verificado en el binario 0.56 y en la wiki).
+    misc = _misc_block()
+    assert re.search(r"disable_hyprland_logo\s*=\s*true", misc), misc
+    assert re.search(r"disable_splash_rendering\s*=\s*true", misc), misc
+
+
+def test_misc_base_color_is_the_nimbus_dark_tone():
+    # Sin logo, la base la pinta background_color: tiene que ser el oscuro
+    # de la paleta Nimbus (#1C1C1E), no el gris de Hyprland (0x111111).
+    misc = _misc_block()
+    match = re.search(r"background_color\s*=\s*\"([^\"]+)\"", misc)
+    assert match is not None, misc
+    assert "1c1c1e" in match.group(1).lower(), match.group(1)
+
+
+def test_misc_pins_a_non_anime_fallback_wallpaper():
+    # Si el fondo de Hyprland llegara a pintarse, que sea wall0 (no anime),
+    # nunca aleatorio (-1).
+    misc = _misc_block()
+    match = re.search(r"force_default_wallpaper\s*=\s*(-?\d+)", misc)
+    assert match is not None, misc
+    assert match.group(1) in ("0", "1"), match.group(1)
+
+
+def test_misc_disables_the_start_hyprland_warning():
+    # Con el wrapper (start-hyprland) el aviso no sale; la clave es red de
+    # seguridad para lanzamientos manuales en depuracion.
+    misc = _misc_block()
+    assert re.search(r"disable_watchdog_warning\s*=\s*true", misc), misc
+
+
+def test_session_startup_shows_the_nimbus_wallpaper():
+    text = NIMBUS_START.read_text(encoding="utf-8")
+    assert "swaybg" in text
+    assert WALLPAPER_DARK in text
+    # Si el fondo o swaybg faltan, la sesion sigue: el shell pinta su base.
+    assert re.search(r"command -v swaybg|if.*swaybg", text), text
+
+
+def test_session_startup_keeps_launching_the_shell():
+    text = NIMBUS_START.read_text(encoding="utf-8")
+    assert "/usr/bin/nimbus-shell" in text
+    assert "hyprland.start" in CONFIG.read_text(encoding="utf-8")
