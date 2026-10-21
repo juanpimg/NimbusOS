@@ -184,7 +184,7 @@ Crea además:
 - `README.md` con el nombre, la frase "Arch por debajo, Hyprland en la superficie, la pulido de macOS encima", el estado "M0 — en construcción", y una tabla de los repos del roadmap.
 - `CONTRIBUTING.md` y `CODE_OF_CONDUCT.md` ( Contributor Covenant v2.1 ).
 - `.editorconfig` con `indent_style = space`, `indent_size = 4`, `end_of_line = lf`, `insert_final_newline = true`, `charset = utf-8`.
-- `.gitignore` con: `*.iso`, `build/`, `out/`, `__pycache__/`, `.pytest_cache/`, `*.qcow2`, `*.pkg.tar.zst`, `*.db`, `*.db.sig`, `*.sig`, `keys/`, `gpg/`.
+- `.gitignore` con: `*.iso`, `build/`, `out/`, `__pycache__/`, `.pytest_cache/`, `*.qcow2`, `*.pkg.tar.zst`, `*.db`, `*.db.sig`, `*.sig`, `keys/`, `gpg/`, `.superpowers/`.
 - `pytest.ini`:
   ```ini
   [pytest]
@@ -213,7 +213,8 @@ Workflow con dos jobs, ambos en `ubuntu-latest` salvo donde se indique:
       - name: Shellcheck
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck $(git ls-files '*.sh')
+          sh_files="$(git ls-files '*.sh')"
+          if [ -n "$sh_files" ]; then shellcheck $sh_files; fi
 ```
 
 `test`, en `container: archlinux:latest` con los repos de CachyOS añadidos antes de instalar dependencias:
@@ -231,8 +232,18 @@ Workflow con dos jobs, ambos en `ubuntu-latest` salvo donde se indique:
           done
       - name: Instalar dependencias
         run: pacman -Sy --noconfirm python-pytest bats qt6-declarative qt6-wayland qt6-shadertools lua
-      - name: Tests
+      - name: Tests Python
         run: python -m pytest tests -v
+      - name: Tests Bats
+        run: |
+          if ls tests/*.bats >/dev/null 2>&1; then bats tests/*.bats; fi
+      - name: Tests QML
+        run: |
+          if [ -d shell/tests ]; then
+            QT_QPA_PLATFORM=offscreen \
+              QML2_IMPORT_PATH="$PWD/shell/src" \
+              /usr/lib/qt6/bin/qmltestrunner -input shell/tests
+          fi
 ```
 
 - [ ] **Step 6: Commit**
@@ -256,9 +267,11 @@ git commit -m "chore: bootstrap monorepo, SPDX enforcement and CI"
 **Interfaces:**
 - Consumes: `tools/check_spdx.py` (Task 1) — las cabeceras SPDX de los scripts nuevos.
 - Produces:
-  - `tools/genkeyring.sh --outdir <dir> --uid <uid> --email <email>` → genera una clave GPG RSA-4096 sin passphrase en `<dir>/gnupg/`, exporta la clave pública a `<dir>/nimbus.gpg`, crea el árbol de paquete `<dir>/nimbus-keyring/` con `nimbus.gpg` dentro y `nimbus-keyring.install`, e imprime por stdout **solo** el fingerprint de 40 hex. Sale con 1 si `--outdir` ya contiene `nimbus.gpg` (no sobrescribe).
+  - `tools/genkeyring.sh --outdir <dir> --uid <uid> --email <email>` → genera una clave GPG RSA-4096 sin passphrase en `<dir>/gnupg/`, exporta la clave pública **armored** a `<dir>/nimbus.gpg`, crea el árbol de paquete `<dir>/nimbus-keyring/` con `nimbus.gpg`, `nimbus-trusted`, `nimbus-revoked` y `nimbus-keyring.install`, e imprime por stdout **solo** el fingerprint de 40 hex. Sale con 1 si `--outdir` ya contiene `nimbus.gpg` (no sobrescribe).
   - `tools/sign_repo.sh --repo <dir> --gpgdir <dir> --key <fpr>` → firma `<dir>/<nombre>.db` produciendo `<dir>/<nombre>.db.sig`. **No sobrescribe** una `.sig` existente: sale con 1 e imprime `ya firmado`.
-  - El paquete `nimbus-keyring` instala `/usr/share/pacman/keyrings/nimbus.gpg` y `/usr/share/pacman/keyrings/nimbus-keyring.install`.
+  - El paquete `nimbus-keyring` instala `/usr/share/pacman/keyrings/nimbus.gpg`, `nimbus-trusted` y `nimbus-revoked`, y su `.install` ejecuta `pacman-key --populate nimbus` en `post_install`.
+
+  **FORMATO DEL ARTEFACTO (load-bearing).** `nimbus.gpg` debe ser la **clave pública exportada en ASCII armored**, igual que `cachyos.gpg` y `archlinux.gpg` en `/usr/share/pacman/keyrings/`. **No** debe ser un keybox KBXf. La razón es concreta: `pacman-key --populate` importa el fichero con `gpg --import <fichero>`, y `gpg --import` solo acepta **exportaciones de clave pública** (armored o binarias), no bases de datos de keyring. Con un keybox, `gpg --import` responde "no valid OpenPGP data found", el populate no importa nada, y **toda firma del repositorio de Nimbus falla con "signature from unknown trust"**. Verificado contra `/usr/bin/pacman-key` (línea 318) y contra los keyring de producción.
 
 - [ ] **Step 1: Escribe el test que falla**
 
@@ -285,6 +298,8 @@ teardown() {
   [ "$status" -eq 0 ]
   [ -f "$TESTDIR/out/nimbus.gpg" ]
   [ -f "$TESTDIR/out/nimbus-keyring/nimbus.gpg" ]
+  [ -f "$TESTDIR/out/nimbus-keyring/nimbus-trusted" ]
+  [ -f "$TESTDIR/out/nimbus-keyring/nimbus-revoked" ]
   [ -f "$TESTDIR/out/nimbus-keyring/nimbus-keyring.install" ]
   [[ "$output" =~ ^[0-9A-F]{40}$ ]]
 }
@@ -305,17 +320,46 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
-@test "el keybox exportado verifica con la clave pública, sin la clave privada" {
+@test "nimbus.gpg es importable con gpg --import, como exige pacman-key --populate" {
+  bash "$REPO_ROOT/tools/genkeyring.sh" --outdir "$TESTDIR/out" --uid "Nimbus Signing <nimbus@example.org>" --email "nimbus@example.org"
+  # pacman-key --populate hace exactamente esto: gpg --import <nimbus.gpg>.
+  # Si el artefacto es un keybox en vez de una exportacion armored, falla aqui.
+  mkdir -p "$TESTDIR/importhome"
+  chmod 700 "$TESTDIR/importhome"
+  run gpg --homedir "$TESTDIR/importhome" --quiet --import "$TESTDIR/out/nimbus.gpg"
+  [ "$status" -eq 0 ]
+  # Y la clave importada debe ser la de Nimbus.
+  run gpg --homedir "$TESTDIR/importhome" --list-keys --with-colons
+  [[ "$output" == *"nimbus@example.org"* ]]
+}
+
+@test "nimbus.gpg verifica con la clave pública, sin la clave privada" {
   bash "$REPO_ROOT/tools/genkeyring.sh" --outdir "$TESTDIR/out" --uid "Nimbus Signing <nimbus@example.org>" --email "nimbus@example.org"
   FPR="$(gpg --homedir "$TESTDIR/out/gnupg" --list-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
   printf 'contenido\n' > "$TESTDIR/datos.txt"
   gpg --homedir "$TESTDIR/out/gnupg" --batch --yes --detach-sign --local-user "$FPR" "$TESTDIR/datos.txt"
 
   # Un keyring limpio que solo tiene la clave pública, tal y como verá el usuario.
+  # nimbus.gpg es una exportacion armored: hay que IMPORTARLA antes de usarla
+  # como keyring; pasarle el fichero armored a --keyring no funciona.
   mkdir -p "$TESTDIR/verifyhome"
   chmod 700 "$TESTDIR/verifyhome"
-  run gpg --homedir "$TESTDIR/verifyhome" --no-default-keyring --keyring "$TESTDIR/out/nimbus.gpg" --verify "$TESTDIR/datos.txt.sig" "$TESTDIR/datos.txt"
+  run gpg --homedir "$TESTDIR/verifyhome" --quiet --import "$TESTDIR/out/nimbus.gpg"
   [ "$status" -eq 0 ]
+  run gpg --homedir "$TESTDIR/verifyhome" --verify "$TESTDIR/datos.txt.sig" "$TESTDIR/datos.txt"
+  [ "$status" -eq 0 ]
+}
+
+@test "el ownertrust y el populate estan bien formados" {
+  bash "$REPO_ROOT/tools/genkeyring.sh" --outdir "$TESTDIR/out" --uid "Nimbus Signing <nimbus@example.org>" --email "nimbus@example.org"
+  FPR="$(gpg --homedir "$TESTDIR/out/gnupg" --list-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
+  # El ownertrust debe referenciar la clave con nivel 6 (ultimate). Sin esto,
+  # pacman-key importa la clave pero no le da confianza y toda firma del repo
+  # falla con "signature from unknown trust".
+  grep -q ":6:" "$TESTDIR/out/nimbus-keyring/nimbus-trusted"
+  grep -q "$FPR" "$TESTDIR/out/nimbus-keyring/nimbus-trusted"
+  # Y el .install debe ejecutar el populate, que es lo que aplica el ownertrust.
+  grep -q "pacman-key --populate nimbus" "$TESTDIR/out/nimbus-keyring/nimbus-keyring.install"
 }
 
 @test "sign_repo firma la base de datos y se niega a firmar dos veces" {
@@ -348,19 +392,32 @@ Script bash con `set -euo pipefail`, cabecera SPDX. Comportamiento:
        --quick-generate-key "$UID" rsa4096 sign never
    ```
    La clave debe tener capacidad de **firmar** (no certificar-only) para poder firmar DBs de pacman.
-3. Exporta la clave en **dos artefactos distintos**:
-   - `<outdir>/nimbus.gpg` — el **keybox** binario que consume pacman:
-     ```bash
-     rm -f "$OUTDIR/nimbus.gpg"
-     gpg --homedir "$OUTDIR/gnupg" --batch --yes --export "$UID" \
-       | gpg --homedir "$OUTDIR/gnupg" --batch --yes --no-default-keyring \
-           --keyring "$OUTDIR/nimbus.gpg" --import
+3. Exporta la clave pública en **ASCII armored** a `<outdir>/nimbus.gpg`:
+   ```bash
+   gpg --homedir "$OUTDIR/gnupg" --batch --yes --armor --export "$KEYUID" > "$OUTDIR/nimbus.gpg"
+   ```
+   **Este es el formato que consumen `pacman-key --populate` y los keyring de
+   producción (`cachyos.gpg`, `archlinux.gpg`): una exportación de clave pública armored.
+   NO un keybox KBXf** — ver la nota de formato en el bloque Interfaces. El fichero debe
+   empezar por `-----BEGIN PGP PUBLIC KEY BLOCK-----`.
+4. Crea `<outdir>/nimbus-keyring/` con **cuatro** ficheros:
+   - `nimbus.gpg` — copia de la exportación armored.
+   - `nimbus-trusted` — el ownertrust: `printf '%s:6:\n' "$FPR" > nimbus-trusted`.
+     **Sin este fichero, `pacman-key --populate` importa la clave pero no le da confianza,
+     y toda firma del repo de Nimbus falla con "signature from unknown trust".** El formato
+     es el de `gpg --export-ownertrust`.
+   - `nimbus-revoked` — fichero vacío, placeholder para revocaciones futuras.
+   - `nimbus-keyring.install` con este contenido exacto:
      ```
-   - `<outdir>/nimbus-public.asc` — la clave pública en ASCII, para leerla y publicarla en el wiki.
-4. Crea `<outdir>/nimbus-keyring/` con `nimbus.gpg` (el keybox) y `nimbus-keyring.install` con esta línea exacta:
-   ```
-   usr/share/pacman/keyrings/nimbus.gpg
-   ```
+     usr/share/pacman/keyrings/nimbus.gpg
+     usr/share/pacman/keyrings/nimbus-trusted
+     usr/share/pacman/keyrings/nimbus-revoked
+     post_install() {
+       pacman-key --populate nimbus
+     }
+     ```
+     El patrón está verificado contra `cachyos-keyring`, que_distribution `cachyos.gpg`,
+     `cachyos-trusted` y `cachyos-revoked` en `/usr/share/pacman/keyrings/`.
 5. Imprime **solo** el fingerprint: `gpg --homedir "$OUTDIR/gnupg" --list-keys --with-colons | awk -F: '/^fpr/{print $10; exit}'`.
 
 **Nota sobre `--quick-generate-key`:** usa el alias `sign` para que la clave sirva tanto para firmar como para ser la clave de un owner-trusted en el keyring de pacman. Si `gpg` se queja de que el alias no existe en esta versión, usa `--quick-gen-key "$UID" rsa4096 default never`.
@@ -389,17 +446,24 @@ pkgdesc="Clave pública de firma de los paquetes de Nimbus"
 arch=('any')
 license=('GPL-3.0-or-later')
 url="https://github.com/juanpimg/NimbusOS"
-install=install -Dm644
-source=("nimbus.gpg")
+install=nimbus-keyring.install
+source=("nimbus.gpg" "nimbus-trusted" "nimbus-revoked")
 sha256sums=('SKIP')
 package() {
   install -Dm644 nimbus.gpg "$pkgdir/usr/share/pacman/keyrings/nimbus.gpg"
+  install -Dm644 nimbus-trusted "$pkgdir/usr/share/pacman/keyrings/nimbus-trusted"
+  install -Dm644 nimbus-revoked "$pkgdir/usr/share/pacman/keyrings/nimbus-revoked"
 }
 ```
 
 `packages/nimbus-keyring/nimbus-keyring.install`:
 ```
 usr/share/pacman/keyrings/nimbus.gpg
+usr/share/pacman/keyrings/nimbus-trusted
+usr/share/pacman/keyrings/nimbus-revoked
+post_install() {
+  pacman-key --populate nimbus
+}
 ```
 
 - [ ] **Step 6: Ejecuta los tests para verificar que pasan**
@@ -516,12 +580,20 @@ Script bash con `set -euo pipefail`. Comportamiento:
    pkgs=("$TO"/*.pkg.tar.*)
    shopt -u nullglob
    if [ ${#pkgs[@]} -gt 0 ]; then
-       repo-add "$TO/nimbus.db" "${pkgs[@]}"
-   else
-       repo-add "$TO/nimbus.db"
+       repo-add "$TO/nimbus.db.tar.gz" "${pkgs[@]}"
    fi
    ```
+   **La base de datos se llama `nimbus.db.tar.gz`, no `nimbus.db`.** pacman 7 rechaza
+   `nimbus.db` con el error "does not have a valid database archive extension". `repo-add`
+   crea el archivo `nimbus.db.tar.gz` y un **symlink** `nimbus.db` -> `nimbus.db.tar.gz`;
+   pacman sigue leyendo la base como `nimbus.db` y la firma como `nimbus.db.sig`, asi que
+   el contrato de `tools/sign_repo.sh` (busca el primer `*.db` lexicografico) se mantiene.
+
    `repo-add` requiere el paquete `repo` (`pacman -S repo`). Si no está disponible, el script imprime `repo-add no encontrado: instala el paquete repo` y sale con 1.
+
+   **Si no hay paquetes que promover, la DB del destino NO se toca**: `repo-add` con cero
+   paquetes responde "No changes made to package database" y no crea ningun archivo, y un
+   tar vacio manufactured no es una base de datos valida para pacman.
 5. Firma la DB con `tools/sign_repo.sh --repo "$TO" --gpgdir "$GPGDIR" --key "$KEY"`.
 
 **Nota:** el test usa `.pkg.tar.gz` (no `.zst`) porque `repo-add` y `pacman` aceptan ambos, pero `.zst` requiere `zstd`. Mantén el soporte de ambos patrones en el glob: `*.pkg.tar.zst` y `*.pkg.tar.gz`.
@@ -560,7 +632,7 @@ git commit -m "feat: pin model with testing and stable channels and manual promo
 ### Task 4: Tokens de diseño y configuración del shell (`Theme` y `Config`)
 
 **Files:**
-- Create: `shell/src/qmldir`
+- Create: `shell/src/Nimbus/qmldir`
 - Create: `shell/src/Theme.qml`
 - Create: `shell/src/Config.qml`
 - Create: `shell/src/Translations.qml`
@@ -573,7 +645,8 @@ git commit -m "feat: pin model with testing and stable channels and manual promo
 **Interfaces:**
 - Consumes: nada (arranca en paralelo con Task 2 y 3).
 - Produces:
-  - Módulo QML `Nimbus` con los singletons `Theme` y `Config`, registrado en `shell/qmldir`:
+  - Módulo QML `Nimbus` con los singletons `Theme`, `Config` y `Translations`, registrado en
+    **`shell/src/Nimbus/qmldir`** (no en `shell/src/qmldir`):
     ```
     module Nimbus
     singleton Theme 1.0 Theme.qml
@@ -771,9 +844,12 @@ QtObject {
     readonly property int dockSize: 64
     readonly property string fontFamily: "Inter"
 
-    property color _accentLight: "#007AFF"
-    property color _accentDark: "#0A84FF"
-    readonly property color accent: dark ? _accentDark : _accentLight
+    readonly property color _accentLight: "#007AFF"
+    readonly property color _accentDark: "#0A84FF"
+    // El acento elegido por el usuario gana en los DOS modos.
+    property string _userAccent: ""   // string, no color: "" no es un inicializador valido para color
+    readonly property color accent: _userAccent !== "" ? _userAccent
+                                                       : (dark ? _accentDark : _accentLight)
 
     function setMode(mode) {
         if (mode === "dark") {
@@ -792,8 +868,11 @@ QtObject {
     }
 
     function setAccent(value) {
-        _accentLight = value
-        _accentDark = value
+        _userAccent = value
+    }
+
+    function resetAccent() {
+        _userAccent = ""
     }
 }
 ```
@@ -814,7 +893,7 @@ QtObject {
     readonly property int schemaVersion: 2
 
     property string mode: "light"
-    property string accent: "007AFF"
+    property string accent: "007aff"
     property string locale: "es"
 
     function setMode(value) {
@@ -824,7 +903,9 @@ QtObject {
     }
 
     function setAccent(hex) {
-        accent = hex.replace("#", "").toUpperCase()
+        if (typeof hex !== "string")
+            return
+        accent = hex.replace("#", "").toLowerCase()
         Theme.setAccent("#" + accent)
     }
 
@@ -848,9 +929,9 @@ QtObject {
 Crea además `shell/src/Translations.qml` con el singleton del bloque de Interfaces
 (Step 4, segundo bloque de código).
 
-- [ ] **Step 5: Crea `shell/src/qmldir` y `shell/src/main.qml`**
+- [ ] **Step 5: Crea `shell/src/Nimbus/qmldir` y `shell/src/main.qml`**
 
-`shell/src/qmldir`:
+`shell/src/Nimbus/qmldir`:
 ```
 module Nimbus
 singleton Theme 1.0 Theme.qml
@@ -882,12 +963,14 @@ Window {
 
 - [ ] **Step 6: Ejecuta los tests para verificar que pasan**
 
-Run: `QML2_IMPORT_PATH=$PWD/shell/src qmltestrunner -input shell/tests`
+Run: `QT_QPA_PLATFORM=offscreen QML2_IMPORT_PATH=$PWD/shell/src /usr/lib/qt6/bin/qmltestrunner -input shell/tests`
 Expected: PASS — Theme: 4 passed, Config: 3 passed.
 
 Si `qmltestrunner` no encuentra el módulo, añade `shell/src` al `QML2_IMPORT_PATH`. El
-`qmldir` **va en `shell/src/`**, junto a los `.qml` que registra; si lo pones en `shell/`, el
-módulo no se encuentra.
+**El `qmldir` va en `shell/src/Nimbus/`, NO en `shell/src/`.** Verificado empiricamente: con
+`shell/src/qmldir` el import `import Nimbus` falla con `module "Nimbus" is not installed`,
+porque QML resuelve un modulo buscando un **directorio** con ese nombre en el `QML2_IMPORT_PATH`.
+El layout plano solo resolveria `import src`.
 
 - [ ] **Step 7: Crea `packages/nimbus-shell/PKGBUILD`**
 
@@ -900,12 +983,14 @@ pkgdesc="Shell de escritorio Nimbus para Hyprland (Quickshell/QML)"
 arch=('any')
 license=('GPL-3.0-or-later')
 depends=('quickshell>=0.3.2' 'hyprland>=0.56.2' 'qt6-declarative' 'qt6-wayland' 'qt6-shadertools' 'inter-font')
-source=('shell::git+https://github.com/juanpimg/NimbusOS.git')
-sha256sums=('SKIP')
+# Monorepo: el paquete se compila desde el árbol local, sin clonar de GitHub.
+# Cuando el repo se divida por subsistema, esto pasa a
+# source=('shell::git+https://github.com/juanpimg/NimbusOS.git').
+source=()
+sha256sums=()
 package() {
-  install -Dm644 shell/src/qmldir "$pkgdir/usr/lib/nimbus/shell/qmldir"
-  cp -r shell/src "$pkgdir/usr/lib/nimbus/shell/src"
-  install -Dm755 shell/nimbus-shell "$pkgdir/usr/bin/nimbus-shell"
+  cp -r "$startdir/../../shell/src" "$pkgdir/usr/lib/nimbus/shell/src"
+  install -Dm755 "$startdir/../../shell/nimbus-shell" "$pkgdir/usr/bin/nimbus-shell"
 }
 ```
 
@@ -976,23 +1061,23 @@ CONFIG = ROOT / "dots" / "hypr" / "hyprland.lua"
 QUIRKS = ROOT / "dots" / "hypr" / "quirks.conf"
 
 REQUIRED_BINDS = {
-    ("SUPER", "Return"): "kitty",
-    ("SUPER", "D"): "dock",
-    ("SUPER", "Space"): "spotlight",
-    ("SUPER", "Tab"): "switcher",
-    ("SUPER", "Q"): "closewindow",
-    ("SUPER", "W"): "closewindow",
-    ("SUPER", "C"): "copy",
-    ("SUPER", "V"): "paste",
-    ("SUPER", "L"): "lock",
-    ("PRINT",): "screenshot",
+    "SUPER + Return": "kitty",
+    "SUPER + D": "dock",
+    "SUPER + Space": "spotlight",
+    "SUPER + Tab": "switcher",
+    "SUPER + Q": "window.close",
+    "SUPER + W": "window.close",
+    "SUPER + C": "send_shortcut",
+    "SUPER + V": "send_shortcut",
+    "SUPER + L": "lock",
+    "PRINT": "screenshot",
 }
 
-# La config usa la API Lua de Hyprland 0.55+: hl.bind("MOD", "KEY", accion).
-# El grupo de acción se captura hasta el fin de línea: contiene el texto que
-# se busca, y el resto de paréntesis no importa para la comprobación.
+# La config usa la API Lua de Hyprland 0.56: hl.bind("MOD + KEY", dispatcher).
+# El primer argumento es un unico string combinado; el segundo es la accion,
+# capturada hasta el fin de linea.
 BIND_RE = re.compile(
-    r'hl\.bind\(\s*(?P<keys>"[^"]+"(?:\s*,\s*"[^"]+")*)\s*,\s*(?P<action>[^\n]+)$',
+    r'hl\.bind\(\s*"(?P<keys>[^"]+)"\s*,\s*(?P<action>[^\n]+)$',
     re.M,
 )
 
@@ -1001,15 +1086,14 @@ def _binds():
     text = CONFIG.read_text(encoding="utf-8")
     out = []
     for match in BIND_RE.finditer(text):
-        keys = tuple(k.strip().strip('"') for k in match.group("keys").split(","))
-        out.append((keys, match.group("action")))
+        out.append((match.group("keys").strip(), match.group("action")))
     return out
 
 
 def _find(keys, action):
-    """Devuelve la acción del bind cuyas teclas coinciden, o None."""
+    """Devuelve la accion del bind cuya combinacion de teclas coincide, o None."""
     for bound_keys, bound_action in _binds():
-        if set(bound_keys) == set(keys) and action in bound_action:
+        if bound_keys == keys and action in bound_action:
             return bound_action
     return None
 
@@ -1019,6 +1103,9 @@ def test_config_file_exists():
 
 
 def test_config_is_valid_lua():
+    # OJO: luac -p valida SOLO la sintaxis. No comprueba que hl.bind o
+    # hl.dsp.* existan en Hyprland 0.56: una llamada a una API inexistente es
+    # Lua valido. La prueba real de carga es arrancar Hyprland con la config.
     if shutil.which("luac") is None:
         pytest.skip("luac no disponible")
     result = subprocess.run(["luac", "-p", str(CONFIG)], capture_output=True, text=True)
@@ -1035,21 +1122,30 @@ def test_required_bindings_are_present():
     missing = []
     for keys, action in REQUIRED_BINDS.items():
         if _find(keys, action) is None:
-            missing.append(f"{'+'.join(keys)} -> {action}")
+            missing.append(f"{keys} -> {action}")
     assert missing == [], "\n".join(missing)
 
 
 def test_workspace_bindings_one_through_nine():
     missing = [
-        str(n) for n in range(1, 10) if _find(("SUPER", str(n)), "workspace") is None
+        str(n) for n in range(1, 10) if _find(f"SUPER + {n}", "workspace") is None
     ]
     assert missing == [], f"faltan binds de workspace: {missing}"
 
 
-def test_emergency_session_is_declared():
+def test_emergency_session_is_declared_and_bound():
+    # El bind de emergencia debe existir de verdad, no solo la palabra en un
+    # comentario: se busca con el mismo regex que el resto.
+    assert _find("SUPER + SHIFT + E", "emergency") is not None
     text = CONFIG.read_text(encoding="utf-8")
-    assert "emergency" in text.lower()
     assert "kitty" in text
+
+
+def test_emergency_terminal_is_fullscreen():
+    # La emergencia sirve para recuperar el escritorio: sin regla de ventana a
+    # pantalla completa, el terminal sale flotante y no cumple su funcion.
+    quirks = QUIRKS.read_text(encoding="utf-8")
+    assert re.search(r"windowrule.*fullscreen.*emergency", quirks, re.I)
 ```
 
 - [ ] **Step 2: Ejecuta el test para verificar que falla**
@@ -1061,6 +1157,21 @@ Expected: FAIL — `CONFIG.is_file()` es False porque `dots/hypr/hyprland.lua` n
 
 Config Lua de Hyprland 0.55+. Usa la API `hl.bind` / `hl.dsp` / `hl.on` / `hl.exec_cmd`. Contenido obligatorio:
 
+**REGLA CRÍTICA DE Hyprland 0.56 EN MODO LUA.** Cuando la config principal es
+`hyprland.lua`, **los ficheros `.conf` sueltos que la acompañen NO se cargan**: la wiki lo
+dice — "Use `require()` to source other files into your config". Por eso **todo** (layout,
+window rules, animaciones) va **dentro de `hyprland.lua`** con la API nativa
+(`hl.config(...)`, `hl.window_rule(...)`). Un `quirks.conf` junto a la config Lua es un
+fichero muerto.
+
+**API REAL de Hyprland 0.56 (verificada contra `Hyprland/example/hyprland.lua` oficial;
+el plan original usaba una API inexistente):**
+`hl.bind` toma **dos** argumentos: el primero es un **único string con los modificadores
+y la tecla separados por `+`** (`"SUPER + SHIFT + E"`), el segundo es el dispatcher.
+Los dispatchers que existen son `hl.dsp.exec_cmd`, `hl.dsp.window.close`,
+`hl.dsp.focus({workspace = "..."})` y `hl.dsp.send_shortcut`. **No** existen
+`hl.dsp.closewindow`, `hl.dsp.copy`, `hl.dsp.paste` ni `hl.dsp.workspace(N)`.
+
 ```lua
 -- SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -1068,35 +1179,58 @@ local function shell(action)
     return hl.dsp.exec_cmd("nimbus-shell ipc call " .. action)
 end
 
-hl.bind("SUPER", "Return", hl.dsp.exec_cmd("kitty"))
-hl.bind("SUPER", "D", shell("dock toggle"))
-hl.bind("SUPER", "Space", shell("spotlight toggle"))
-hl.bind("SUPER", "Tab", shell("switcher next"))
-hl.bind("SUPER", "Q", hl.dsp.close_window())
-hl.bind("SUPER", "W", hl.dsp.close_window())
-hl.bind("SUPER", "C", hl.dsp.copy())
-hl.bind("SUPER", "V", hl.dsp.paste())
-hl.bind("SUPER", "L", hl.dsp.exec_cmd("hyprlock"))
+-- Layout flotante, de forma nativa (no con hyprctl, no en un .conf aparte).
+hl.config({
+    general = {
+        layout = "floating",
+    },
+    decoration = {
+        rounding = 12,
+        blur = {
+            enabled = true,
+            size = 3,
+            passes = 1,
+        },
+    },
+})
+
+-- La sesion de emergencia se abre a pantalla completa.
+hl.window_rule({
+    name = "nimbus-emergency-fullscreen",
+    match = { class = "emergency" },
+    fullscreen = true,
+})
+
+hl.bind("SUPER + Return", hl.dsp.exec_cmd("kitty"))
+hl.bind("SUPER + D", shell("dock toggle"))
+hl.bind("SUPER + Space", shell("spotlight toggle"))
+hl.bind("SUPER + Tab", shell("switcher next"))
+hl.bind("SUPER + Q", hl.dsp.window.close())
+hl.bind("SUPER + W", hl.dsp.window.close())
+hl.bind("SUPER + C", hl.dsp.send_shortcut("SUPER, C"))
+hl.bind("SUPER + V", hl.dsp.send_shortcut("SUPER, V"))
+hl.bind("SUPER + L", hl.dsp.exec_cmd("hyprlock"))
 hl.bind("PRINT", shell("screenshot region"))
 
 -- Los bindings de workspace se escriben de forma literal: el test los busca
 -- uno a uno y un bucle con tostring() no sería detectable.
-hl.bind("SUPER", "1", hl.dsp.workspace(1))
-hl.bind("SUPER", "2", hl.dsp.workspace(2))
-hl.bind("SUPER", "3", hl.dsp.workspace(3))
-hl.bind("SUPER", "4", hl.dsp.workspace(4))
-hl.bind("SUPER", "5", hl.dsp.workspace(5))
-hl.bind("SUPER", "6", hl.dsp.workspace(6))
-hl.bind("SUPER", "7", hl.dsp.workspace(7))
-hl.bind("SUPER", "8", hl.dsp.workspace(8))
-hl.bind("SUPER", "9", hl.dsp.workspace(9))
+hl.bind("SUPER + 1", hl.dsp.focus({workspace = 1}))
+hl.bind("SUPER + 2", hl.dsp.focus({workspace = 2}))
+hl.bind("SUPER + 3", hl.dsp.focus({workspace = 3}))
+hl.bind("SUPER + 4", hl.dsp.focus({workspace = 4}))
+hl.bind("SUPER + 5", hl.dsp.focus({workspace = 5}))
+hl.bind("SUPER + 6", hl.dsp.focus({workspace = 6}))
+hl.bind("SUPER + 7", hl.dsp.focus({workspace = 7}))
+hl.bind("SUPER + 8", hl.dsp.focus({workspace = 8}))
+hl.bind("SUPER + 9", hl.dsp.focus({workspace = 9}))
 
 -- Sesión de emergencia: si el shell de Nimbus falla, el usuario cae aquí con
--- un terminal a pantalla completa y puede matar el proceso o cambiar de sesión.
+-- un terminal a pantalla completa (la regla de ventana está en quirks.conf)
+-- y puede matar el proceso o cambiar de sesión.
 local function emergency()
-    hl.exec_cmd("kitty --class emergency")
+    hl.dsp.exec_cmd("kitty --class emergency")
 end
-hl.bind("SUPER", "Shift", "E", emergency)
+hl.bind("SUPER + SHIFT + E", emergency)
 
 hl.on("hyprland.start", function()
     hl.exec_cmd("sh /usr/lib/nimbus/dots/nimbus-start")
@@ -1169,13 +1303,15 @@ pkgdesc="Configuración de Hyprland y defaults del sistema para Nimbus"
 arch=('any')
 license=('GPL-3.0-or-later')
 depends=('hyprland>=0.56.2' 'nimbus-shell' 'kitty')
-source=('dots::git+https://github.com/juanpimg/NimbusOS.git')
-sha256sums=('SKIP')
+# Monorepo: se compila desde el árbol local. Al dividir el repo, esto pasa a
+# source=('dots::git+https://github.com/juanpimg/NimbusOS.git').
+source=()
+sha256sums=()
 package() {
-  install -Dm644 dots/hypr/hyprland.lua "$pkgdir/usr/lib/nimbus/dots/hypr/hyprland.lua"
-  install -Dm644 dots/hypr/quirks.conf "$pkgdir/usr/lib/nimbus/dots/hypr/quirks.conf"
-  install -Dm644 dots/nimbus/defaults.conf "$pkgdir/usr/lib/nimbus/dots/defaults.conf"
-  install -Dm755 dots/nimbus/nimbus-start "$pkgdir/usr/lib/nimbus/dots/nimbus-start"
+  install -Dm644 "$startdir/../../dots/hypr/hyprland.lua" "$pkgdir/usr/lib/nimbus/dots/hypr/hyprland.lua"
+  install -Dm644 "$startdir/../../dots/hypr/quirks.conf" "$pkgdir/usr/lib/nimbus/dots/hypr/quirks.conf"
+  install -Dm644 "$startdir/../../dots/nimbus/defaults.conf" "$pkgdir/usr/lib/nimbus/dots/defaults.conf"
+  install -Dm755 "$startdir/../../dots/nimbus/nimbus-start" "$pkgdir/usr/lib/nimbus/dots/nimbus-start"
 }
 ```
 
@@ -1208,7 +1344,7 @@ git commit -m "feat: floating Hyprland layout with macOS-style keybindings and e
 **Interfaces:**
 - Consumes: `packages/nimbus-shell` (Task 4) y `packages/nimbus-dots` (Task 5).
 - Produces:
-  - `iso/build.sh --outdir <dir> [--local-repo <dir>]` → construye la ISO con `archiso` y produce `<outdir>/nimbus-<YYYYMMDD>-<git-short-sha>.iso`. Exit != 0 si el perfil no valida.
+  - `iso/build.sh --outdir <dir> [--local-repo]` → construye la ISO con `archiso` y produce `<outdir>/nimbus-<YYYYMMDD>-<git-short-sha>.iso`. `--local-repo` es una **bandera booleana sin argumento**: el directorio del repo local se deriva del directorio de trabajo. Exit != 0 si el perfil no valida o si el repo local queda vacío.
     - `--local-repo <dir>` es **imprescindible durante el bootstrap**: el repo `nimbus` todavía no está alojado en ningún servidor, así que `build.sh` compila los PKGBUILDs de `packages/` con `makepkg` en un repo local `file://` y lo añade al `pacman.conf` del perfil. Sin este flag la construcción falla, porque `nimbus-shell` no se puede resolver.
   - `nimbus-live.service` — unit systemd que **arranca el shell** en la sesión live.
   - `nimbus-live-ready.service` — unit systemd que escribe `NIMBUS_LIVE_READY` en `/dev/console` **solo si** `nimbus-live.service` arrancó bien. **Este es el marcador que Task 8 espera encontrar.**
@@ -1360,7 +1496,11 @@ EOF
 cat >> /etc/pacman.conf <<'EOF'
 
 [nimbus]
-SigLevel = Required DatabaseOptional
+# TODO(bootstrap): el repo local de bootstrap va sin firmar, asi que la
+# verificacion se relaja. Cuando el repo publico este alojado y firmado
+# (repo de produccion), esto pasa a:
+#   SigLevel = Required DatabaseOptional
+SigLevel = Optional
 Server = file:///run/archiso/bootmnt/nimbus-repo
 EOF
 
@@ -1392,8 +1532,12 @@ ANSI_COLOR="38;2;0;122;255"
 HOME_URL="https://github.com/juanpimg/NimbusOS"
 EOF
 
-# Mot de passe y configuración de la sesión live.
+# Mot de passe y configuracion de la sesion live.
 echo "root:nimbus" | chpasswd
+
+# En la ISO live la sesion la aporta nimbus-live.service, no SDDM: dos gestores
+# de display peleandose por la pantalla hacen que la sesion parpadee.
+systemctl disable sddm.service 2>/dev/null || true
 cat > /etc/sddm.conf <<'EOF'
 [Autologin]
 Session=hyprland
@@ -1477,9 +1621,9 @@ LOCAL_REPO=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --outdir) OUTDIR="$2"; shift 2 ;;
-    --profile) PROFILE="$2"; shift 2 ;;
-    --local-repo) LOCAL_REPO="$2"; shift 2 ;;
+    --outdir) OUTDIR="${2:?falta el valor de --outdir}"; shift 2 ;;
+    --profile) PROFILE="${2:?falta el valor de --profile}"; shift 2 ;;
+    --local-repo) LOCAL_REPO="1"; shift ;;
     *) echo "opción desconocida: $1" >&2; exit 1 ;;
   esac
 done
@@ -1495,6 +1639,13 @@ if [ ! -f "$ROOT/iso/profiles/$PROFILE/airoot.sh" ]; then
   exit 1
 fi
 
+for bin in archiso makepkg repo-add; do
+  command -v "$bin" >/dev/null 2>&1 || {
+    echo "$bin no encontrado: instálalo antes de construir la ISO" >&2
+    exit 1
+  }
+done
+
 mkdir -p "$WORK" "$OUTDIR"
 rm -rf "$WORK"/*
 cp -r "$ROOT/iso/profiles/$PROFILE" "$WORK/profile"
@@ -1509,9 +1660,20 @@ if [ -n "$LOCAL_REPO" ]; then
     name="$(basename "$pkgdir")"
     [ -f "$pkgdir/PKGBUILD" ] || continue
     echo "[nimbus] compilando $name"
-    ( cd "$pkgdir" && makepkg --nodeps --noconfirm --packagelist "$REPO_DIR" >/dev/null )
+    # PKGDEST es la variable que dice a makepkg donde dejar el paquete.
+    # `--packagelist` NO construye nada: solo imprime las rutas que se producirian.
+    ( cd "$pkgdir" && PKGDEST="$REPO_DIR" makepkg --nodeps --noconfirm ) \
+      >"$WORK/build-${name}.log" 2>&1
   done
-  repo-add "$REPO_DIR/nimbus.db" "$REPO_DIR"/*.pkg.tar.*
+  # Si no ha salido ningun paquete, el repo local quedaria vacio y la ISO no
+  # podria resolver nimbus-shell. Falla aqui, de forma ruidosa.
+  compgen -G "$REPO_DIR/*.pkg.tar.*" >/dev/null || {
+    echo "no se ha construido ningun paquete en $REPO_DIR" >&2
+    exit 1
+  }
+  # pacman 7 exige una extension de archivo valida: repo-add crea
+  # nimbus.db.tar.gz y el symlink nimbus.db -> nimbus.db.tar.gz.
+  repo-add "$REPO_DIR/nimbus.db.tar.gz" "$REPO_DIR"/*.pkg.tar.*
   mkdir -p "$WORK/profile/overlay/run/archiso/bootmnt"
   cp -r "$REPO_DIR" "$WORK/profile/overlay/run/archiso/bootmnt/nimbus-repo"
 fi
@@ -1604,11 +1766,18 @@ def test_module_sequence_is_the_expected_one():
     assert _sequence() == EXPECTED_SEQUENCE
 
 
-def test_every_module_has_a_conf_file():
+NIMBUS_OWNED_MODULES = {"nimbus-appearance", "nimbus-software", "nimbus-verify"}
+
+
+def test_every_nimbus_module_has_a_conf_file():
+    # welcome, locale, partition, lukspass, users, hardware, bootloader y finished
+    # son modulos de Calamares upstream: los aporta el paquete cachyos-calamares-next,
+    # no este repositorio. Solo exigimos los que son propiedad de Nimbus.
     missing = [
         name
         for name in _sequence()
-        if not (CALAMARES / "modules" / name / f"{name}.conf").is_file()
+        if name in NIMBUS_OWNED_MODULES
+        and not (CALAMARES / "modules" / name / f"{name}.conf").is_file()
     ]
     assert missing == []
 

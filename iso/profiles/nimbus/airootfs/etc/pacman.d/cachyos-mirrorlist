@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Espejos de CachyOS para la sesion live de Nimbus: bali0531 primero (es el
+# unico con el glibc nuevo), cdn77 segundo.
+Server = https://mirror.bali0531.hu/repo/$arch/$repo
+Server = https://cdn77.cachyos.org/repo/$arch/$repo

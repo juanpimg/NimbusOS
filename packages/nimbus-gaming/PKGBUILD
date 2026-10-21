@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+pkgname=nimbus-gaming
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Metapaquete de juego de Nimbus: Steam, Proton, Gamescope y telemetria"
+arch=('any')
+license=('GPL-3.0-or-later')
+depends=('steam' 'proton-ge' 'proton-cachyos' 'gamescope' 'gamemode' 'mangohud' 'vkbasalt' 'lib32-vulkan' 'vkd3d-proton' 'heroic' 'lutris' 'bottles' 'protonup-qt' 'protontricks')
+install=nimbus-gaming.install
+# Monorepo: el paquete se compila desde el arbol local, sin descargar nada.
+source=()
+sha256sums=()
+package() {
+  install -Dm644 "$startdir/../../packages/nimbus-gaming/files/mangohud.conf" "$pkgdir/usr/share/nimbus/gaming/mangohud.conf"
+  install -Dm644 "$startdir/../../packages/nimbus-gaming/files/gamescope.conf" "$pkgdir/usr/share/nimbus/gaming/gamescope.conf"
+  install -Dm755 "$startdir/../../packages/nimbus-gaming/files/nimbus-gaming-tune" "$pkgdir/usr/bin/nimbus-gaming-tune"
+}

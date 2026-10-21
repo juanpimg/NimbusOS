@@ -1,0 +1,6 @@
+usr/share/pacman/keyrings/nimbus.gpg
+usr/share/pacman/keyrings/nimbus-trusted
+usr/share/pacman/keyrings/nimbus-revoked
+post_install() {
+  pacman-key --populate nimbus
+}

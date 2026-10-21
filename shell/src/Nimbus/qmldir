@@ -1,0 +1,48 @@
+module Nimbus
+Button 1.0 lib/Button.qml
+ControlCenter 1.0 modules/ControlCenter.qml
+Dock 1.0 modules/Dock.qml
+DockItem 1.0 modules/DockItem.qml
+Glass 1.0 lib/Glass.qml
+Icon 1.0 lib/Icon.qml
+ListRow 1.0 lib/ListRow.qml
+LockScreen 1.0 modules/LockScreen.qml
+Notifications 1.0 modules/Notifications.qml
+Popup 1.0 lib/Popup.qml
+QuickLook 1.0 modules/QuickLook.qml
+Screenshot 1.0 modules/Screenshot.qml
+SearchField 1.0 lib/SearchField.qml
+SectionHeader 1.0 lib/SectionHeader.qml
+Settings 1.0 apps/Settings/Settings.qml
+SettingsAbout 1.0 apps/Settings/SettingsAbout.qml
+SettingsAppearance 1.0 apps/Settings/SettingsAppearance.qml
+SettingsBluetooth 1.0 apps/Settings/SettingsBluetooth.qml
+SettingsData 1.0 apps/Settings/SettingsData.qml
+SettingsDisplays 1.0 apps/Settings/SettingsDisplays.qml
+SettingsKeyboard 1.0 apps/Settings/SettingsKeyboard.qml
+SettingsNetwork 1.0 apps/Settings/SettingsNetwork.qml
+SettingsPower 1.0 apps/Settings/SettingsPower.qml
+SettingsSoftware 1.0 apps/Settings/SettingsSoftware.qml
+SettingsSound 1.0 apps/Settings/SettingsSound.qml
+SettingsUsers 1.0 apps/Settings/SettingsUsers.qml
+Slider 1.0 lib/Slider.qml
+Spotlight 1.0 modules/Spotlight.qml
+Store 1.0 apps/Store/Store.qml
+StoreDetail 1.0 apps/Store/StoreDetail.qml
+StoreHome 1.0 apps/Store/StoreHome.qml
+StoreUpdates 1.0 apps/Store/StoreUpdates.qml
+Switcher 1.0 modules/Switcher.qml
+Toggle 1.0 lib/Toggle.qml
+Tooltip 1.0 lib/Tooltip.qml
+TopBar 1.0 modules/TopBar.qml
+TopBarMenu 1.0 modules/TopBarMenu.qml
+Tour 1.0 apps/Tour/Tour.qml
+TourStep 1.0 apps/Tour/TourStep.qml
+Wallpaper 1.0 modules/Wallpaper.qml
+singleton Config 1.0 Config.qml
+singleton Ipc 1.0 Ipc.qml
+singleton PolkitAgent 1.0 PolkitAgent.qml
+singleton Services 1.0 Services.qml
+singleton ShellController 1.0 ShellController.qml
+singleton Theme 1.0 Theme.qml
+singleton Translations 1.0 Translations.qml

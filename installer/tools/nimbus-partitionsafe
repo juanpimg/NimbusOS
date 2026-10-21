@@ -1,0 +1,245 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Copia de seguridad y verificacion de la tabla de particiones (Nimbus).
+
+CLI para el instalador (usado por el modulo ``nimbus-dualboot`` antes de
+que Calamares toque el disco)::
+
+    nimbus-partitionsafe backup <dispositivo> <destino-dir>
+    nimbus-partitionsafe verify <dispositivo> <respaldo-dir>
+    nimbus-partitionsafe efi <dispositivo>
+
+``backup`` vuelca la tabla con ``sfdisk --dump`` (y ``sgdisk --backup``
+si esta disponible) y guarda un checksum SHA-256. ``verify`` compara la
+tabla actual con la de referencia y sale con 1 si cambio algo (el caso
+grave es un cambio en el numero de particiones). ``efi`` imprime la
+particion EFI existente o una cadena vacia, sin modificar nada.
+
+Todo lo que venga de fuera se valida; nunca se usa ``shell=True`` ni se
+interpola entrada externa en una cadena de shell.
+"""
+
+import argparse
+import hashlib
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
+
+_DEVICE_RE = re.compile(r"^/dev/[A-Za-z0-9][A-Za-z0-9_\-/]*$")
+_FORBIDDEN_CHARS = set(" \t\n\r;&|$`'\"(){}*?!~<>\\")
+
+# Linea de particion en un volcado `sfdisk --dump`:
+#   /dev/sda1 : start=..., size=..., type=...
+_PARTITION_LINE_RE = re.compile(r"^\s*(/dev/\S+)\s*:.*\bstart\s*=")
+
+EFI_GUID = "c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+
+
+def validate_device(device):
+    """Valida un dispositivo y lo devuelve; lanza ValueError si es raro."""
+    text = str(device)
+    if not text.startswith("/dev/") or len(text) <= len("/dev/"):
+        raise ValueError(f"dispositivo no valido: {device!r}")
+    if ".." in text or any(c in _FORBIDDEN_CHARS for c in text):
+        raise ValueError(f"dispositivo no valido: {device!r}")
+    if not _DEVICE_RE.match(text):
+        raise ValueError(f"dispositivo no valido: {device!r}")
+    return text
+
+
+def normalize_dump(text):
+    """Normaliza un volcado para comparar (fin de linea, espacios)."""
+    stripped = str(text).replace("\r\n", "\n").strip()
+    if not stripped:
+        return ""
+    return "\n".join(line.rstrip() for line in stripped.splitlines()) + "\n"
+
+
+def partition_count(dump_text):
+    """Numero de particiones en un volcado `sfdisk --dump`."""
+    count = 0
+    for line in str(dump_text).splitlines():
+        if _PARTITION_LINE_RE.match(line):
+            count += 1
+    return count
+
+
+def sfdisk_dump(device, runner=None):
+    """Vuelca la tabla con `sfdisk --dump` (lista de args, sin shell)."""
+    device = validate_device(device)
+    run = runner or subprocess.run
+    completed = run(
+        ["sfdisk", "--dump", device],
+        capture_output=True, text=True, check=False,
+    )
+    if getattr(completed, "returncode", 1) != 0:
+        detail = getattr(completed, "stderr", "") or ""
+        raise RuntimeError(f"sfdisk --dump fallo para {device}: {detail}".strip())
+    return getattr(completed, "stdout", "")
+
+
+def _sgdisk_backup_file(dest_dir, basename):
+    which = shutil.which("sgdisk")
+    if not which:
+        return None
+    return str(pathlib.Path(dest_dir) / f"{basename}.sgdisk.bin")
+
+
+def backup_device(device, dest_dir, dumper=None, runner=None):
+    """Guarda respaldo + checksum en un directorio persistente.
+
+    ``dumper`` es solo para tests (evita tocar discos reales).
+    Devuelve {"dump": ..., "checksum": ..., "sgdisk": ...|None}.
+    """
+    device = validate_device(device)
+    dest = pathlib.Path(str(dest_dir))
+    dest.mkdir(parents=True, exist_ok=True)
+    if dumper is not None:
+        dump_text = dumper(device)
+    else:
+        dump_text = sfdisk_dump(device, runner=runner)
+    dump_text = str(dump_text)
+    basename = pathlib.Path(device).name
+    dump_path = dest / f"{basename}.sfdisk.dump"
+    dump_path.write_text(dump_text, encoding="utf-8")
+    digest = hashlib.sha256(dump_text.encode("utf-8")).hexdigest()
+    checksum_path = dest / f"{dump_path.name}.sha256"
+    checksum_path.write_text(f"{digest}  {dump_path.name}\n", encoding="utf-8")
+    sgdisk_path = None
+    if dumper is None:
+        candidate = _sgdisk_backup_file(dest, basename)
+        if candidate is not None:
+            try:
+                run = runner or subprocess.run
+                run(
+                    ["sgdisk", f"--backup={candidate}", device],
+                    capture_output=True, text=True, check=False,
+                )
+                if pathlib.Path(candidate).is_file():
+                    sgdisk_path = candidate
+            except Exception:
+                sgdisk_path = None
+    return {
+        "device": device,
+        "dump": str(dump_path),
+        "checksum": str(checksum_path),
+        "sgdisk": sgdisk_path,
+    }
+
+
+def _reference_dump_path(backup_dir):
+    dest = pathlib.Path(str(backup_dir))
+    candidates = sorted(dest.glob("*.sfdisk.dump"))
+    if not candidates:
+        raise FileNotFoundError(f"sin respaldo en {backup_dir}")
+    return candidates[0]
+
+
+def verify_tables(reference_text, current_text):
+    """Compara dos volcados; (True, motivo) o (False, motivo)."""
+    reference = normalize_dump(reference_text)
+    current = normalize_dump(current_text)
+    if reference == current:
+        return True, "partition table unchanged"
+    ref_count = partition_count(reference)
+    cur_count = partition_count(current)
+    if ref_count != cur_count:
+        return (
+            False,
+            f"partition count changed: {ref_count} != {cur_count} "
+            "(particion anadida o eliminada)",
+        )
+    return False, "partition table changed"
+
+
+def verify_device(device, backup_dir, dumper=None, runner=None):
+    """Compara la tabla actual con el respaldo; 0 ok, 1 cambio, 2 error."""
+    device = validate_device(device)
+    try:
+        reference = _reference_dump_path(backup_dir).read_text(
+            encoding="utf-8")
+    except (OSError, FileNotFoundError) as exc:
+        print(f"nimbus-partitionsafe: sin respaldo: {exc}", file=sys.stderr)
+        return 2
+    try:
+        if dumper is not None:
+            current = dumper(device)
+        else:
+            current = sfdisk_dump(device, runner=runner)
+    except Exception as exc:
+        print(f"nimbus-partitionsafe: no se pudo leer {device}: {exc}",
+              file=sys.stderr)
+        return 2
+    ok, reason = verify_tables(reference, current)
+    if ok:
+        print(f"nimbus-partitionsafe: {device}: sin cambios")
+        return 0
+    print(f"nimbus-partitionsafe: {device}: {reason}", file=sys.stderr)
+    return 1
+
+
+def find_efi_from_dump(dump_text):
+    """Devuelve la particion EFI del volcado o "" (sin modificar nada)."""
+    for line in str(dump_text).splitlines():
+        match = _PARTITION_LINE_RE.match(line)
+        if not match:
+            continue
+        lowered = line.lower()
+        if EFI_GUID in lowered:
+            return match.group(1)
+        if re.search(r"type\s*=\s*u\b", lowered):
+            return match.group(1)
+        if "efi" in lowered:
+            return match.group(1)
+    return ""
+
+
+def efi_device(device, dumper=None, runner=None):
+    """Localiza la EFI existente del dispositivo ("" si no hay)."""
+    device = validate_device(device)
+    if dumper is not None:
+        dump_text = dumper(device)
+    else:
+        dump_text = sfdisk_dump(device, runner=runner)
+    return find_efi_from_dump(dump_text)
+
+
+def main(argv=None):
+    """CLI: backup/verify/efi. Devuelve el codigo de salida."""
+    parser = argparse.ArgumentParser(
+        prog="nimbus-partitionsafe",
+        description="Respaldo y verificacion de la tabla de particiones.",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+    p_backup = sub.add_parser("backup", help="vuelca la tabla al destino")
+    p_backup.add_argument("device")
+    p_backup.add_argument("dest")
+    p_verify = sub.add_parser("verify", help="compara con el respaldo")
+    p_verify.add_argument("device")
+    p_verify.add_argument("backup_dir")
+    p_efi = sub.add_parser("efi", help="imprime la EFI existente o vacio")
+    p_efi.add_argument("device")
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "backup":
+            result = backup_device(args.device, args.dest)
+            print(result["dump"])
+            return 0
+        if args.command == "verify":
+            return verify_device(args.device, args.backup_dir)
+        if args.command == "efi":
+            print(efi_device(args.device))
+            return 0
+    except ValueError as exc:
+        print(f"nimbus-partitionsafe: {exc}", file=sys.stderr)
+        return 2
+    except (OSError, RuntimeError) as exc:
+        print(f"nimbus-partitionsafe: {exc}", file=sys.stderr)
+        return 2
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

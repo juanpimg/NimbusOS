@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+pkgname=nimbus-keyring
+pkgver=20261021
+pkgrel=1
+pkgdesc="Clave pública de firma de los paquetes de Nimbus"
+arch=('any')
+license=('GPL-3.0-or-later')
+url="https://github.com/juanpimg/NimbusOS"
+install=nimbus-keyring.install
+source=("nimbus.gpg" "nimbus-trusted" "nimbus-revoked")
+sha256sums=('SKIP' 'SKIP' 'SKIP')
+package() {
+  install -Dm644 nimbus.gpg "$pkgdir/usr/share/pacman/keyrings/nimbus.gpg"
+  install -Dm644 nimbus-trusted "$pkgdir/usr/share/pacman/keyrings/nimbus-trusted"
+  install -Dm644 nimbus-revoked "$pkgdir/usr/share/pacman/keyrings/nimbus-revoked"
+}

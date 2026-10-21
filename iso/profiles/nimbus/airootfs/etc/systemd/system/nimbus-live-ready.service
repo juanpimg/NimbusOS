@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=Nimbus live session ready
+# El marcador NIMBUS_LIVE_READY lo escribe /usr/lib/nimbus/nimbus-live-ready
+# en /dev/console solo cuando Hyprland y el shell responden de verdad: el unit
+# nunca lo escribe directamente, para no declarar lista una sesion en bucle.
+Requires=nimbus-live.service
+After=nimbus-live.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Margen por encima de los 90 s que espera el script antes de rendirse.
+TimeoutStartSec=120
+ExecStart=/usr/lib/nimbus/nimbus-live-ready
+
+[Install]
+WantedBy=graphical.target

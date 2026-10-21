@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""nimbus-snapshots: politica de snapshots Btrfs para el rollback de Nimbus.
+
+Uso:
+    nimbus-snapshots setup <raiz-btrfs>
+    nimbus-snapshots list <raiz-btrfs>
+    nimbus-snapshots last-good <raiz-btrfs>
+    nimbus-snapshots cleanup <raiz-btrfs> <max>
+
+``setup`` es idempotente: crea la estructura de subvolúmenes y la
+politica de snapshots; ejecutarlo dos veces deja el mismo estado. En un
+Btrfs real los snapshots son subvolumenes (se crean con
+``btrfs subvolume create`` cuando el binario existe); sin Btrfs o sin el
+binario se usan directorios normales, de modo que la logica es testeable
+sin root ni snapper.
+"""
+
+import pathlib
+import shutil
+import subprocess
+import sys
+
+try:
+    from nimbus_i18n import active_locale, translated
+    import nimbus_i18n as _i18n_module
+except ImportError:  # ejecutado por ruta (instalador/test) sin paquete
+    import importlib.util as _importlib_util
+
+    _i18n_module = sys.modules.get("nimbus_i18n")
+    if _i18n_module is None:
+        _i18n_path = (
+            pathlib.Path(__file__).resolve().parents[1]
+            / "calamares" / "nimbus_i18n.py"
+        )
+        _i18n_spec = _importlib_util.spec_from_file_location(
+            "nimbus_i18n", _i18n_path)
+        _i18n_module = _importlib_util.module_from_spec(_i18n_spec)
+        sys.modules["nimbus_i18n"] = _i18n_module
+        _i18n_spec.loader.exec_module(_i18n_module)
+    active_locale = _i18n_module.active_locale
+    translated = _i18n_module.translated
+
+SNAPSHOT_TRANSLATIONS = {
+    "es": {
+        "snapshots.error.no_snapshots": "no hay snapshots buenos",
+        "snapshots.error.unknown_command": (
+            "comando desconocido: {command}"
+        ),
+        "snapshots.error.cleanup_needs_max": (
+            "cleanup necesita <max>: cleanup <raiz> <max>"
+        ),
+        "snapshots.error.max_not_number": "<max> no es un número: {value}",
+        "snapshots.error.max_negative": "<max> no puede ser negativo",
+    },
+    "en": {
+        "snapshots.error.no_snapshots": "no good snapshots",
+        "snapshots.error.unknown_command": "unknown command: {command}",
+        "snapshots.error.cleanup_needs_max": (
+            "cleanup needs <max>: cleanup <root> <max>"
+        ),
+        "snapshots.error.max_not_number": "<max> is not a number: {value}",
+        "snapshots.error.max_negative": "<max> cannot be negative",
+    },
+}
+
+for _lang, _table in SNAPSHOT_TRANSLATIONS.items():
+    _target = _i18n_module.TRANSLATIONS.setdefault(_lang, {})
+    for _key, _value in _table.items():
+        _target.setdefault(_key, _value)
+
+
+def _current_locale():
+    try:
+        return active_locale()
+    except Exception:
+        return "en"
+
+SNAPSHOT_DIR_NAME = ".snapshots"
+POLICY_FILE_NAME = "policy.conf"
+
+POLICY_CONTENT = """# SPDX-License-Identifier: GPL-3.0-or-later
+# Politica de snapshots de Nimbus (rollback de un clic).
+[snapshots]
+# Cuantos snapshots recientes conservar por defecto.
+keep_last=10
+# Los snapshots buenos se marcan tras un arranque correcto.
+auto_last_good=true
+"""
+
+
+def snapshot_dir(root):
+    """Directorio que guarda los snapshots bajo la raiz dada."""
+    return pathlib.Path(str(root)) / SNAPSHOT_DIR_NAME
+
+
+def _ensure_dir(path, runner=None):
+    """Crea un directorio (subvolumen Btrfs si hay `btrfs` disponible)."""
+    target = pathlib.Path(str(path))
+    if target.is_dir():
+        return target
+    run = runner or subprocess.run
+    btrfs = shutil.which("btrfs")
+    if btrfs is not None:
+        try:
+            run([btrfs, "subvolume", "create", str(target)],
+                capture_output=True, text=True, check=False)
+        except (FileNotFoundError, subprocess.SubprocessError, OSError):
+            pass
+        if target.is_dir():
+            return target
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def setup_snapshots(root, runner=None):
+    """Crea la estructura y la politica. Idempotente."""
+    snapdir = snapshot_dir(root)
+    _ensure_dir(snapdir, runner=runner)
+    policy = snapdir / POLICY_FILE_NAME
+    policy.write_text(POLICY_CONTENT, encoding="utf-8")
+    return snapdir
+
+
+def list_snapshots(root):
+    """Nombres de snapshots ordenados (los mas recientes al final)."""
+    snapdir = snapshot_dir(root)
+    if not snapdir.is_dir():
+        return []
+    return sorted(p.name for p in snapdir.iterdir() if p.is_dir())
+
+
+def last_good_snapshot(root):
+    """Nombre del ultimo snapshot bueno, o None si no hay ninguno."""
+    names = list_snapshots(root)
+    if not names:
+        return None
+    return names[-1]
+
+
+def cleanup_snapshots(root, max_keep):
+    """Conserva los N mas recientes; borra el resto. Devuelve (kept, removed)."""
+    keep = max(int(max_keep), 0)
+    names = list_snapshots(root)
+    snapdir = snapshot_dir(root)
+    if keep >= len(names):
+        return list(names), []
+    doomed = names[:len(names) - keep]
+    kept = names[len(names) - keep:] if keep else []
+    for name in doomed:
+        target = snapdir / name
+        if target.is_symlink() or target.is_file():
+            target.unlink()
+        elif target.is_dir():
+            shutil.rmtree(target)
+    return kept, list(doomed)
+
+
+def _fail(message):
+    print(f"nimbus-snapshots: {message}", file=sys.stderr)
+    return 1
+
+
+def _err(key, **fields):
+    return translated(key, _current_locale()).format(**fields)
+
+
+def main(argv=None):
+    args = list(sys.argv[1:] if argv is None else argv)
+    if len(args) < 2:
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    command, root = args[0], args[1]
+    if command == "setup":
+        setup_snapshots(root)
+        print(str(snapshot_dir(root)))
+        return 0
+    if command == "list":
+        for name in list_snapshots(root):
+            print(name)
+        return 0
+    if command == "last-good":
+        last = last_good_snapshot(root)
+        if last is None:
+            return _fail(_err("snapshots.error.no_snapshots"))
+        print(str(snapshot_dir(root) / last))
+        return 0
+    if command == "cleanup":
+        if len(args) < 3:
+            return _fail(_err("snapshots.error.cleanup_needs_max"))
+        try:
+            max_keep = int(args[2])
+        except ValueError:
+            return _fail(
+                _err("snapshots.error.max_not_number", value=repr(args[2])))
+        if max_keep < 0:
+            return _fail(_err("snapshots.error.max_negative"))
+        kept, _removed = cleanup_snapshots(root, max_keep)
+        for name in kept:
+            print(name)
+        return 0
+    return _fail(_err("snapshots.error.unknown_command", command=command))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

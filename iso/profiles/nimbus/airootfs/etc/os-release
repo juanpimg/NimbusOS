@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+NAME="Nimbus"
+PRETTY_NAME="Nimbus Linux"
+ID=nimbus
+ID_LIKE=arch cachyos
+ANSI_COLOR="38;2;0;122;255"
+HOME_URL="https://github.com/juanpimg/NimbusOS"

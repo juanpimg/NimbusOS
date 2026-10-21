@@ -1,0 +1,260 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# nimbus-energy — perfiles de energia, limite de carga y GPU hibrida.
+#
+# Variables de entorno (pensadas para pruebas sin hardware):
+#   NIMBUS_ENERGY_CONF            fichero de valores por defecto
+#   NIMBUS_ENERGY_ALLOW_UNPRIVILEGED=1  salta la puerta de privilegios
+#   NIMBUS_ENERGY_NO_REEXEC=1     no re-ejecuta con pkexec, falla con mensaje
+#   POWERPROFILESCTL              binario de power-profiles-daemon
+#   NIMBUS_CHARGE_BACKEND         auto|amd|nvidia|intel|none
+#   NIMBUS_SYSFS                  prefijo de sysfs falso (por defecto "")
+#   NIMBUS_GPU_HAS_NVIDIA         auto|0|1
+#   NIMBUS_GPU_STATE              fichero donde se registra el modo GPU
+#
+# Notas de comportamiento:
+#   - `charge-limit get` informa `unsupported` cuando el hardware no expone
+#     control de carga, en vez de devolver el valor por defecto (80).
+#   - Solo `set` exige privilegios; `get` es lectura y no pide polkit.
+set -euo pipefail
+
+CONF="${NIMBUS_ENERGY_CONF:-/etc/nimbus/energy-helper.conf}"
+PPD="${POWERPROFILESCTL:-powerprofilesctl}"
+CHARGE_BACKEND="${NIMBUS_CHARGE_BACKEND:-auto}"
+SYSFS="${NIMBUS_SYSFS:-}"
+GPU_STATE="${NIMBUS_GPU_STATE:-/var/lib/nimbus/gpu-mode}"
+HAS_NVIDIA="${NIMBUS_GPU_HAS_NVIDIA:-auto}"
+
+usage() {
+  cat <<'EOF'
+Uso:
+  nimbus-energy profile get|set <economy|balanced|performance>
+  nimbus-energy charge-limit get|set <porcentaje 40-80|off>
+  nimbus-energy gpu get|set <auto|on-demand|always>
+EOF
+}
+
+die() {
+  echo "nimbus-energy: $*" >&2
+  exit 1
+}
+
+require_privileges() {
+  if [ "${NIMBUS_ENERGY_ALLOW_UNPRIVILEGED:-0}" = "1" ]; then
+    return 0
+  fi
+  if [ "$(id -u)" -eq 0 ]; then
+    return 0
+  fi
+  if [ -z "${NIMBUS_ENERGY_NO_REEXEC:-}" ] && command -v pkexec >/dev/null 2>&1; then
+    exec pkexec "$0" "$@"
+  fi
+  die "se requieren privilegios (polkit): ejecute con 'pkexec nimbus-energy ...'"
+}
+
+conf_default() {
+  local key="$1" fallback="$2" line
+  if [ -f "$CONF" ]; then
+    while IFS= read -r line; do
+      case "$line" in
+        "$key"=*) echo "${line#*=}"; return 0 ;;
+      esac
+    done <"$CONF"
+  fi
+  echo "$fallback"
+}
+
+# --- perfiles de energia (power-profiles-daemon) -----------------------------
+
+profile_get() {
+  local current
+  if current="$("$PPD" get 2>/dev/null)"; then
+    echo "$current"
+  else
+    conf_default "profile" "balanced"
+  fi
+}
+
+profile_set() {
+  local want="${1:-}"
+  case "$want" in
+    economy|balanced|performance) ;;
+    *) usage >&2; die "perfil desconocido '$want': use economy, balanced o performance" ;;
+  esac
+  "$PPD" set "$want"
+  local got
+  got="$("$PPD" get)"
+  if [ "$got" != "$want" ]; then
+    die "power-profiles-daemon no aplicó el perfil '$want' (sigue en '$got')"
+  fi
+  echo "Perfil de energía: $got"
+}
+
+# --- limite de carga de bateria ------------------------------------------------
+
+charge_control_file() {
+  local f
+  shopt -s nullglob
+  for f in "$SYSFS"/sys/class/power_supply/BAT*/charge_control_end_threshold; do
+    shopt -u nullglob
+    echo "$f"
+    return 0
+  done
+  shopt -u nullglob
+  local found
+  found="$(find "$SYSFS/sys" -name amdgpu_charge_limit 2>/dev/null | head -n 1 || true)"
+  if [ -n "$found" ]; then
+    echo "$found"
+    return 0
+  fi
+  return 1
+}
+
+detect_charge_backend() {
+  if [ "$CHARGE_BACKEND" != "auto" ]; then
+    echo "$CHARGE_BACKEND"
+    return 0
+  fi
+  if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
+    echo "nvidia"
+    return 0
+  fi
+  if charge_control_file >/dev/null 2>&1; then
+    if grep -qi amd "$SYSFS/proc/cpuinfo" 2>/dev/null; then
+      echo "amd"
+    elif [ -d "$SYSFS/sys/module/thinkpad_acpi" ] || grep -qi genuineintel "$SYSFS/proc/cpuinfo" 2>/dev/null; then
+      echo "intel"
+    else
+      echo "intel"
+    fi
+    return 0
+  fi
+  echo "none"
+}
+
+charge_get() {
+  local ctl
+  if ctl="$(charge_control_file 2>/dev/null)" && [ -f "$ctl" ]; then
+    tr -d ' \n' <"$ctl"
+    echo ""
+  else
+    # Sin hardware no hay valor real: informar el por defecto (80) seria
+    # mentir, asi que se distingue con un estado `unsupported` legible.
+    echo "unsupported"
+  fi
+}
+
+charge_set() {
+  local want="${1:-}" value
+  if [ "$want" = "off" ]; then
+    value="100"
+  elif [[ "$want" =~ ^[0-9]+$ ]] && [ "$want" -ge 40 ] && [ "$want" -le 80 ]; then
+    value="$want"
+  else
+    usage >&2
+    die "valor fuera de rango '$want': use un porcentaje entre 40 y 80, u 'off'"
+  fi
+  local backend
+  backend="$(detect_charge_backend)"
+  case "$backend" in
+    none)
+      die "este hardware no admite límite de carga de batería por software; no se ha aplicado ningún cambio"
+      ;;
+    nvidia)
+      nvidia-smi -pl "$value" >/dev/null
+      echo "Límite de carga: $want (NVIDIA)"
+      ;;
+    amd|intel)
+      local ctl
+      if ! ctl="$(charge_control_file)"; then
+        die "este hardware no admite límite de carga de batería por software; no se ha aplicado ningún cambio"
+      fi
+      echo "$value" >"$ctl"
+      local applied
+      applied="$(tr -d ' \n' <"$ctl")"
+      if [ "$applied" != "$value" ]; then
+        die "el hardware no confirmó el límite de carga (pedido $value, leído $applied)"
+      fi
+      echo "Límite de carga: $want"
+      ;;
+    *)
+      die "backend de batería desconocido '$backend'"
+      ;;
+  esac
+}
+
+# --- graficos hibridos (nvidia-prime) -----------------------------------------
+
+has_nvidia_dgpu() {
+  case "$HAS_NVIDIA" in
+    0) return 1 ;;
+    1) return 0 ;;
+  esac
+  if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
+    return 0
+  fi
+  if command -v lspci >/dev/null 2>&1 && lspci 2>/dev/null | grep -qi nvidia; then
+    return 0
+  fi
+  return 1
+}
+
+gpu_get() {
+  if [ -f "$GPU_STATE" ]; then
+    cat "$GPU_STATE"
+  else
+    conf_default "gpu" "on-demand"
+  fi
+}
+
+gpu_set() {
+  local want="${1:-}"
+  case "$want" in
+    auto|on-demand|always) ;;
+    *) usage >&2; die "modo GPU desconocido '$want': use auto, on-demand o always" ;;
+  esac
+  if ! has_nvidia_dgpu; then
+    echo "nimbus-energy: GPU híbrida no aplica a este sistema (sin dGPU NVIDIA); se mantiene '$(gpu_get)'"
+    return 0
+  fi
+  local prime_mode="$want"
+  if [ "$want" = "auto" ] || [ "$want" = "always" ]; then
+    # prime-select solo entiende nvidia|intel|on-demand:
+    # 'always' fija la dGPU, 'auto' delega en on-demand.
+    if [ "$want" = "always" ]; then prime_mode="nvidia"; else prime_mode="on-demand"; fi
+  fi
+  prime-select "$prime_mode" >/dev/null
+  mkdir -p "$(dirname "$GPU_STATE")"
+  echo "$want" >"$GPU_STATE"
+  echo "Modo GPU: $want"
+}
+
+# --- despacho ------------------------------------------------------------------
+
+main() {
+  local group="${1:-}" action="${2:-}" value="${3:-}"
+  case "$group" in
+    profile|charge-limit|gpu) ;;
+    *) usage >&2; exit 2 ;;
+  esac
+  case "$action" in
+    get|set) ;;
+    *) usage >&2; exit 2 ;;
+  esac
+  # Least privilege: solo las escrituras exigen privilegios. Las lecturas
+  # (`get`) consultan power-profiles-daemon, sysfs o ficheros, y cualquiera
+  # puede usarlas (p. ej. un widget de bateria o el propio tune).
+  if [ "$action" = "set" ]; then
+    require_privileges "$@"
+  fi
+  case "$group $action" in
+    "profile get") profile_get ;;
+    "profile set") profile_set "$value" ;;
+    "charge-limit get") charge_get ;;
+    "charge-limit set") charge_set "$value" ;;
+    "gpu get") gpu_get ;;
+    "gpu set") gpu_set "$value" ;;
+  esac
+}
+
+main "$@"

@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cabeceras SPDX
+        run: python tools/check_spdx.py --root .
+      - name: Yamllint
+        run: |
+          pip install yamllint
+          yamllint .
+      - name: Shellcheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          sh_files="$(git ls-files '*.sh')"
+          if [ -n "$sh_files" ]; then shellcheck $sh_files; fi
+
+  test:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configurar pacman
+        run: |
+          cat > /etc/pacman.conf <<'EOF'
+          [options]
+          HoldPkg = pacman glibc
+          Architecture = auto
+          ParallelDownloads = 3
+          SigLevel = Required DatabaseOptional
+          LocalFileSigLevel = Optional
+
+          [core]
+          Server = https://mirror.rackspace.com/archlinux/$repo/os/$arch
+          Server = https://mirror.leaseweb.com/archlinux/$repo/os/$arch
+
+          [extra]
+          Server = https://mirror.rackspace.com/archlinux/$repo/os/$arch
+          Server = https://mirror.leaseweb.com/archlinux/$repo/os/$arch
+
+          [cachyos]
+          Server = https://mirror.bali0531.hu/repo/$arch/$repo
+          Server = https://cdn77.cachyos.org/repo/$arch/$repo
+          EOF
+      - name: Instalar dependencias
+        run: |
+          pacman --config /etc/pacman.conf -Sy --noconfirm --needed \
+            python-pytest bats qt6-declarative qt6-wayland \
+            qt6-shadertools lua actionlint quickshell
+      - name: Actionlint
+        run: |
+          actionlint -version
+          actionlint
+      - name: Tests Python
+        run: python -m pytest tests -v
+      - name: Tests Bats
+        run: bats tests/*.bats
+      - name: Tests QML
+        run: |
+          QT_QPA_PLATFORM=offscreen \
+            QML2_IMPORT_PATH="$PWD/shell/src" \
+            /usr/lib/qt6/bin/qmltestrunner -input shell/tests
+      - name: Alcance no cubierto (verificar a mano)
+        run: |
+          cat <<'EOF'
+          La CI ejecuta las tres suites (pytest, bats y qmltestrunner Qt6).
+          Lo que la CI NO afirma se verifica a mano en la maquina de
+          referencia, sobre hardware real o con root:
+          - GPU real (/dev/dri y drivers) y portatil hibrido (PRIME):
+            los tests usan un entorno falso.
+          - Audio, bluetooth, webcam, suspension y bateria fisicos.
+          - Arranque dual con Windows y Secure Boot.
+          - Instalacion en disco USB externo, nunca sobre el sistema base.
+          - En CI QEMU usa tcg (sin /dev/kvm); kvm solo en local.
+          EOF

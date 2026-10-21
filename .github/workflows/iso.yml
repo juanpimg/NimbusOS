@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: iso
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-boot:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configurar pacman
+        run: |
+          cat > /etc/pacman.conf <<'EOF'
+          [options]
+          HoldPkg = pacman glibc
+          Architecture = auto
+          ParallelDownloads = 3
+          SigLevel = Required DatabaseOptional
+          LocalFileSigLevel = Optional
+
+          [core]
+          Server = https://mirror.rackspace.com/archlinux/$repo/os/$arch
+          Server = https://mirror.leaseweb.com/archlinux/$repo/os/$arch
+
+          [extra]
+          Server = https://mirror.rackspace.com/archlinux/$repo/os/$arch
+          Server = https://mirror.leaseweb.com/archlinux/$repo/os/$arch
+
+          [cachyos]
+          Server = https://mirror.bali0531.hu/repo/$arch/$repo
+          Server = https://cdn77.cachyos.org/repo/$arch/$repo
+          EOF
+      - name: Instalar dependencias
+        run: |
+          pacman --config /etc/pacman.conf -Sy --noconfirm --needed \
+            archiso repo qemu-desktop sudo
+      - name: Crear usuario de compilación
+        run: |
+          # makepkg se niega a correr como root e iso/build.sh delega
+          # en NIMBUS_BUILD_USER via sudo: sin este usuario el build
+          # como root (el contenedor corre como root) aborta.
+          id builder >/dev/null 2>&1 || useradd -m builder
+          echo "NIMBUS_BUILD_USER=builder" >> "$GITHUB_ENV"
+      - name: Construir la ISO
+        run: bash iso/build.sh --outdir "$RUNNER_TEMP/iso" --local-repo
+      - name: Comprobar el arranque en QEMU
+        run: |
+          bash tests/integration/boot_live.sh \
+            --iso "$RUNNER_TEMP"/iso/nimbus-*.iso --timeout 900
+      - name: Subir la ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: nimbus-iso
+          path: ${{ runner.temp }}/iso/*.iso
+          if-no-files-found: error
