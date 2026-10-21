@@ -7,12 +7,18 @@ QtObject {
         "es": {
             "app.store.title": "Nimbus Store",
             "app.settings.title": "Ajustes del sistema",
-            "app.dock.title": "Dock"
+            "app.dock.title": "Dock",
+            "auth.title": "Autenticación",
+            "auth.prompt": "Escribe tu contraseña",
+            "auth.unavailable": "Autenticación no disponible"
         },
         "en": {
             "app.store.title": "Nimbus Store",
             "app.settings.title": "System Settings",
-            "app.dock.title": "Dock"
+            "app.dock.title": "Dock",
+            "auth.title": "Authentication",
+            "auth.prompt": "Enter your password",
+            "auth.unavailable": "Authentication unavailable"
         }
     })
 

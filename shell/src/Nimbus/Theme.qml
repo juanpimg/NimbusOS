@@ -23,6 +23,20 @@ QtObject {
     readonly property int dockSize: 64
     readonly property string fontFamily: "Inter"
 
+    // M1 (Task 1): valores fijos del contrato de superficies y animaciones.
+    // Las tareas 2-12 los usan tal cual; no se negocian.
+    readonly property int animStandard: 150
+    readonly property int animSurface: 200
+    readonly property real dockMagnify: 1.25
+    readonly property int popupOffset: 24
+    readonly property int spotlightMaxWidth: 640
+    readonly property int spotlightMaxHeight: 420
+    readonly property real spotlightWidthRatio: 0.8
+    readonly property int switcherWidth: 800
+    readonly property int switcherHeight: 300
+    readonly property int notificationWidth: 360
+    readonly property int notificationMaxVisible: 3
+
     readonly property color _accentLight: "#007AFF"
     readonly property color _accentDark: "#0A84FF"
     // NOTA: _userAccent es string (no color) porque "" no es un
