@@ -275,3 +275,100 @@ def test_panelwindows_declare_coherent_layers():
     assert "WlrLayer.Background" in shell, "el fondo debe usar WlrLayer.Background"
     assert "WlrLayer.Top" in shell, "el dock debe usar WlrLayer.Top"
     assert "WlrLayer.Overlay" in shell, "los overlays deben usar WlrLayer.Overlay"
+
+
+# --- Regression M4 (bis): el config entero no cargaba en la ISO live ---
+#
+# Con el Loader arreglado el escritorio seguia vacio. El motivo real estaba
+# una capa mas abajo: el CONFIG no compilaba, asi que no se montaba ni una
+# sola superficie (ni el fondo). Las cuatro causas, todas verificadas en la
+# ISO real arrancando `qs -c /usr/lib/nimbus/shell/src`:
+#
+#   1. `IpcHandler` lo exporta el modulo `Quickshell.Io`, no `Quickshell`:
+#      sin ese import el config muere con "IpcHandler is not a type".
+#   2. `PanelWindow`/`FloatingWindow` los exporta el modulo `Quickshell`
+#      (por el import de modulo `Quickshell._WaylandOverlay`); el modulo
+#      `Quickshell.Wayland` NO los reexporta. Un fichero que solo importa
+#      `Quickshell.Wayland` no ve los tipos de ventana: por eso TopBar.qml
+#      y Settings.qml se montaban con "PanelWindow is not a type".
+#   3. La funcion del IpcHandler necesita argumentos TIPADOS: sin tipo llegan
+#      como QVariant y Quickshell no puede cruzarlos ("cannot be used
+#      across IPC"), o sea que el bus IPC no funcionaba.
+#   4. `LockScreen.locked` vale true por defecto: si la ventana solo mira
+#      `item.locked`, el escritorio arranca bloqueado en cada arranque.
+IMPORT_RE = re.compile(r"^\s*import\s+([A-Za-z0-9_.]+)", re.M)
+
+# Ficheros cuya raiz es una ventana de Quickshell.
+WINDOW_MODULE_FILES = (
+    ROOT / "shell" / "src" / "Nimbus" / "modules" / "TopBar.qml",
+    ROOT / "shell" / "src" / "Nimbus" / "apps" / "Settings" / "Settings.qml",
+)
+
+
+def _imports(text):
+    return set(IMPORT_RE.findall(_strip_line_comments(text)))
+
+
+def test_shell_qml_imports_every_module_it_uses():
+    imports = _imports(SHELL_QML.read_text(encoding="utf-8"))
+    # IpcHandler es de Quickshell.Io: sin el import el config no carga.
+    assert "Quickshell.Io" in imports, (
+        "shell.qml usa IpcHandler pero no importa Quickshell.Io: el config "
+        "falla con 'IpcHandler is not a type' y no se monta ninguna superficie"
+    )
+    # ShellRoot, PanelWindow y FloatingWindow son del modulo Quickshell.
+    assert "Quickshell" in imports, (
+        "shell.qml debe importar Quickshell (ShellRoot/PanelWindow/FloatingWindow)"
+    )
+    # WlrLayershell y WlrLayer son del modulo Quickshell.Wayland.
+    assert "Quickshell.Wayland" in imports, (
+        "shell.qml debe importar Quickshell.Wayland (WlrLayershell.layer)"
+    )
+
+
+def test_window_modules_import_quickshell():
+    # Los tipos de ventana los exporta `Quickshell`; `Quickshell.Wayland` solo
+    # aporta WlrLayershell/WlrLayer. Un modulo que raiz en una ventana y solo
+    # importa `Quickshell.Wayland` no ve PanelWindow/FloatingWindow.
+    for path in WINDOW_MODULE_FILES:
+        assert path.is_file(), f"falta {path}"
+        imports = _imports(path.read_text(encoding="utf-8"))
+        assert "Quickshell" in imports, (
+            f"{path.name} usa un tipo de ventana pero no importa Quickshell: "
+            "no ve PanelWindow/FloatingWindow ('is not a type')"
+        )
+        assert "Quickshell.Wayland" in imports, (
+            f"{path.name} debe importar Quickshell.Wayland (WlrLayershell.layer)"
+        )
+
+
+def test_ipc_handler_function_arguments_are_typed():
+    # Sin tipo, los argumentos llegan como QVariant y Quickshell no puede
+    # cruzarlos: el bus IPC queda muerto aunque el config cargue.
+    shell = _strip_line_comments(SHELL_QML.read_text(encoding="utf-8"))
+    match = re.search(r"function\s+call\s*\(([^)]*)\)", shell)
+    assert match, "shell.qml debe declarar la funcion call del IpcHandler"
+    params = [p.strip() for p in match.group(1).split(",") if p.strip()]
+    assert params, "la funcion call del IpcHandler no declara argumentos"
+    for param in params:
+        assert ":" in param, (
+            f"el argumento {param!r} del IpcHandler no declara tipo: "
+            "llegaria como QVariant y no se puede cruzar por IPC"
+        )
+
+
+def test_lock_screen_starts_closed():
+    # `LockScreen.locked` vale true por defecto (el modulo arranca
+    # bloqueado): si la ventana solo mira `item.locked`, el escritorio live
+    # aparece con la pantalla de bloqueo en cada arranque.
+    shell = SHELL_QML.read_text(encoding="utf-8")
+    gate = re.search(r"property\s+bool\s+(\w*[Ll]ock\w*)\s*:\s*false", shell)
+    assert gate, (
+        "shell.qml debe declarar un flag de bloqueo que arranque en false "
+        "(p. ej. `property bool lockRequested: false`)"
+    )
+    flag = gate.group(1)
+    assert re.search(rf"visible\s*:[^\n]*{flag}", shell), (
+        f"la ventana de bloqueo debe usar {flag} en su `visible`: si no, "
+        "aparece bloqueada en cada arranque"
+    )

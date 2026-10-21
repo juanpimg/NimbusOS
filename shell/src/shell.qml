@@ -2,6 +2,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Io
 import Nimbus
 
 // Entrada del shell Nimbus (M1 integrado + M4 montaje): monta las superficies
@@ -38,6 +39,13 @@ ShellRoot {
     // Ventanas montadas de forma imperativa (no pueden ir en un Loader).
     property var topBarWindow: null
     property var settingsWindow: null
+
+    // Bloqueo: `LockScreen.locked` vale true por defecto (el modulo arranca
+    // bloqueado), asi que la ventana NO puede depender solo de `item.locked`:
+    // el escritorio live apareceria con la pantalla de bloqueo en cada
+    // arranque. Este flag arranca en false y solo se activa cuando alguien
+    // pide bloquear (`Ipc.call("lock", "lock")` o el Centro de control).
+    property bool lockRequested: false
 
     // Titulo resuelto por i18n (mantiene `Config.translated(` en el entry
     // point que exige el gate de sistema de diseno).
@@ -98,8 +106,10 @@ ShellRoot {
     IpcHandler {
         target: "nimbus"
 
-        function call(target, function_) {
-            Ipc.call(target, function_)
+        // Firmada para IPC: los argumentos sin tipo llegan como QVariant y
+        // Quickshell no puede cruzarlos ("cannot be used across IPC").
+        function call(target: string, fn: string): void {
+            Ipc.call(target, fn)
         }
     }
 
@@ -114,8 +124,13 @@ ShellRoot {
                     tourLoader.item.reset()
                 }
             }
-            if (surface === "lock" && lockLoader.status === Loader.Ready && lockLoader.item) {
-                lockLoader.item.lock()
+            if (surface === "lock") {
+                // El bloqueo se pide explicitamente: sin este flag la
+                // ventana se abriria en cada arranque (locked = true).
+                root.lockRequested = true
+                if (lockLoader.status === Loader.Ready && lockLoader.item) {
+                    lockLoader.item.lock()
+                }
             }
         }
     }
@@ -184,10 +199,10 @@ ShellRoot {
         }
     }
 
-    // Notificaciones: panel arriba-derecha.
+    // Notificaciones: panel arriba-derecha, sobre las ventanas.
     PanelWindow {
         id: notificationsWindow
-        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.layer: WlrLayer.Top
         anchors {
             top: true
             right: true
@@ -274,12 +289,13 @@ ShellRoot {
         }
     }
 
-    // Bloqueo: pantalla completa sobre todo mientras `locked`.
+    // Bloqueo: pantalla completa sobre todo mientras `locked` Y se ha
+    // pedido bloquear (`root.lockRequested`, false al arrancar).
     FloatingWindow {
         id: lockWindow
         width: Theme.spacing * 100
         height: Theme.spacing * 80
-        visible: lockLoader.status === Loader.Ready && lockLoader.item && lockLoader.item.locked
+        visible: root.lockRequested && lockLoader.status === Loader.Ready && lockLoader.item && lockLoader.item.locked
         Loader {
             id: lockLoader
             anchors.fill: parent
