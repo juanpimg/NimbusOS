@@ -41,13 +41,20 @@ WORK="$ROOT/iso/work"
 # medias y aparecen errores que parecen de confianza ("signature is invalid",
 # "keyring is not writable") pero no son de confianza: son corrupcion. Un
 # flock serializa las builds que comparten cache.
-NIMBUS_BUILD_LOCK="${NIMBUS_BUILD_LOCK:-/tmp/nimbus-build.lock}"
+#
+# El fichero de bloqueo va por usuario y en el runtime dir: /tmp tiene el bit
+# sticky, asi que un fichero de root ahi no se puede volver a abrir para
+# escribir y el bloqueo fallaria con "Permission denied".
+NIMBUS_BUILD_LOCK="${NIMBUS_BUILD_LOCK:-${XDG_RUNTIME_DIR:-/tmp}/nimbus-build-$(id -u).lock}"
 if command -v flock >/dev/null 2>&1; then
-  exec 9>"$NIMBUS_BUILD_LOCK"
-  if ! flock -n 9; then
-    echo "hay otra build de Nimbus en marcha (bloqueo $NIMBUS_BUILD_LOCK)." >&2
-    echo "espera a que termine, o usa NIMBUS_BUILD_LOCK=<otro fichero>." >&2
-    exit 1
+  if { exec 9>"$NIMBUS_BUILD_LOCK"; } 2>/dev/null; then
+    if ! flock -n 9; then
+      echo "hay otra build de Nimbus en marcha (bloqueo $NIMBUS_BUILD_LOCK)." >&2
+      echo "espera a que termine, o usa NIMBUS_BUILD_LOCK=<otro fichero>." >&2
+      exit 1
+    fi
+  else
+    echo "aviso: no se pudo tomar el bloqueo $NIMBUS_BUILD_LOCK; la build continua." >&2
   fi
 fi
 
