@@ -1,0 +1,748 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Orquestador de post-instalacion de Nimbus.
+
+Se ejecuta al terminar la instalacion y deja el sistema listo para usar:
+keyring, repos ([nimbus] + [cachyos-v3] o [cachyos] segun la CPU),
+confianza del keyring, servicios, greeter, energia, hibridos, skel y
+marca del sistema. Uso::
+
+    nimbus-postinstall --root <raiz> [--offline] [--locale es|en] [--json]
+
+Cada paso informa ``ok`` / ``skipped`` / ``failed`` y el script sale con
+0 aunque un paso opcional falle; solo los pasos criticos (keyring y
+repos) pueden hacerlo fracasar con exit 1. Un paso que falla siempre
+explica con un mensaje accionable como arreglarlo.
+
+Sin root ni Calamares el script no puede hacer nada de verdad, pero su
+logica es testeable: todos los efectos de sistema pasan por el ejecutor
+(``Executor``), que los tests sustituyen por un doble en memoria.
+"""
+
+import argparse
+import json
+import pathlib
+import subprocess
+import sys
+
+try:
+    from nimbus_i18n import active_locale, translated, TRANSLATIONS
+except ImportError:  # cargado por ruta (Calamares/test) sin paquete
+    import importlib.util as _importlib_util
+
+    _i18n_path = (
+        pathlib.Path(__file__).resolve().parents[1]
+        / "calamares" / "nimbus_i18n.py"
+    )
+    _i18n_spec = _importlib_util.spec_from_file_location(
+        "nimbus_i18n", _i18n_path)
+    _i18n_module = _importlib_util.module_from_spec(_i18n_spec)
+    sys.modules["nimbus_i18n"] = _i18n_module
+    _i18n_spec.loader.exec_module(_i18n_module)
+    active_locale = _i18n_module.active_locale
+    translated = _i18n_module.translated
+    TRANSLATIONS = _i18n_module.TRANSLATIONS
+
+# La tabla central (installer/calamares/nimbus_i18n.py) la toca otra pista,
+# asi que estas claves se registran aqui en tiempo de ejecucion: todo lo
+# visible sigue pasando por translated() y el informe declara las claves.
+POSTINSTALL_STRINGS = {
+    "es": {
+        "postinstall.pretty_name": "Post-instalación",
+        "postinstall.pretty_status": "Dejando el sistema listo para usar.",
+        "postinstall.cli.description": (
+            "Deja el sistema Nimbus instalado listo para usar."
+        ),
+        "postinstall.cli.root": "Raíz del sistema instalado.",
+        "postinstall.cli.offline": "No usar la red: omite lo que la necesite.",
+        "postinstall.cli.locale": "Idioma de los mensajes (es o en).",
+        "postinstall.cli.json": "Imprime el resultado como JSON.",
+        "postinstall.step.keyring": "Keyring de Nimbus",
+        "postinstall.step.repo-nimbus": "Repositorio Nimbus",
+        "postinstall.step.repo-cachyos": "Repositorio CachyOS",
+        "postinstall.step.refresh-keys": "Confianza del keyring",
+        "postinstall.step.services": "Servicios automáticos",
+        "postinstall.step.greeter": "Pantalla de acceso",
+        "postinstall.step.power": "Perfil de energía",
+        "postinstall.step.hybrid": "Gráficos híbridos",
+        "postinstall.step.skel": "Defaults de usuario",
+        "postinstall.step.os-release": "Marca del sistema",
+        "postinstall.hint.keyring": (
+            "copia nimbus.gpg, nimbus-trusted y nimbus-revoked a "
+            "/usr/share/pacman/keyrings/ y repite "
+            "pacman-key --populate nimbus"
+        ),
+        "postinstall.hint.repo-nimbus": (
+            "revisa /etc/pacman.conf y añade el bloque [nimbus] con "
+            "SigLevel = Required DatabaseOptional"
+        ),
+        "postinstall.hint.repo-cachyos": (
+            "revisa /etc/pacman.conf y deja [cachyos-v3] si la CPU "
+            "tiene AVX2 o [cachyos] si no"
+        ),
+        "postinstall.hint.refresh-keys": (
+            "conecta la red y repite pacman-key --refresh-keys; sin "
+            "confianza ultimate toda firma sale inválida"
+        ),
+        "postinstall.hint.services": (
+            "activa los timers a mano: systemctl enable "
+            "nimbus-snapshots.timer nimbus-auto-update.timer"
+        ),
+        "postinstall.hint.greeter": (
+            "escribe /etc/sddm.conf.d/nimbus.conf con [Theme] "
+            "Current=nimbus"
+        ),
+        "postinstall.hint.power": (
+            "ajusta el perfil con powerprofilesctl set balanced y, si "
+            "hay batería con límite, escribe el umbral en "
+            "/sys/class/power_supply/BAT*/charge_control_end_threshold"
+        ),
+        "postinstall.hint.hybrid": (
+            "si hay dGPU NVIDIA, escribe /etc/nimbus/hybrid.conf con "
+            "mode=on-demand"
+        ),
+        "postinstall.hint.skel": (
+            "copia los defaults de dots/ a /etc/skel/ para que los "
+            "usuarios nuevos los hereden"
+        ),
+        "postinstall.hint.os-release": (
+            "escribe /etc/os-release con NAME=Nimbus"
+        ),
+        "postinstall.keyring.done": "keyring copiado y poblado.",
+        "postinstall.repo.added": "bloque {header} añadido.",
+        "postinstall.repo.present": "bloque {header} ya presente.",
+        "postinstall.cachyos.v3": "CPU con AVX2: activado [cachyos-v3].",
+        "postinstall.cachyos.generic": (
+            "CPU sin AVX2: se deja el genérico [cachyos]."
+        ),
+        "postinstall.refresh.done": (
+            "confianza ultimate recuperada del keyring."
+        ),
+        "postinstall.services.done": (
+            "timers de snapshots y actualizaciones activados."
+        ),
+        "postinstall.greeter.done": "greeter con el tema Nimbus.",
+        "postinstall.power.done": "perfil de energía {profile}.",
+        "postinstall.power.no_battery": (
+            "este equipo no expone límite de carga: no se ha aplicado "
+            "ningún límite (no se finge)."
+        ),
+        "postinstall.hybrid.done": "híbridos en modo on-demand.",
+        "postinstall.hybrid.no_dgpu": (
+            "sin dGPU NVIDIA: nada que configurar (no se finge)."
+        ),
+        "postinstall.skel.done": "defaults copiados a /etc/skel/.",
+        "postinstall.os.done": "os-release con la marca Nimbus.",
+        "postinstall.offline.skipped": (
+            "modo sin conexión: necesita red, se omite."
+        ),
+        "postinstall.abort.skipped": (
+            "no ejecutado: un paso crítico anterior falló."
+        ),
+        "postinstall.step.failed": (
+            "{step}: falló ({detail}). Acción: {hint}."
+        ),
+    },
+    "en": {
+        "postinstall.pretty_name": "Post-install",
+        "postinstall.pretty_status": "Getting the system ready to use.",
+        "postinstall.cli.description": (
+            "Leave the installed Nimbus system ready to use."
+        ),
+        "postinstall.cli.root": "Root of the installed system.",
+        "postinstall.cli.offline": (
+            "No network: skip whatever needs it."
+        ),
+        "postinstall.cli.locale": "Message language (es or en).",
+        "postinstall.cli.json": "Print the result as JSON.",
+        "postinstall.step.keyring": "Nimbus keyring",
+        "postinstall.step.repo-nimbus": "Nimbus repository",
+        "postinstall.step.repo-cachyos": "CachyOS repository",
+        "postinstall.step.refresh-keys": "Keyring trust",
+        "postinstall.step.services": "Automatic services",
+        "postinstall.step.greeter": "Login screen",
+        "postinstall.step.power": "Power profile",
+        "postinstall.step.hybrid": "Hybrid graphics",
+        "postinstall.step.skel": "User defaults",
+        "postinstall.step.os-release": "System branding",
+        "postinstall.hint.keyring": (
+            "copy nimbus.gpg, nimbus-trusted and nimbus-revoked to "
+            "/usr/share/pacman/keyrings/ and rerun "
+            "pacman-key --populate nimbus"
+        ),
+        "postinstall.hint.repo-nimbus": (
+            "check /etc/pacman.conf and add the [nimbus] block with "
+            "SigLevel = Required DatabaseOptional"
+        ),
+        "postinstall.hint.repo-cachyos": (
+            "check /etc/pacman.conf and keep [cachyos-v3] when the CPU "
+            "has AVX2 or [cachyos] when it does not"
+        ),
+        "postinstall.hint.refresh-keys": (
+            "connect to the network and rerun pacman-key --refresh-keys; "
+            "without ultimate trust every signature shows as invalid"
+        ),
+        "postinstall.hint.services": (
+            "enable the timers by hand: systemctl enable "
+            "nimbus-snapshots.timer nimbus-auto-update.timer"
+        ),
+        "postinstall.hint.greeter": (
+            "write /etc/sddm.conf.d/nimbus.conf with [Theme] "
+            "Current=nimbus"
+        ),
+        "postinstall.hint.power": (
+            "set the profile with powerprofilesctl set balanced and, on "
+            "battery hardware with a limit, write the threshold to "
+            "/sys/class/power_supply/BAT*/charge_control_end_threshold"
+        ),
+        "postinstall.hint.hybrid": (
+            "with an NVIDIA dGPU, write /etc/nimbus/hybrid.conf with "
+            "mode=on-demand"
+        ),
+        "postinstall.hint.skel": (
+            "copy the dots/ defaults to /etc/skel/ so new users inherit "
+            "them"
+        ),
+        "postinstall.hint.os-release": (
+            "write /etc/os-release with NAME=Nimbus"
+        ),
+        "postinstall.keyring.done": "keyring copied and populated.",
+        "postinstall.repo.added": "{header} block added.",
+        "postinstall.repo.present": "{header} block already present.",
+        "postinstall.cachyos.v3": "AVX2 CPU: [cachyos-v3] enabled.",
+        "postinstall.cachyos.generic": (
+            "No AVX2 CPU: keeping the generic [cachyos]."
+        ),
+        "postinstall.refresh.done": "ultimate keyring trust recovered.",
+        "postinstall.services.done": (
+            "snapshot and update timers enabled."
+        ),
+        "postinstall.greeter.done": "greeter using the Nimbus theme.",
+        "postinstall.power.done": "power profile {profile}.",
+        "postinstall.power.no_battery": (
+            "this machine exposes no charge limit: no limit applied "
+            "(not faked)."
+        ),
+        "postinstall.hybrid.done": "hybrids in on-demand mode.",
+        "postinstall.hybrid.no_dgpu": (
+            "no NVIDIA dGPU: nothing to configure (not faked)."
+        ),
+        "postinstall.skel.done": "defaults copied to /etc/skel/.",
+        "postinstall.os.done": "os-release branded as Nimbus.",
+        "postinstall.offline.skipped": (
+            "offline mode: needs the network, skipped."
+        ),
+        "postinstall.abort.skipped": (
+            "not run: an earlier critical step failed."
+        ),
+        "postinstall.step.failed": (
+            "{step}: failed ({detail}). Action: {hint}."
+        ),
+    },
+}
+
+for _lang, _table in POSTINSTALL_STRINGS.items():
+    _central = TRANSLATIONS.setdefault(_lang, {})
+    for _key, _text in _table.items():
+        _central.setdefault(_key, _text)
+del _lang, _table, _central, _key, _text
+
+STEP_ORDER = [
+    "keyring",
+    "repo-nimbus",
+    "repo-cachyos",
+    "refresh-keys",
+    "services",
+    "greeter",
+    "power",
+    "hybrid",
+    "skel",
+    "os-release",
+]
+
+# Solo estos pasos pueden hacer fracasar el script (exit 1).
+CRITICAL_STEPS = frozenset(
+    {"keyring", "repo-nimbus", "repo-cachyos", "refresh-keys"}
+)
+
+# Pasos que necesitan red: en --offline se omiten, nunca fallan.
+NETWORK_STEPS = frozenset({"refresh-keys"})
+
+NIMBUS_MIRRORLIST = "mirrorlist.nimbus"
+NIMBUS_REPO_SERVER = "https://mirror.nimbus.org/nimbus/os/$arch"
+SNAPSHOT_TIMER = "nimbus-snapshots.timer"
+AUTOUPDATE_TIMER = "nimbus-auto-update.timer"
+POWER_PROFILE = "balanced"
+CHARGE_LIMIT = "80"
+
+
+class Ctx:
+    """Contexto de ejecucion: raiz destino, flags y ejecutor inyectable."""
+
+    def __init__(self, root="/", offline=False, locale=None, ex=None):
+        self.root = root
+        self.offline = offline
+        self.locale = locale if locale is not None else active_locale()
+        self.ex = ex if ex is not None else Executor(str(root))
+
+
+class Executor:
+    """Efectos de sistema reales. Los tests lo sustituyen entero."""
+
+    def __init__(self, root="/"):
+        self.root = str(root)
+
+    def _under_root(self, *parts):
+        return str(pathlib.Path(self.root, *parts))
+
+    def run(self, cmd):
+        """Ejecuta un comando como lista, nunca con shell."""
+        return subprocess.run(cmd, check=False, capture_output=True,
+                              text=True, timeout=120)
+
+    def read_text(self, path, default=None):
+        try:
+            return pathlib.Path(path).read_text(encoding="utf-8")
+        except FileNotFoundError:
+            if default is not None:
+                return default
+            raise
+
+    def write_text(self, path, content):
+        target = pathlib.Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(content, bytes):
+            target.write_bytes(content)
+        else:
+            target.write_text(content, encoding="utf-8")
+
+    def cpuinfo_text(self):
+        # La CPU destino es la del propio equipo que instala.
+        return pathlib.Path("/proc/cpuinfo").read_text(encoding="utf-8")
+
+    def has_nvidia_dgpu(self):
+        try:
+            result = subprocess.run(
+                ["lspci", "-n"], check=False, capture_output=True,
+                text=True, timeout=30)
+        except (FileNotFoundError, subprocess.SubprocessError):
+            return False
+        vendors = set()
+        nvidia_display = False
+        for line in result.stdout.splitlines():
+            if "10de" not in line:
+                continue
+            vendors.add(line.split()[0].rsplit(":", 1)[0])
+            if "0300" in line or "0302" in line:
+                nvidia_display = True
+        return nvidia_display and len(vendors) >= 1 and _has_other_gpu(
+            result.stdout)
+
+    def battery_limit_supported(self):
+        base = pathlib.Path("/sys/class/power_supply")
+        if not base.is_dir():
+            return False
+        for entry in sorted(base.glob("BAT*")):
+            if (entry / "charge_control_end_threshold").is_file():
+                return True
+        return False
+
+    def set_charge_limit(self, percent):
+        base = pathlib.Path("/sys/class/power_supply")
+        for entry in sorted(base.glob("BAT*")):
+            knob = entry / "charge_control_end_threshold"
+            if knob.is_file():
+                knob.write_text(str(percent), encoding="utf-8")
+                return
+        raise RuntimeError("no charge_control_end_threshold found")
+
+    def keyring_source_files(self):
+        """Pares (nombre, contenido) del keyring a copiar al destino."""
+        sources = [
+            pathlib.Path("/usr/share/pacman/keyrings"),
+            pathlib.Path(__file__).resolve().parents[2]
+            / "keyrings" / "nimbus",
+        ]
+        for directory in sources:
+            names = ["nimbus.gpg", "nimbus-trusted", "nimbus-revoked"]
+            files = [directory / name for name in names]
+            if all(path.is_file() for path in files):
+                return [(path.name, path.read_bytes()) for path in files]
+        raise RuntimeError("nimbus keyring source not found")
+
+    def dots_files(self):
+        """Pares (relativo, contenido) de defaults a heredar en skel."""
+        candidates = [
+            pathlib.Path(__file__).resolve().parents[2] / "dots",
+            pathlib.Path("/usr/share/nimbus/dots"),
+        ]
+        for base in candidates:
+            if base.is_dir():
+                found = []
+                for path in sorted(base.rglob("*")):
+                    if path.is_file():
+                        found.append((str(path.relative_to(base)),
+                                      path.read_bytes()))
+                if found:
+                    return found
+        return []
+
+    def enable_service(self, name):
+        return subprocess.run(
+            ["systemctl", "--root", self.root, "enable", name],
+            check=False, capture_output=True, text=True, timeout=60)
+
+
+def _has_other_gpu(lspci_output):
+    """True si hay otra GPU ademas de la NVIDIA (hibrido real)."""
+    display_lines = [line for line in lspci_output.splitlines()
+                     if "0300" in line or "0302" in line]
+    non_nvidia = [line for line in display_lines if "10de" not in line]
+    return bool(non_nvidia)
+
+
+def _title(name, locale):
+    return translated(f"postinstall.step.{name}", locale)
+
+
+def _hint(name, locale):
+    return translated(f"postinstall.hint.{name}", locale)
+
+
+def _failed(name, detail, locale):
+    return translated("postinstall.step.failed", locale).format(
+        step=_title(name, locale), detail=detail, hint=_hint(name, locale))
+
+
+def cpu_supports_avx2(cpuinfo_text):
+    """True si la CPU anuncia AVX2 (x86-64-v3).
+
+    La ISO en vivo usa siempre el repo generico porque tiene que
+    arrancar en hardware desconocido; es el instalador, sobre el
+    hardware real, quien activa la optimizacion v3.
+    """
+    for line in str(cpuinfo_text).splitlines():
+        if ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        if key.strip() == "flags":
+            return "avx2" in value.split()
+    return False
+
+
+def render_nimbus_repo_block():
+    return (
+        "[nimbus]\n"
+        "SigLevel = Required DatabaseOptional\n"
+        f"Include = /etc/pacman.d/{NIMBUS_MIRRORLIST}\n"
+    )
+
+
+def render_nimbus_mirrorlist():
+    return f"Server = {NIMBUS_REPO_SERVER}\n"
+
+
+def render_cachyos_repo_block(variant):
+    """Bloque de repo CachyOS: ``v3`` (AVX2) o ``generic``."""
+    if variant == "v3":
+        return (
+            "[cachyos-v3]\n"
+            "SigLevel = PackageRequired\n"
+            "Include = /etc/pacman.d/cachyos-v3-mirrorlist\n"
+        )
+    return (
+        "[cachyos]\n"
+        "SigLevel = PackageRequired\n"
+        "Include = /etc/pacman.d/cachyos-mirrorlist\n"
+    )
+
+
+def ensure_repo_block(conf_text, header, block):
+    """Añade ``block`` a ``conf_text`` si ``header`` aun no esta.
+
+    Devuelve ``(texto, cambiado)``: correrlo dos veces no duplica nada.
+    """
+    lines = conf_text.splitlines()
+    if any(line.strip() == header for line in lines):
+        return conf_text, False
+    if conf_text and not conf_text.endswith("\n"):
+        conf_text += "\n"
+    if conf_text and not conf_text.endswith("\n\n"):
+        conf_text += "\n"
+    return conf_text + block.rstrip("\n") + "\n", True
+
+
+def render_os_release():
+    return (
+        'NAME="Nimbus"\n'
+        'PRETTY_NAME="Nimbus"\n'
+        "ID=nimbus\n"
+        "ID_LIKE=arch\n"
+        "BUILD_ID=rolling\n"
+        'HOME_URL="https://nimbus.example.org/"\n'
+    )
+
+
+def render_greeter_conf():
+    return "[Theme]\nCurrent=nimbus\n"
+
+
+def render_hybrid_conf():
+    return "[hybrid]\nmode=on-demand\ndriver=nvidia\n"
+
+
+def _pacman_conf_path(ctx):
+    return str(pathlib.Path(str(ctx.root)) / "etc" / "pacman.conf")
+
+
+def step_keyring(ctx):
+    """Copia el keyring de Nimbus y lo puebla (critico)."""
+    name, lang = "keyring", ctx.locale
+    try:
+        dest_dir = str(pathlib.Path(str(ctx.root)) / "usr" / "share"
+                        / "pacman" / "keyrings")
+        for filename, data in ctx.ex.keyring_source_files():
+            ctx.ex.write_text(
+                str(pathlib.Path(dest_dir) / filename), data)
+        result = ctx.ex.run(["pacman-key", "--populate", "nimbus"])
+        if getattr(result, "returncode", 0) != 0:
+            raise RuntimeError(
+                f"pacman-key --populate nimbus -> "
+                f"{getattr(result, 'returncode', '?')}")
+        return "ok", translated("postinstall.keyring.done", lang)
+    except Exception as exc:
+        return "failed", _failed(name, exc, lang)
+
+
+def step_repo_nimbus(ctx):
+    """Añade [nimbus] a pacman.conf sin duplicarlo (critico)."""
+    name, lang = "repo-nimbus", ctx.locale
+    try:
+        conf_path = _pacman_conf_path(ctx)
+        current = ctx.ex.read_text(conf_path, default="")
+        block = render_nimbus_repo_block()
+        new_text, changed = ensure_repo_block(current, "[nimbus]", block)
+        if changed:
+            ctx.ex.write_text(conf_path, new_text)
+            mirror = str(pathlib.Path(str(ctx.root)) / "etc" / "pacman.d"
+                         / NIMBUS_MIRRORLIST)
+            ctx.ex.write_text(mirror, render_nimbus_mirrorlist())
+            detail = translated("postinstall.repo.added", lang).format(
+                header="[nimbus]")
+        else:
+            detail = translated("postinstall.repo.present", lang).format(
+                header="[nimbus]")
+        return "ok", detail
+    except Exception as exc:
+        return "failed", _failed(name, exc, lang)
+
+
+def step_repo_cachyos(ctx):
+    """Elige [cachyos-v3] con AVX2 o [cachyos] sin ella (critico)."""
+    name, lang = "repo-cachyos", ctx.locale
+    try:
+        if cpu_supports_avx2(ctx.ex.cpuinfo_text()):
+            variant, header = "v3", "[cachyos-v3]"
+            note = translated("postinstall.cachyos.v3", lang)
+        else:
+            variant, header = "generic", "[cachyos]"
+            note = translated("postinstall.cachyos.generic", lang)
+        conf_path = _pacman_conf_path(ctx)
+        current = ctx.ex.read_text(conf_path, default="")
+        new_text, changed = ensure_repo_block(
+            current, header, render_cachyos_repo_block(variant))
+        if changed:
+            ctx.ex.write_text(conf_path, new_text)
+        return "ok", note
+    except Exception as exc:
+        return "failed", _failed(name, exc, lang)
+
+
+def step_refresh_keys(ctx):
+    """Recupera la confianza ultimate (critico, necesita red)."""
+    name, lang = "refresh-keys", ctx.locale
+    try:
+        result = ctx.ex.run(["pacman-key", "--refresh-keys"])
+        if getattr(result, "returncode", 0) != 0:
+            raise RuntimeError(
+                f"pacman-key --refresh-keys -> "
+                f"{getattr(result, 'returncode', '?')}")
+        return "ok", translated("postinstall.refresh.done", lang)
+    except Exception as exc:
+        return "failed", _failed(name, exc, lang)
+
+
+def step_services(ctx):
+    """Activa snapshots y actualizaciones automaticas (opcional)."""
+    name, lang = "services", ctx.locale
+    try:
+        for service in (SNAPSHOT_TIMER, AUTOUPDATE_TIMER):
+            result = ctx.ex.enable_service(service)
+            if getattr(result, "returncode", 0) != 0:
+                raise RuntimeError(
+                    f"enable {service} -> "
+                    f"{getattr(result, 'returncode', '?')}")
+        return "ok", translated("postinstall.services.done", lang)
+    except Exception as exc:
+        return "failed", _failed(name, exc, lang)
+
+
+def step_greeter(ctx):
+    """Configura el greeter con el tema Nimbus (opcional)."""
+    name, lang = "greeter", ctx.locale
+    try:
+        path = str(pathlib.Path(str(ctx.root)) / "etc" / "sddm.conf.d"
+                    / "nimbus.conf")
+        ctx.ex.write_text(path, render_greeter_conf())
+        return "ok", translated("postinstall.greeter.done", lang)
+    except Exception as exc:
+        return "failed", _failed(name, exc, lang)
+
+
+def step_power(ctx):
+    """Perfil de energia y limite de carga si el hardware lo soporta."""
+    name, lang = "power", ctx.locale
+    try:
+        path = str(pathlib.Path(str(ctx.root)) / "etc" / "nimbus"
+                    / "power.conf")
+        ctx.ex.write_text(
+            path, f"[power]\nprofile={POWER_PROFILE}\n")
+        detail = translated("postinstall.power.done", lang).format(
+            profile=POWER_PROFILE)
+        try:
+            ctx.ex.set_charge_limit(CHARGE_LIMIT)
+        except Exception:
+            # Sin soporte no se finge: se dice con claridad.
+            detail += " " + translated(
+                "postinstall.power.no_battery", lang)
+        return "ok", detail
+    except Exception as exc:
+        return "failed", _failed(name, exc, lang)
+
+
+def step_hybrid(ctx):
+    """Hibridos en on-demand si hay dGPU NVIDIA (opcional)."""
+    name, lang = "hybrid", ctx.locale
+    try:
+        if not ctx.ex.has_nvidia_dgpu():
+            return ("skipped",
+                    translated("postinstall.hybrid.no_dgpu", lang))
+        path = str(pathlib.Path(str(ctx.root)) / "etc" / "nimbus"
+                    / "hybrid.conf")
+        ctx.ex.write_text(path, render_hybrid_conf())
+        return "ok", translated("postinstall.hybrid.done", lang)
+    except Exception as exc:
+        return "failed", _failed(name, exc, lang)
+
+
+def step_skel(ctx):
+    """Copia los defaults de dots/ a /etc/skel/ (opcional)."""
+    name, lang = "skel", ctx.locale
+    try:
+        for relative, data in ctx.ex.dots_files():
+            path = str(pathlib.Path(str(ctx.root)) / "etc" / "skel"
+                        / relative)
+            ctx.ex.write_text(path, data)
+        return "ok", translated("postinstall.skel.done", lang)
+    except Exception as exc:
+        return "failed", _failed(name, exc, lang)
+
+
+def step_os_release(ctx):
+    """Pone /etc/os-release con la marca Nimbus (opcional)."""
+    name, lang = "os-release", ctx.locale
+    try:
+        path = str(pathlib.Path(str(ctx.root)) / "etc" / "os-release")
+        ctx.ex.write_text(path, render_os_release())
+        return "ok", translated("postinstall.os.done", lang)
+    except Exception as exc:
+        return "failed", _failed(name, exc, lang)
+
+
+_STEP_FUNCS = {
+    "keyring": step_keyring,
+    "repo-nimbus": step_repo_nimbus,
+    "repo-cachyos": step_repo_cachyos,
+    "refresh-keys": step_refresh_keys,
+    "services": step_services,
+    "greeter": step_greeter,
+    "power": step_power,
+    "hybrid": step_hybrid,
+    "skel": step_skel,
+    "os-release": step_os_release,
+}
+
+
+def run_all(ctx, steps=None):
+    """Ejecuta los pasos en orden y devuelve (resultados, exit_code).
+
+    Cada resultado es ``{"name", "status", "message"}`` serializable.
+    Un paso opcional que falla no aborta; uno critico aborta y lo no
+    ejecutado queda como ``skipped``. En ``--offline`` lo que necesita
+    red queda como ``skipped``, nunca como ``failed``.
+    """
+    order = list(steps) if steps is not None else list(STEP_ORDER)
+    results = []
+    failed_critical = False
+    for index, name in enumerate(order):
+        if failed_critical:
+            results.append({
+                "name": name,
+                "status": "skipped",
+                "message": translated(
+                    "postinstall.abort.skipped", ctx.locale),
+            })
+            continue
+        if ctx.offline and name in NETWORK_STEPS:
+            results.append({
+                "name": name,
+                "status": "skipped",
+                "message": translated(
+                    "postinstall.offline.skipped", ctx.locale),
+            })
+            continue
+        try:
+            status, message = _STEP_FUNCS[name](ctx)
+        except Exception as exc:  # cinturon y tirantes
+            status = "failed"
+            message = _failed(name, exc, ctx.locale)
+        if status not in ("ok", "skipped", "failed"):
+            status = "failed"
+            message = _failed(name, message, ctx.locale)
+        results.append({"name": name, "status": status,
+                        "message": str(message)})
+        if status == "failed" and name in CRITICAL_STEPS:
+            failed_critical = True
+    return results, (1 if failed_critical else 0)
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        description=translated(
+            "postinstall.cli.description", active_locale()))
+    parser.add_argument("--root", required=True, help=translated(
+        "postinstall.cli.root", active_locale()))
+    parser.add_argument("--offline", action="store_true", help=translated(
+        "postinstall.cli.offline", active_locale()))
+    parser.add_argument("--locale", default=None, help=translated(
+        "postinstall.cli.locale", active_locale()))
+    parser.add_argument("--json", action="store_true", help=translated(
+        "postinstall.cli.json", active_locale()))
+    return parser
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    locale = args.locale if args.locale else active_locale()
+    ctx = Ctx(root=args.root, offline=args.offline, locale=locale)
+    results, code = run_all(ctx)
+    if args.json:
+        print(json.dumps(results, ensure_ascii=False))
+    else:
+        for item in results:
+            print(f"{item['name']}: {item['status']}: {item['message']}")
+    return code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
