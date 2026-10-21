@@ -77,19 +77,24 @@ fi
 patch_pacstrap() {
   local p="$PREFIX/prefix/usr/bin/pacstrap"
   [ -f "$p" ] || die "pacstrap no encontrado en el prefijo"
+  # Version del parche. Si cambia, el pacstrap parcheado se regenera desde el
+  # original: un chequeo de idempotencia mas grueso (por ejemplo, buscar solo
+  # una cadena) se saltaba el parcheo y las correcciones nuevas NUNCA se
+  # aplicaban, con lo que el build fallaba por causas ya resueltas.
+  local patch_version=4
   # Reparar prefijos donde un parche anterior dejo el marcador en la linea 1,
   # rompiendo el shebang: env recaia a /bin/sh (modo posix) y el `trap -p`
   # de pacstrap fallaba de forma espuria.
   if [ "$(head -1 "$p")" = "# NIMBUS_ROOTLESS_PATCH" ] && [ -f "$p.orig" ]; then
     cp "$p.orig" "$p"
   fi
-  # Si el parche aplicado es anterior (sin enlaces stdio), se reaplica.
-  # Ojo: se busca la forma `ln -sf`, que es la del parche; el unshare_setup
-  # original ya menciona dev/stdin con chroot_add_link.
-  if grep -q "NIMBUS_ROOTLESS_PATCH" "$p" && ! grep -q 'ln -sf /proc/self/fd/0' "$p" && [ -f "$p.orig" ]; then
+  # Si el parche aplicado es de otra version, se regenera desde el original.
+  if [ -f "$p.orig" ] && ! grep -q "^# NIMBUS_ROOTLESS_PATCH_V${patch_version}$" "$p"; then
     cp "$p.orig" "$p"
   fi
-  grep -q "NIMBUS_ROOTLESS_PATCH" "$p" && grep -q 'ln -sf /proc/self/fd/0' "$p" && return 0
+  if grep -q "^# NIMBUS_ROOTLESS_PATCH_V${patch_version}$" "$p"; then
+    return 0
+  fi
   cp "$p" "$p.orig"
 
   python3 - "$p" <<'PY'
@@ -147,7 +152,7 @@ for a, b in subs:
 # pacstrap aborta con "(BUG): attempting to overwrite existing EXIT trap".
 lines = s.split("\n")
 assert lines[0].startswith("#!"), "pacstrap: sin shebang en la linea 1"
-lines.insert(1, "# NIMBUS_ROOTLESS_PATCH")
+lines.insert(1, "# NIMBUS_ROOTLESS_PATCH_V4")
 s = "\n".join(lines)
 io.open(p, "w", encoding="utf-8").write(s)
 PY
