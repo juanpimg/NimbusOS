@@ -3,6 +3,9 @@ node_modules/
 *.iso
 build/
 pkg/
+src/
+**/pkg/
+**/src/
 iso/work/
 out/
 __pycache__/

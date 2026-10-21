@@ -21,13 +21,6 @@ jobs:
         run: |
           pip install yamllint
           yamllint .
-      - name: Actionlint
-        run: |
-          base=https://raw.githubusercontent.com/rhysd/actionlint
-          curl -sL "$base/main/scripts/download-actionlint.bash" | bash
-          ./actionlint -version
-          ./actionlint
-        shell: bash
       - name: Shellcheck
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
@@ -57,7 +50,11 @@ jobs:
           done
       - name: Instalar dependencias
         run: pacman -Sy --noconfirm python-pytest bats qt6-declarative
-          qt6-wayland qt6-shadertools lua
+          qt6-wayland qt6-shadertools lua actionlint
+      - name: Actionlint
+        run: |
+          actionlint -version
+          actionlint
       - name: Tests Python
         run: python -m pytest tests -v
       - name: Tests Bats
