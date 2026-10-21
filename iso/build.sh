@@ -139,14 +139,34 @@ if [ "$LOCAL_REPO" -eq 1 ]; then
       # da permiso de escritura a los directorios que makepkg necesita.
       mkdir -p "$WORK/mkpkg/$name"
       chown -R "$PKGBUILD_USER" "$WORK/mkpkg/$name" "$REPO_DIR"
-      ( cd "$pkgdir" && sudo -u "$PKGBUILD_USER" \
+      # makepkg EXIGE que su directorio de trabajo sea escribible ("No tiene
+      # permisos de escritura en la carpeta \$SRCDEST" y sale con codigo 11).
+      # En la CI el checkout es de root y makepkg corre como otro usuario, asi
+      # que hay que abrir permisos temporalmente y devolverlos al final.
+      pkg_mode="$(stat -c '%a' "$pkgdir")"
+      chmod a+w "$pkgdir"
+      if ! ( cd "$pkgdir" && sudo -u "$PKGBUILD_USER" \
           env BUILDDIR="$WORK/mkpkg/$name" PKGDEST="$REPO_DIR" \
           makepkg --nodeps --noconfirm ) \
-        >"$WORK/build-${name}.log" 2>&1
+        >"$WORK/build-${name}.log" 2>&1; then
+        chmod "$pkg_mode" "$pkgdir"
+        # Sin esto el fallo se tragaba: makepkg escribia en su log, el bucle
+        # continuaba y la CI moria con un codigo de salida sin explicar nada.
+        echo "[nimbus] FALLO al compilar $name" >&2
+        echo "[nimbus] --- ultimas lineas de $WORK/build-${name}.log ---" >&2
+        tail -n 40 "$WORK/build-${name}.log" >&2
+        exit 1
+      fi
+      chmod "$pkg_mode" "$pkgdir"
     else
-      ( cd "$pkgdir" && BUILDDIR="$WORK/mkpkg/$name" PKGDEST="$REPO_DIR" \
+      if ! ( cd "$pkgdir" && BUILDDIR="$WORK/mkpkg/$name" PKGDEST="$REPO_DIR" \
           makepkg --nodeps --noconfirm ) \
-        >"$WORK/build-${name}.log" 2>&1
+        >"$WORK/build-${name}.log" 2>&1; then
+        echo "[nimbus] FALLO al compilar $name" >&2
+        echo "[nimbus] --- ultimas lineas de $WORK/build-${name}.log ---" >&2
+        tail -n 40 "$WORK/build-${name}.log" >&2
+        exit 1
+      fi
     fi
   done
   # Si no ha salido ningun paquete, el repo local quedaria vacio y la ISO no
