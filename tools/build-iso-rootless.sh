@@ -30,7 +30,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PREFIX="${NIMBUS_ROOTLESS_PREFIX:-${TMPDIR:-/tmp}/nimbus-rootless}"
 OUTDIR="$ROOT/out"
 KEEP=0
-MIRROR="https://archlinux.cachyos.org/repo/extra/os/x86_64"
+MIRROR="https://mirror.rackspace.com/archlinux/extra/os/x86_64"
 SYNC_DB="/var/lib/pacman/sync/extra.db"
 
 while [ $# -gt 0 ]; do
