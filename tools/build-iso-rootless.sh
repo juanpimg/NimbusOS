@@ -84,10 +84,12 @@ patch_pacstrap() {
     cp "$p.orig" "$p"
   fi
   # Si el parche aplicado es anterior (sin enlaces stdio), se reaplica.
-  if grep -q "NIMBUS_ROOTLESS_PATCH" "$p" && ! grep -q "dev/stdin" "$p" && [ -f "$p.orig" ]; then
+  # Ojo: se busca la forma `ln -sf`, que es la del parche; el unshare_setup
+  # original ya menciona dev/stdin con chroot_add_link.
+  if grep -q "NIMBUS_ROOTLESS_PATCH" "$p" && ! grep -q 'ln -sf /proc/self/fd/0' "$p" && [ -f "$p.orig" ]; then
     cp "$p.orig" "$p"
   fi
-  grep -q "NIMBUS_ROOTLESS_PATCH" "$p" && grep -q "dev/stdin" "$p" && return 0
+  grep -q "NIMBUS_ROOTLESS_PATCH" "$p" && grep -q 'ln -sf /proc/self/fd/0' "$p" && return 0
   cp "$p" "$p.orig"
 
   python3 - "$p" <<'PY'
