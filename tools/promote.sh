@@ -50,74 +50,106 @@ if ! command -v repo-add >/dev/null 2>&1; then
   exit 1
 fi
 
-shopt -s nullglob
-_srcs=( "$FROM"/*.pkg.tar.* )
-shopt -u nullglob
+list_pkgs() {
+  # Imprime un paquete por línea, excluyendo las firmas .sig.
+  local dir="$1"
+  shopt -s nullglob
+  local all=( "$dir"/*.pkg.tar.* )
+  shopt -u nullglob
+  local f
+  for f in "${all[@]}"; do
+    [[ "$f" == *.sig ]] && continue
+    printf '%s\n' "$f"
+  done
+}
 
-src_pkgs=()
-for f in "${_srcs[@]}"; do
-  [[ "$f" == *.sig ]] && continue
-  src_pkgs+=("$f")
-done
+mapfile -t src_pkgs < <(list_pkgs "$FROM")
+
+# Sin nada que promover, la DB del destino no se toca: no se borra la
+# existente ni se crea una nueva. No es un error, así que se sale con 0.
+if [ ${#src_pkgs[@]} -eq 0 ]; then
+  echo "nada que promover: --from no contiene paquetes; no se creó ninguna base de datos"
+  exit 0
+fi
+
+mapfile -t to_pkgs < <(list_pkgs "$TO")
 
 # Comprobación atómica: ninguna colisión antes de copiar nada.
 for src in "${src_pkgs[@]}"; do
   base="$(basename "$src")"
   tmp="${base%.pkg.tar.*}"
   namever="${tmp%-*}"
-  shopt -s nullglob
-  _existing=( "$TO/$namever"-*.pkg.tar.* )
-  shopt -u nullglob
-  found=0
-  for e in "${_existing[@]}"; do
-    [[ "$e" == *.sig ]] && continue
-    found=1
-    break
+  for dst in "${to_pkgs[@]}"; do
+    dbase="$(basename "$dst")"
+    if [[ "$dbase" == "$namever"-*.pkg.tar.* ]]; then
+      echo "el paquete $namever ya existe en el destino" >&2
+      exit 1
+    fi
   done
-  if [ "$found" -eq 1 ]; then
-    echo "el paquete $namever ya existe en el destino" >&2
-    exit 1
-  fi
 done
 
+# Copia atómica: primero a un temporal dentro del destino y solo al final
+# se mueve a su sitio, para que un fallo de `cp` no deje copias parciales
+# que luego se auto-colisionarían en un reintento.
+stage="$(mktemp -d "$TO/.stage.XXXXXX")"
+copy_failed=0
 for src in "${src_pkgs[@]}"; do
-  cp -- "$src" "$TO/"
+  if ! cp -- "$src" "$stage/"; then
+    copy_failed=1
+    break
+  fi
 done
+if [ "$copy_failed" -ne 0 ]; then
+  rm -rf "$stage"
+  echo "promote: fallo al copiar los paquetes" >&2
+  exit 1
+fi
+shopt -s nullglob
+staged=( "$stage"/*.pkg.tar.* )
+shopt -u nullglob
+for f in "${staged[@]}"; do
+  mv -- "$f" "$TO/"
+done
+rmdir "$stage"
 
 # Firma los paquetes del destino con la clave offline. La CI compila sin
 # firmar; la firma ocurre aquí, en el acto manual de promoción.
-shopt -s nullglob
-_all=( "$TO"/*.pkg.tar.* )
-shopt -u nullglob
-for pkg in "${_all[@]}"; do
-  [[ "$pkg" == *.sig ]] && continue
+mapfile -t signed_pkgs < <(list_pkgs "$TO")
+for pkg in "${signed_pkgs[@]}"; do
   if [ ! -f "$pkg.sig" ]; then
     gpg --homedir "$GPGDIR" --batch --yes --local-user "$KEY" --detach-sign "$pkg"
   fi
 done
 
-# Regenera la DB desde cero (repo-add incremental falla si se le pasan
-# paquetes ya indexados) y firma el resultado.
-shopt -s nullglob
-_all2=( "$TO"/*.pkg.tar.* )
-shopt -u nullglob
-pkgs=()
-for f in "${_all2[@]}"; do
-  [[ "$f" == *.sig ]] && continue
-  pkgs+=("$f")
-done
-
-rm -f "$TO"/nimbus.db "$TO"/nimbus.db.tar.gz "$TO"/nimbus.files "$TO"/nimbus.files.tar.gz "$TO"/nimbus.db.sig "$TO"/nimbus.db.tar.gz.sig "$TO"/*.old
-
-if [ ${#pkgs[@]} -gt 0 ]; then
-  repo-add "$TO/nimbus.db.tar.gz" "${pkgs[@]}"
-else
-  tar -czf "$TO/nimbus.db.tar.gz" --files-from /dev/null
-  ln -sf nimbus.db.tar.gz "$TO/nimbus.db"
+# Regenera la DB desde cero en un temporal (repo-add incremental falla si se
+# le pasan paquetes ya indexados) y la mueve a su sitio solo cuando repo-add
+# ha funcionado; si falla, la DB buena anterior sigue intacta.
+mapfile -t pkgs < <(list_pkgs "$TO")
+tmpwork="$(mktemp -d "$TO/.promote.XXXXXX")"
+if ! repo-add "$tmpwork/nimbus.db.tar.gz" "${pkgs[@]}"; then
+  rm -rf "$tmpwork"
+  # Reversión: los paquetes recién copiados no quedan huérfanos sin DB.
+  for src in "${src_pkgs[@]}"; do
+    b="$(basename "$src")"
+    rm -f "$TO/$b" "$TO/$b.sig"
+  done
+  echo "promote: repo-add falló; la base de datos anterior queda intacta" >&2
+  exit 1
 fi
+mv -- "$tmpwork/nimbus.db.tar.gz" "$TO/nimbus.db.tar.gz"
+if [ -f "$tmpwork/nimbus.files.tar.gz" ]; then
+  mv -- "$tmpwork/nimbus.files.tar.gz" "$TO/nimbus.files.tar.gz"
+  ln -sfn nimbus.files.tar.gz "$TO/nimbus.files"
+fi
+ln -sfn nimbus.db.tar.gz "$TO/nimbus.db"
+rm -rf "$tmpwork"
 
+# Limpieza de firmas y restos obsoletos en un único bloque: se hace solo
+# cuando la DB nueva ya está en su sitio, para no dejar firmas huérfanas
+# de la DB anterior ni bases firmadas obsoletas.
+rm -f "$TO"/nimbus.db.sig "$TO"/nimbus.db.tar.gz.sig
+rm -f "$TO"/nimbus.files.sig "$TO"/nimbus.files.tar.gz.sig
 rm -f "$TO"/*.old
-rm -f "$TO"/nimbus.db.sig
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 bash "$SCRIPT_DIR/sign_repo.sh" --repo "$TO" --gpgdir "$GPGDIR" --key "$KEY"

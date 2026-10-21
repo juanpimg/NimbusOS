@@ -43,10 +43,14 @@ _make_pkg() {
   [[ "$output" == *"ya existe"* ]]
 }
 
-@test "promote con testing vacío deja stable intacto pero firmado" {
+@test "promote con testing vacío no crea ninguna DB" {
   run bash "$REPO_ROOT/tools/promote.sh" --from "$TESTDIR/testing" --to "$TESTDIR/stable" --gpgdir "$TESTDIR/key/gnupg" --key "$FPR"
   [ "$status" -eq 0 ]
-  [ -f "$TESTDIR/stable/nimbus.db.sig" ]
+  [[ "$output" == *"nada que promover"* ]]
+  [[ "$output" == *"no se creó ninguna base de datos"* ]]
+  [ ! -e "$TESTDIR/stable/nimbus.db" ]
+  [ ! -e "$TESTDIR/stable/nimbus.db.sig" ]
+  [ ! -e "$TESTDIR/stable/nimbus.db.tar.gz" ]
   [ -z "$(ls -A "$TESTDIR/stable" | grep pkg.tar || true)" ]
 }
 
@@ -58,4 +62,32 @@ _make_pkg() {
   printf 'manipulado\n' >> "$TESTDIR/stable/nimbus-shell-0.1.0-x86_64.pkg.tar.gz"
   run bash "$REPO_ROOT/tools/verify_repo.sh" --repo "$TESTDIR/stable" --gpgdir "$TESTDIR/key/gnupg"
   [ "$status" -eq 1 ]
+}
+
+@test "promote es atómica: una colisión no copia el paquete nuevo" {
+  _make_pkg nimbus-shell 0.1.0
+  bash "$REPO_ROOT/tools/promote.sh" --from "$TESTDIR/testing" --to "$TESTDIR/stable" --gpgdir "$TESTDIR/key/gnupg" --key "$FPR"
+  rm -f "$TESTDIR/testing/"*.pkg.tar.*
+  _make_pkg nimbus-shell 0.1.0
+  _make_pkg nimbus-shell 0.2.0
+  run bash "$REPO_ROOT/tools/promote.sh" --from "$TESTDIR/testing" --to "$TESTDIR/stable" --gpgdir "$TESTDIR/key/gnupg" --key "$FPR"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"ya existe"* ]]
+  [ ! -e "$TESTDIR/stable/nimbus-shell-0.2.0-x86_64.pkg.tar.gz" ]
+  [ -f "$TESTDIR/stable/nimbus-shell-0.1.0-x86_64.pkg.tar.gz" ]
+  run bash "$REPO_ROOT/tools/verify_repo.sh" --repo "$TESTDIR/stable" --gpgdir "$TESTDIR/key/gnupg"
+  [ "$status" -eq 0 ]
+}
+
+@test "promote permite versiones distintas y verify_repo las valida" {
+  _make_pkg nimbus-shell 0.1.0
+  bash "$REPO_ROOT/tools/promote.sh" --from "$TESTDIR/testing" --to "$TESTDIR/stable" --gpgdir "$TESTDIR/key/gnupg" --key "$FPR"
+  rm -f "$TESTDIR/testing/"*.pkg.tar.*
+  _make_pkg nimbus-shell 0.2.0
+  run bash "$REPO_ROOT/tools/promote.sh" --from "$TESTDIR/testing" --to "$TESTDIR/stable" --gpgdir "$TESTDIR/key/gnupg" --key "$FPR"
+  [ "$status" -eq 0 ]
+  [ -f "$TESTDIR/stable/nimbus-shell-0.1.0-x86_64.pkg.tar.gz" ]
+  [ -f "$TESTDIR/stable/nimbus-shell-0.2.0-x86_64.pkg.tar.gz" ]
+  run bash "$REPO_ROOT/tools/verify_repo.sh" --repo "$TESTDIR/stable" --gpgdir "$TESTDIR/key/gnupg"
+  [ "$status" -eq 0 ]
 }

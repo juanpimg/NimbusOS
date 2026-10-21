@@ -64,11 +64,14 @@ tools/promote.sh --from <dir> --to <dir> --gpgdir <dir> --key <fpr>
 - Firma cada paquete copiado con la clave offline
   (`gpg --detach-sign`), para que `verify_repo.sh` pueda comprobarlo.
 - Regenera la DB con `repo-add` desde los paquetes presentes en `--to`
-  (reconstrucción completa, no actualización incremental) y firma la DB
-  resultante con
+  (reconstrucción completa en un temporal dentro de `--to`, que solo se
+  mueve a su sitio si `repo-add` funciona; si falla, la DB anterior queda
+  intacta) y firma la DB resultante con
   `tools/sign_repo.sh --repo <to> --gpgdir <gpgdir> --key <fpr>`.
-- Si `--from` está vacío, deja `--to` intacto pero **regenera y firma**
-  la DB igualmente.
+- Si `--from` está vacío, no hay nada que promover: el destino se deja
+  intacto, no se crea ni se toca ninguna base de datos, se imprime
+  `nada que promover: --from no contiene paquetes; no se creó ninguna base de datos`
+  y se sale con 0.
 - Requiere `repo-add` en el PATH; si falta, imprime
   `repo-add no encontrado: instala el paquete repo` y sale con 1.
 
