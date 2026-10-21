@@ -36,6 +36,10 @@ Plan 4 (M3)  ──────► Plan 5
 | 4 | M3 — Gameready y energía | [`2026-10-21-nimbus-m3-gameready.md`](2026-10-21-nimbus-m3-gameready.md) | **Escrito** (5 tareas, 2 olas) |
 | 5 | M4/M5/M6 — Beta, Secure Boot, i18n | [`2026-10-21-nimbus-m4-beta.md`](2026-10-21-nimbus-m4-beta.md) | **Escrito** (5 tareas, 2 olas) |
 
+Los **cinco planes están escritos**. El Plan 1 (M0) está en ejecución: 8 de sus 9 tareas
+terminadas y revisadas; la novena (el porte del perfil de ISO al formato de archiso 91) está
+en curso.
+
 ### Remapeo de hitos respecto al spec
 
 El spec define seis hitos (M0…M6). Los planes los agrupan de otra manera porque **el M3 del
