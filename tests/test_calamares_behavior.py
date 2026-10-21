@@ -25,12 +25,15 @@ def _load(name, relative):
     return module
 
 
-_i18n_spec = importlib.util.spec_from_file_location(
-    "nimbus_i18n", I18N_PATH)
-i18n = importlib.util.module_from_spec(_i18n_spec)
-sys.modules.setdefault("nimbus_i18n", i18n)
-_i18n_spec.loader.exec_module(sys.modules["nimbus_i18n"])
-i18n = sys.modules["nimbus_i18n"]
+_i18n_loaded = sys.modules.get("nimbus_i18n")
+if _i18n_loaded is None or getattr(_i18n_loaded, "TRANSLATIONS", None) is None:
+    _i18n_spec = importlib.util.spec_from_file_location(
+        "nimbus_i18n", I18N_PATH)
+    i18n = importlib.util.module_from_spec(_i18n_spec)
+    sys.modules["nimbus_i18n"] = i18n
+    _i18n_spec.loader.exec_module(i18n)
+else:
+    i18n = _i18n_loaded
 
 
 sw = _load("nimbus_software_under_test",

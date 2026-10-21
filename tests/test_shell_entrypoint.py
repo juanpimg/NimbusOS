@@ -81,10 +81,17 @@ def test_shell_qml_has_no_loose_qtquick_window():
     assert not re.search(r"^\s*Window\s*\{", text, re.M), (
         "shell.qml usa Window de QtQuick: las superficies las crea PanelWindow"
     )
-    assert not re.search(r"^\s*Loader\s*\{", text, re.M), (
-        "shell.qml carga una ventana via Loader: fragil, PanelWindow va directo"
-    )
     assert "main.qml" not in text
+    # Integracion M1: cada modulo va tras un Loader defensivo (status +
+    # onStatusChanged). Se prohibe el Loader fragil sin guarda, no todo Loader.
+    loaders = re.findall(r"^\s*Loader\s*\{", text, re.M)
+    assert loaders, "shell.qml debe montar los modulos con Loader defensivo"
+    assert "onStatusChanged" in text, (
+        "los Loader de shell.qml deben vigilar status (carga defensiva)"
+    )
+    assert "Loader.Error" in text, (
+        "los Loader de shell.qml deben tratar Loader.Error"
+    )
     # Contrapueba: el patron caza el Loader de la ronda anterior.
     assert re.search(r"^\s*Loader\s*\{", "Loader {\nsource: \"main.qml\"\n}", re.M)
 

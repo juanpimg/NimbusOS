@@ -119,6 +119,98 @@ TRANSLATIONS = {
             "No se pudo comprobar dual-boot ({detail})."
         ),
         "verify.internal_error": "Fallo interno de la comprobacion ({detail}).",
+        "verify.gpu.ok": "GPU lista: {nodes} con controlador {driver}.",
+        "verify.gpu.no_driver": (
+            "Hay render ({nodes}) pero sin controlador. Instala el driver "
+            "de tu GPU (p. ej. mesa o nvidia-open-dkms) y reinicia."
+        ),
+        "verify.hybrid.on_demand": "Graficos hibridos en modo on-demand.",
+        "verify.hybrid.single": (
+            "Omitido: una sola GPU, no hay graficos hibridos."
+        ),
+        "verify.hybrid.not_ondemand": (
+            "Hibrido en modo {mode}: cambialo a on-demand (p. ej. "
+            "supergfxctl -m Hybrid o prime-select on-demand)."
+        ),
+        "verify.hybrid.unknown": "desconocido",
+        "verify.audio.ok": "Audio listo: {device} con PipeWire activo.",
+        "verify.audio.pipewire_inactive": (
+            "Hay audio ({device}) pero PipeWire no esta activo. Activalo: "
+            "systemctl --user enable --now pipewire pipewire-pulse."
+        ),
+        "verify.bluetooth.ok": "Bluetooth activo.",
+        "verify.bluetooth.skipped": (
+            "Omitido: este equipo no tiene bluetooth."
+        ),
+        "verify.bluetooth.inactive": (
+            "Hay bluetooth pero el servicio esta parado. Activalo: "
+            "systemctl enable --now bluetooth."
+        ),
+        "verify.webcam.unavailable": (
+            "Hay camara ({device}) pero no esta disponible. Revisa los "
+            "permisos o si otra aplicacion la esta usando."
+        ),
+        "verify.suspend.no_s2idle": (
+            "Hay suspension ({modes}) pero s2idle no esta disponible. "
+            "Revisa el firmware o el kernel."
+        ),
+        "verify.battery.ok": (
+            "Bateria al {percent}% con limite de carga aplicado."
+        ),
+        "verify.battery.skipped": "Omitido: este equipo no tiene bateria.",
+        "verify.battery.unreadable": (
+            "Hay bateria pero no se lee el porcentaje. Revisa upower "
+            "o el driver ACPI."
+        ),
+        "verify.battery.no_limit": (
+            "Bateria al {percent}% sin limite de carga. Aplica el limite "
+            "(p. ej. 80%) en el centro de control."
+        ),
+        "verify.bootloader.unexpected": (
+            "Se esperaba {expected} pero hay {installed}. "
+            "Reinstala el gestor esperado."
+        ),
+        "verify.dualboot.efi_not_shared": (
+            "Hay Windows pero la particion EFI no es compartible. Usa una "
+            "sola ESP FAT32 montada en /boot/efi."
+        ),
+        "verify.dualboot.no_grub": (
+            "Hay Windows pero GRUB no esta instalado. Instala GRUB con "
+            "os-prober activado."
+        ),
+        "verify.snapshots.ok": "Snapshots Btrfs disponibles ({count}).",
+        "verify.snapshots.skipped": "Omitido: el disco no es Btrfs.",
+        "verify.snapshots.none": (
+            "Disco Btrfs sin snapshots. Crea uno (p. ej. snapper -c root "
+            "create -d post-instalacion)."
+        ),
+        "verify.updates.ok": "Repo nimbus configurado con clave de confianza.",
+        "verify.updates.no_repo": (
+            "Falta el repo nimbus en pacman.conf. Anade [nimbus] y sincroniza."
+        ),
+        "verify.updates.untrusted": (
+            "El repo nimbus esta pero su clave no es de confianza. Firma la "
+            "clave o reinstala nimbus-keyring."
+        ),
+        "verify.keyring.ok": "Keyring nimbus poblado y clave importada.",
+        "verify.keyring.not_populated": (
+            "El keyring nimbus no esta poblado. "
+            "Ejecuta pacman-key --populate nimbus."
+        ),
+        "verify.keyring.not_imported": (
+            "Keyring poblado pero la clave nimbus no esta importada. "
+            "Ejecuta pacman-key --populate nimbus y verifica."
+        ),
+        "postinstall.pretty_name": "Post-instalación",
+        "postinstall.pretty_status": "Dejando el sistema listo para usar.",
+        "postinstall.module.failed": (
+            "{step}: falló ({detail}). Acción: {hint}."
+        ),
+        "postinstall.module.no_tool": (
+            "no se pudo ejecutar nimbus-postinstall ({detail}). "
+            "Acción: repite a mano nimbus-postinstall --root {root} "
+            "y revisa cada paso."
+        ),
     },
     "en": {
         "appearance.pretty_name": "Appearance",
@@ -210,6 +302,94 @@ TRANSLATIONS = {
         ),
         "verify.dualboot.error": "Could not check dual-boot ({detail}).",
         "verify.internal_error": "Internal check failure ({detail}).",
+        "verify.gpu.ok": "GPU ready: {nodes} with {driver} driver.",
+        "verify.gpu.no_driver": (
+            "Render nodes ({nodes}) found but no driver. Install your GPU "
+            "driver (e.g. mesa or nvidia-open-dkms) and reboot."
+        ),
+        "verify.hybrid.on_demand": "Hybrid graphics in on-demand mode.",
+        "verify.hybrid.single": (
+            "Skipped: single GPU, no hybrid graphics."
+        ),
+        "verify.hybrid.not_ondemand": (
+            "Hybrid in {mode} mode: switch to on-demand (e.g. "
+            "supergfxctl -m Hybrid or prime-select on-demand)."
+        ),
+        "verify.hybrid.unknown": "unknown",
+        "verify.audio.ok": "Audio ready: {device} with PipeWire active.",
+        "verify.audio.pipewire_inactive": (
+            "Audio device ({device}) found but PipeWire is not active. "
+            "Enable it: systemctl --user enable --now pipewire pipewire-pulse."
+        ),
+        "verify.bluetooth.ok": "Bluetooth active.",
+        "verify.bluetooth.skipped": "Skipped: this machine has no bluetooth.",
+        "verify.bluetooth.inactive": (
+            "Bluetooth hardware found but the service is stopped. "
+            "Enable it: systemctl enable --now bluetooth."
+        ),
+        "verify.webcam.unavailable": (
+            "Camera ({device}) found but unavailable. Check permissions "
+            "or whether another application is using it."
+        ),
+        "verify.suspend.no_s2idle": (
+            "Suspend ({modes}) declared but s2idle is not available. "
+            "Check firmware or kernel."
+        ),
+        "verify.battery.ok": "Battery at {percent}% with charge limit applied.",
+        "verify.battery.skipped": "Skipped: this machine has no battery.",
+        "verify.battery.unreadable": (
+            "Battery found but percentage is unreadable. Check upower "
+            "or the ACPI driver."
+        ),
+        "verify.battery.no_limit": (
+            "Battery at {percent}% with no charge limit. Apply the limit "
+            "(e.g. 80%) in the control center."
+        ),
+        "verify.bootloader.unexpected": (
+            "Expected {expected} but found {installed}. "
+            "Reinstall the expected bootloader."
+        ),
+        "verify.dualboot.efi_not_shared": (
+            "Windows found but the EFI partition is not shareable. Use a "
+            "single FAT32 ESP mounted at /boot/efi."
+        ),
+        "verify.dualboot.no_grub": (
+            "Windows found but GRUB is not installed. Install GRUB with "
+            "os-prober enabled."
+        ),
+        "verify.snapshots.ok": "Btrfs snapshots available ({count}).",
+        "verify.snapshots.skipped": "Skipped: the disk is not Btrfs.",
+        "verify.snapshots.none": (
+            "Btrfs disk with no snapshots. Create one (e.g. snapper -c root "
+            "create -d post-install)."
+        ),
+        "verify.updates.ok": "Nimbus repo configured with trusted key.",
+        "verify.updates.no_repo": (
+            "Missing nimbus repo in pacman.conf. Add [nimbus] and sync."
+        ),
+        "verify.updates.untrusted": (
+            "Nimbus repo present but its key is untrusted. Sign the key "
+            "or reinstall nimbus-keyring."
+        ),
+        "verify.keyring.ok": "Nimbus keyring populated and key imported.",
+        "verify.keyring.not_populated": (
+            "Nimbus keyring not populated. "
+            "Run pacman-key --populate nimbus."
+        ),
+        "verify.keyring.not_imported": (
+            "Keyring populated but the nimbus key is not imported. "
+            "Run pacman-key --populate nimbus and verify."
+        ),
+        "postinstall.pretty_name": "Post-install",
+        "postinstall.pretty_status": "Getting the system ready to use.",
+        "postinstall.module.failed": (
+            "{step}: failed ({detail}). Action: {hint}."
+        ),
+        "postinstall.module.no_tool": (
+            "could not run nimbus-postinstall ({detail}). "
+            "Action: rerun nimbus-postinstall --root {root} by hand "
+            "and review each step."
+        ),
     },
 }
 

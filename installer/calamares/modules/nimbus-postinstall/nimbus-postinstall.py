@@ -27,12 +27,8 @@ except ImportError:  # cargado por ruta (Calamares/test) sin paquete
     _i18n_module = _sys.modules.get("nimbus_i18n")
     if _i18n_module is None:
         _i18n_path = (
-            pathlib.Path(__file__).resolve().parents[2]
-            / "calamares" / "nimbus_i18n.py"
+            pathlib.Path(__file__).resolve().parents[2] / "nimbus_i18n.py"
         )
-    else:
-        _i18n_path = None
-    if _i18n_path is not None:
         _i18n_spec = _importlib_util.spec_from_file_location(
             "nimbus_i18n", _i18n_path)
         _i18n_module = _importlib_util.module_from_spec(_i18n_spec)
@@ -42,40 +38,10 @@ except ImportError:  # cargado por ruta (Calamares/test) sin paquete
     translated = _i18n_module.translated
     TRANSLATIONS = _i18n_module.TRANSLATIONS
 
-# La tabla central la toca otra pista: estas claves se registran aqui en
-# tiempo de ejecucion y el informe declara cada una con su ES/EN.
-_MODULE_STRINGS = {
-    "es": {
-        "postinstall.pretty_name": "Post-instalación",
-        "postinstall.pretty_status": "Dejando el sistema listo para usar.",
-        "postinstall.module.failed": (
-            "{step}: falló ({detail}). Acción: {hint}."
-        ),
-        "postinstall.module.no_tool": (
-            "no se pudo ejecutar nimbus-postinstall ({detail}). "
-            "Acción: repite a mano nimbus-postinstall --root {root} "
-            "y revisa cada paso."
-        ),
-    },
-    "en": {
-        "postinstall.pretty_name": "Post-install",
-        "postinstall.pretty_status": "Getting the system ready to use.",
-        "postinstall.module.failed": (
-            "{step}: failed ({detail}). Action: {hint}."
-        ),
-        "postinstall.module.no_tool": (
-            "could not run nimbus-postinstall ({detail}). "
-            "Action: rerun nimbus-postinstall --root {root} by hand "
-            "and review each step."
-        ),
-    },
-}
-
-for _lang, _table in _MODULE_STRINGS.items():
-    _central = TRANSLATIONS.setdefault(_lang, {})
-    for _key, _text in _table.items():
-        _central.setdefault(_key, _text)
-del _lang, _table, _central, _key, _text
+# Las claves ES/EN de este modulo viven en la tabla central
+# (installer/calamares/nimbus_i18n.py), unica fuente. Este modulo
+# no registra nada al importarse para evitar dobles copias en
+# sys.modules (ver informe de integracion del M1).
 
 logger = logging.getLogger(__name__)
 
