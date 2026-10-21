@@ -25,6 +25,18 @@
 - **Compromisos de git:** mensajes en inglés con estilo convencional (`feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`).
 - **Entorno:** todo se hace en el worktree de la tarea; nunca se modifica la instalación CachyOS actual del fundador. `pytest` no está en el PATH: usar `/tmp/opencode/nimbus-venv/bin/python -m pytest tests -v`.
 - **Tests QML:** `QT_QPA_PLATFORM=offscreen QML2_IMPORT_PATH="$PWD/shell/src" /usr/lib/qt6/bin/qmltestrunner -input shell/tests`.
+- **API de Quickshell 0.3.2 (verificada leyendo los `.qmltypes` del paquete):**
+  - `ShellRoot` vive en `Quickshell` (core) y es **el tipo raiz canonico** de una config:
+    `import Quickshell` y `ShellRoot { ... }`. Un `Item` pelado **no** es un root valido.
+  - `PanelWindow`, `FloatingWindow` y `PopupWindow` se importan con **`import Quickshell.Wayland`**
+    (su `qmldir` hace `default import Quickshell._Window`).
+  - `qs -c <dir>` carga `<dir>/shell.qml`. El entry point y el directorio de import son el mismo.
+  - Servicios disponibles en `Quickshell.Services`: `Greetd`, `Mpris`, `Notifications`, `Pam`,
+    `Pipewire`, `Polkit`, `SystemTray`, `UPower`. **Los siete que necesita el shell estan ahi**,
+    incluido `Polkit` (para el agente de polkit propio, D11), `Notifications` (para el daemon de
+    notificaciones) y `Pam` (para la pantalla de bloqueo).
+  - `PanelWindow` **no** acepta las mismas propiedades que un `Window` de QtQuick: hay que
+    mirar `quickshell-window.qmltypes` antes de usar una propiedad. No se inventan propiedades.
 
 ---
 

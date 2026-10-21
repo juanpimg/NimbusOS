@@ -230,6 +230,7 @@ fi
 unshare --user "${MAP_ARGS[@]}" \
         --mount --pid --fork --mount-proc --ipc --uts \
   env NIMBUS_ALLOW_ROOT=1 \
+      LD_LIBRARY_PATH="$PREFIX/prefix/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
       PATH="$PREFIX/prefix/usr/bin:$PATH" \
       bash "$ROOT/iso/build.sh" --outdir "$OUTDIR" --local-repo
 status=$?
