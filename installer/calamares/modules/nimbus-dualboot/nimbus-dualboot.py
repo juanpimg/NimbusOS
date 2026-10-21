@@ -8,10 +8,17 @@ Se ejecuta **antes** de `partition` y hace:
    mensaje que explica como desactivarlo en Windows (`powercfg /h off` y
    en la BIOS). Continuar garantizaria un arranque roto.
 3. Respaldar la tabla de particiones con `nimbus-partitionsafe backup`
-   **antes** de que Calamares toque el disco.
+   **antes** de que Calamares toque el disco, en **todos** los discos
+   detectados (`/sys/block`: sda, nvme...; nunca loop/dm/sr/zram).
 4. Reutilizar la particion EFI existente de Windows (no crear una segunda).
 5. Avisar a los pasos siguientes (globalstorage) de que hay Windows para
    que `bootloader` use **GRUB** y no systemd-boot.
+
+SEGURIDAD ANTE CANCELACION: el modulo solo **lee** los discos
+(`sfdisk --dump` via partitionsafe) y escribe fuera de ellos, en
+``DEFAULT_BACKUP_DIR`` del live. Cancelar a mitad (o reiniciar) deja
+todos los discos intactos; el respaldo se sobrescribe sin problema si
+se reintenta. Nunca abre un dispositivo para escribir.
 
 Toda cadena visible pasa por `translated()` (ES/EN). Las claves
 `dualboot.*` viven en la tabla central `nimbus_i18n.py` (única fuente).
@@ -218,6 +225,37 @@ def bootloader_choice(windows_found):
     return translated("dualboot.bootloader.default", lang)
 
 
+# Prefijos de /sys/block que son discos fisicos reales. Se excluyen a
+# proposito loop/ram/dm/sr/zram/fd (no son discos instalables).
+_DISK_PREFIXES = ("sd", "hd", "vd", "nvme", "mmcblk")
+_VIRTUAL_BLOCK_PREFIXES = ("loop", "ram", "dm-", "sr", "zram", "fd")
+
+
+def _enumerate_disks(sys_block="/sys/block"):
+    """Discos reales como /dev/sda, ordenados; [] si no se puede leer."""
+    try:
+        entries = sorted(pathlib.Path(str(sys_block)).iterdir())
+    except OSError:
+        return []
+    disks = []
+    for entry in entries:
+        name = entry.name
+        if name.startswith(_VIRTUAL_BLOCK_PREFIXES):
+            continue
+        if name.startswith(_DISK_PREFIXES):
+            disks.append(f"/dev/{name}")
+    return sorted(disks)
+
+
+def _resolve_targets(device="/dev/sda", devices=None, sys_block=None):
+    """Discos a respaldar: lista explicita, enumeracion o el historico."""
+    if devices is not None:
+        return [str(item) for item in devices]
+    if sys_block is not None:
+        return _enumerate_disks(sys_block) or [str(device)]
+    return [str(device)]
+
+
 def _backup_table(device, dest_dir):
     """Respalda con nimbus-partitionsafe (lista de args, sin shell)."""
     dest = pathlib.Path(str(dest_dir))
@@ -249,8 +287,14 @@ def _live_dump_text(device):
 
 def run_with_paths(efivars_dir=None, bootmgfw_paths=None, locale=None,
                    os_prober_lines=None, roots=None, dump_text=None,
-                   backup_dir=None, device="/dev/sda", exists=None):
+                   backup_dir=None, device="/dev/sda", exists=None,
+                   devices=None, sys_block=None):
     """Flujo testeable: bloquea con Fast Boot, respalda, reutiliza EFI.
+
+    Respalda **todos** los discos (`devices` explicitos o enumerados de
+    `sys_block`; por defecto el historico `device` para no cambiar el
+    comportamiento de quien ya lo llama con un disco). Solo lee los
+    discos, asi que cancelar a mitad los deja intactos.
 
     Devuelve None al exito o el mensaje de bloqueo/error (Calamares marca
     el job como fallido con cualquier retorno no None).
@@ -276,20 +320,27 @@ def run_with_paths(efivars_dir=None, bootmgfw_paths=None, locale=None,
             os_prober_lines=os_prober_lines, roots=roots, exists=exists)
     dest = pathlib.Path(str(backup_dir)) if backup_dir is not None else (
         DEFAULT_BACKUP_DIR)
+    targets = _resolve_targets(
+        device=device, devices=devices, sys_block=sys_block)
+    backups = {}
     try:
         dest.mkdir(parents=True, exist_ok=True)
-        if dump_text is not None:
-            import hashlib as _hashlib
+        for target in targets:
+            if dump_text is not None:
+                import hashlib as _hashlib
 
-            text = str(dump_text)
-            basename = pathlib.Path(str(device)).name
-            dump_path = dest / f"{basename}.sfdisk.dump"
-            dump_path.write_text(text, encoding="utf-8")
-            digest = _hashlib.sha256(text.encode("utf-8")).hexdigest()
-            (dest / f"{dump_path.name}.sha256").write_text(
-                f"{digest}  {dump_path.name}\n", encoding="utf-8")
-        else:
-            _backup_table(device, dest)
+                text = str(dump_text)
+                basename = pathlib.Path(str(target)).name
+                dump_path = dest / f"{basename}.sfdisk.dump"
+                dump_path.write_text(text, encoding="utf-8")
+                digest = _hashlib.sha256(text.encode("utf-8")).hexdigest()
+                (dest / f"{dump_path.name}.sha256").write_text(
+                    f"{digest}  {dump_path.name}\n", encoding="utf-8")
+            else:
+                _backup_table(target, dest)
+                basename = pathlib.Path(str(target)).name
+                dump_path = dest / f"{basename}.sfdisk.dump"
+            backups[str(target)] = str(dump_path)
     except Exception as exc:
         message = translated(
             "dualboot.backup.error", lang).format(detail=exc)
@@ -301,7 +352,9 @@ def run_with_paths(efivars_dir=None, bootmgfw_paths=None, locale=None,
     if dump_text is not None:
         efi = find_existing_efi(dump_text)
     else:
-        efi = find_existing_efi(_live_dump_text(device))
+        combined = "".join(
+            _live_dump_text(target) for target in targets)
+        efi = find_existing_efi(combined)
     if efi:
         notice = translated(
             "dualboot.efi.reuse", lang).format(efi=efi)
@@ -325,6 +378,8 @@ def run_with_paths(efivars_dir=None, bootmgfw_paths=None, locale=None,
                 "nimbusDualbootEfiPartition", efi)
             libcalamares.globalstorage.insert(
                 "nimbusBootloaderChoice", choice)
+            libcalamares.globalstorage.insert(
+                "nimbusPartitionBackups", dict(backups))
         except Exception:
             pass
     else:
@@ -333,5 +388,10 @@ def run_with_paths(efivars_dir=None, bootmgfw_paths=None, locale=None,
 
 
 def run():
-    """Punto de entrada de Calamares (antes de `partition`)."""
-    return run_with_paths()
+    """Punto de entrada de Calamares (antes de `partition`).
+
+    Enumera los discos reales de /sys/block: en NVMe/multidisco el
+    historico /dev/sda no existe y respaldar solo ese dejaria al resto
+    sin salvaguarda.
+    """
+    return run_with_paths(sys_block="/sys/block")

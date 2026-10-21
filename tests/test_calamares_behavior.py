@@ -42,6 +42,8 @@ ap = _load("nimbus_appearance_under_test",
            "nimbus-appearance/nimbus-appearance.py")
 vv = _load("nimbus_verify_under_test",
            "nimbus-verify/nimbus-verify.py")
+db = _load("nimbus_dualboot_behavior_under_test",
+           "nimbus-dualboot/nimbus-dualboot.py")
 
 
 class _FakeGlobalStorage:
@@ -419,7 +421,62 @@ def test_dualboot_and_bootloader_keys_are_central_and_symmetric():
         assert table["en"].get(key), f"falta EN: {key}"
 
 
-# --- nimbus-verify -------------------------------------------------------------
+# --- D5: dual-boot multi-disco y cancelacion segura -------------------------------
+
+
+def _fake_sda_dump():
+    return (
+        "label: gpt\n"
+        "device: /dev/sda\n"
+        "unit: sectors\n"
+        "/dev/sda1 : start=2048, size=1024000, "
+        "type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, uuid=AAAA\n"
+    )
+
+
+def _empty_efivars(tmp_path):
+    efivars = tmp_path / "efivars"
+    efivars.mkdir(exist_ok=True)
+    return efivars
+
+
+def test_enumerate_disks_skips_virtual_devices(tmp_path):
+    """D5: solo discos reales (sda, nvme...); nada de loop/dm/sr/zram."""
+    block = tmp_path / "block"
+    block.mkdir()
+    for name in ("sda", "nvme0n1", "loop0", "dm-0", "sr0", "zram0",
+                 "mmcblk0"):
+        (block / name).mkdir()
+    assert db._enumerate_disks(str(block)) == [
+        "/dev/mmcblk0", "/dev/nvme0n1", "/dev/sda"]
+
+
+def test_run_backs_up_every_disk_and_records_them(tmp_path, monkeypatch):
+    """D5: con dos discos hay dos respaldos y el globalstorage los lista."""
+    backup_dir = tmp_path / "respaldo"
+    fake = _FakeCalamares(values={})
+    monkeypatch.setattr(db, "libcalamares", fake)
+    outcome = db.run_with_paths(
+        efivars_dir=_empty_efivars(tmp_path), locale="en",
+        os_prober_lines=["/dev/sda1:Windows 10:Windows:chain"],
+        dump_text=_fake_sda_dump(),
+        backup_dir=backup_dir,
+        devices=["/dev/sda", "/dev/nvme0n1"],
+    )
+    assert outcome is None
+    assert (backup_dir / "sda.sfdisk.dump").is_file()
+    assert (backup_dir / "nvme0n1.sfdisk.dump").is_file()
+    recorded = fake.globalstorage.inserted["nimbusPartitionBackups"]
+    assert set(recorded) == {"/dev/sda", "/dev/nvme0n1"}
+
+
+def test_dualboot_never_opens_devices_for_writing():
+    """D5: cancelar a mitad es seguro porque el modulo solo lee los
+    discos (el respaldo es sfdisk --dump); nada de escrituras."""
+    source = (MODULES / "nimbus-dualboot"
+              / "nimbus-dualboot.py").read_text(encoding="utf-8")
+    for marker in ('"wb"', "'wb'", "mkfs", "sgdisk --zap", " of="):
+        assert marker not in source, marker
 
 
 def test_run_all_checks_yields_name_bool_str_tuples():
