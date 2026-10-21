@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+export QML2_IMPORT_PATH="/usr/lib/nimbus/shell/src:${QML2_IMPORT_PATH}"
+exec qs -c /usr/lib/nimbus/shell/src "$@"

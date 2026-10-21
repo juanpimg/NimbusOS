@@ -12,6 +12,7 @@ depends=('quickshell>=0.3.2' 'hyprland>=0.56.2' 'qt6-declarative' 'qt6-wayland' 
 source=()
 sha256sums=()
 package() {
+  install -d "$pkgdir/usr/lib/nimbus/shell"
   cp -r "$startdir/../../shell/src" "$pkgdir/usr/lib/nimbus/shell/src"
   install -Dm755 "$startdir/../../shell/nimbus-shell" "$pkgdir/usr/bin/nimbus-shell"
 }

@@ -2,6 +2,7 @@
 # Perfil de la ISO de Nimbus. Netinstall puro: aquí solo lo mínimo para
 # arrancar la sesión live; el resto se descarga durante la instalación.
 base
+mkinitcpio
 linux-cachyos
 linux-firmware
 linux-firmware-amdgpu
