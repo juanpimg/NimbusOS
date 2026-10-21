@@ -11,6 +11,8 @@ QtObject {
     property string mode: "light"
     property string accent: "007aff"
     property string locale: "es"
+    // El tour de bienvenida se marca aqui para no volver a mostrarse.
+    property bool tourCompleted: false
 
     function setMode(value) {
         if (value === "light" || value === "dark" || value === "auto")

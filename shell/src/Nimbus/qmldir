@@ -6,14 +6,25 @@ DockItem 1.0 modules/DockItem.qml
 Glass 1.0 lib/Glass.qml
 Icon 1.0 lib/Icon.qml
 ListRow 1.0 lib/ListRow.qml
+LockScreen 1.0 modules/LockScreen.qml
 Notifications 1.0 modules/Notifications.qml
 Popup 1.0 lib/Popup.qml
+QuickLook 1.0 modules/QuickLook.qml
+Screenshot 1.0 modules/Screenshot.qml
 SearchField 1.0 lib/SearchField.qml
 SectionHeader 1.0 lib/SectionHeader.qml
 Slider 1.0 lib/Slider.qml
+Spotlight 1.0 modules/Spotlight.qml
+Store 1.0 apps/Store/Store.qml
+StoreDetail 1.0 apps/Store/StoreDetail.qml
+StoreHome 1.0 apps/Store/StoreHome.qml
+StoreUpdates 1.0 apps/Store/StoreUpdates.qml
 Switcher 1.0 modules/Switcher.qml
 Toggle 1.0 lib/Toggle.qml
 Tooltip 1.0 lib/Tooltip.qml
+Tour 1.0 apps/Tour/Tour.qml
+TourStep 1.0 apps/Tour/TourStep.qml
+Wallpaper 1.0 modules/Wallpaper.qml
 singleton Config 1.0 Config.qml
 singleton Ipc 1.0 Ipc.qml
 singleton PolkitAgent 1.0 PolkitAgent.qml
