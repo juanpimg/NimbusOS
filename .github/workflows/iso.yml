@@ -47,8 +47,11 @@ jobs:
           pacman-key --lsign-key 882DCFE48E2051D48E2562ABF3B607488DB35A47
       - name: Instalar dependencias
         run: |
+          # fakeroot y debugedit los necesita makepkg (base-devel): la imagen
+          # archlinux:latest es minima y no los trae, y sin ellos makepkg
+          # aborta con "Cannot find the fakeroot binary".
           pacman --config /etc/pacman.conf -Sy --noconfirm --needed \
-            archiso repo qemu-desktop sudo
+            archiso repo qemu-desktop sudo fakeroot debugedit
       - name: Crear usuario de compilación
         run: |
           # makepkg se niega a correr como root e iso/build.sh delega
