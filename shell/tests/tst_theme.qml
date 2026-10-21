@@ -72,4 +72,20 @@ TestCase {
         compare(Theme.glass, "#8c1c1c1e")
         verify(Theme.glassOpaque.a === 1.0, "glassOpaque debe ser totalmente opaco")
     }
+
+    function test_m4_bar_and_dock_tokens() {
+        // La barra y el Dock no usan numeros sueltos: todo sale de Theme.
+        compare(Theme.fontSizeSmall, 11)
+        compare(Theme.fontSizeBody, 13)
+        compare(Theme.fontSizeTitle, 15)
+        compare(Theme.dockRadius, 20)
+        compare(Theme.dockIconRadius, 12)
+        compare(Theme.menuWidth, 280)
+        verify(Theme.disabledOpacity > 0.0 && Theme.disabledOpacity < 1.0)
+        verify(Theme.shadow.a > 0.0, "la sombra debe ser semitransparente")
+        verify(Theme.hairline.a > 0.0 && Theme.hairline.a < 1.0, "hairline debe ser sutil")
+        verify(Theme.appBlue.a === 1.0 && Theme.appGreen.a === 1.0)
+        verify(Theme.appOrange.a === 1.0 && Theme.appPurple.a === 1.0)
+        verify(Theme.appRed.a === 1.0 && Theme.appGray.a === 1.0)
+    }
 }
