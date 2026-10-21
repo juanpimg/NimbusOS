@@ -83,7 +83,11 @@ patch_pacstrap() {
   if [ "$(head -1 "$p")" = "# NIMBUS_ROOTLESS_PATCH" ] && [ -f "$p.orig" ]; then
     cp "$p.orig" "$p"
   fi
-  grep -q "NIMBUS_ROOTLESS_PATCH" "$p" && return 0
+  # Si el parche aplicado es anterior (sin enlaces stdio), se reaplica.
+  if grep -q "NIMBUS_ROOTLESS_PATCH" "$p" && ! grep -q "dev/stdin" "$p" && [ -f "$p.orig" ]; then
+    cp "$p.orig" "$p"
+  fi
+  grep -q "NIMBUS_ROOTLESS_PATCH" "$p" && grep -q "dev/stdin" "$p" && return 0
   cp "$p" "$p.orig"
 
   python3 - "$p" <<'PY'
@@ -109,6 +113,15 @@ subs = [
      '''  rm -f "$1/run" "$1/proc" "$1/sys" "$1/tmp" 2>/dev/null
   mkdir -p "$1/run" "$1/proc" "$1/sys" "$1/tmp" &&
   chroot_add_mount proc "$1/proc" -t proc -o nosuid,noexec,nodev &&'''),
+    # Los hooks de alpm (p. ej. mkinitcpio) leen de /dev/stdin: sin estos
+    # enlaces el preset del kernel no se genera y la ISO queda sin initramfs.
+    # Es el mismo juego de enlaces que el unshare_setup original.
+    ('''  mkdir -p "$1/dev/pts" "$1/dev/shm" "$1/dev/mqueue" &&''',
+     '''  mkdir -p "$1/dev/pts" "$1/dev/shm" "$1/dev/mqueue" &&
+  ln -sf /proc/self/fd "$1/dev/fd" &&
+  ln -sf /proc/self/fd/0 "$1/dev/stdin" &&
+  ln -sf /proc/self/fd/1 "$1/dev/stdout" &&
+  ln -sf /proc/self/fd/2 "$1/dev/stderr" &&'''),
 ]
 for a, b in subs:
     if a not in s:

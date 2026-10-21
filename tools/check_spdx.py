@@ -6,13 +6,30 @@ import pathlib
 
 SOURCE_SUFFIXES = {".py", ".sh", ".bats", ".qml", ".cpp", ".h", ".lua", ".js", ".yaml", ".yml"}
 
+# Directorios que contienen artefactos de build, no codigo fuente. Recorrerlos
+# haria fallar el check en cuanto un desarrollador deja un arbol de compilacion
+# a medias (por ejemplo iso/work/ tras construir la ISO).
+IGNORED_DIRS = {
+    ".git",
+    ".superpowers",
+    "__pycache__",
+    ".pytest_cache",
+    "build",
+    "out",
+    "pkg",
+    "src",
+    "work",
+    "node_modules",
+    ".venv",
+}
+
 
 def collect_sources(root: pathlib.Path):
     sources = []
     for path in root.rglob("*"):
         if not path.is_file() or path.suffix not in SOURCE_SUFFIXES:
             continue
-        if ".git" in path.parts:
+        if IGNORED_DIRS & set(path.parts):
             continue
         sources.append(path)
     return sorted(sources)
