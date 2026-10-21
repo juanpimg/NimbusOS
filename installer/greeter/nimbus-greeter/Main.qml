@@ -53,7 +53,8 @@ Item {
     Image {
         id: backgroundArt
         anchors.fill: parent
-        source: "background.svg"
+        source: config.background
+        // theme.conf [General] background.
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
     }
@@ -83,7 +84,7 @@ Item {
         Image {
             id: nimbusLogo
             Layout.alignment: Qt.AlignHCenter
-            source: "logo.svg"
+            source: config.logo // theme.conf [General] logo.
             sourceSize.width: 72
             sourceSize.height: 72
             fillMode: Image.PreserveAspectFit
@@ -91,24 +92,28 @@ Item {
         }
 
         // Big clock, formatted with the system locale.
+        // Visible via theme.conf [General] showClock.
         Text {
             id: clockLabel
             Layout.alignment: Qt.AlignHCenter
+            visible: config.showClock !== "false"
             text: Qt.formatTime(root.now, Qt.locale(), Locale.ShortFormat)
             color: "white"
-            font.family: "Inter"
+            font.family: config.font // theme.conf [General] font (Inter).
             font.pixelSize: 96
             font.weight: Font.Light
             Accessible.name: clockLabel.text
         }
 
         // Localised date line under the clock.
+        // Visible via theme.conf [General] showDate.
         Text {
             id: dateLabel
             Layout.alignment: Qt.AlignHCenter
+            visible: config.showDate !== "false"
             text: Qt.formatDate(root.now, Qt.locale(), Locale.LongFormat)
             color: "#e6e6e6"
-            font.family: "Inter"
+            font.family: config.font // theme.conf [General] font (Inter).
             font.pixelSize: 28
         }
 
@@ -146,12 +151,12 @@ Item {
                         id: avatarImage
                         Layout.preferredWidth: 44
                         Layout.preferredHeight: 44
-                        source: model.icon !== undefined && model.icon !== "" ? "file://" + model.icon : "avatar-placeholder.svg"
+                        source: model.icon !== undefined && model.icon !== "" ? "file://" + model.icon : config.avatarPlaceholder
                         fillMode: Image.PreserveAspectCrop
                         // Never break on a missing avatar: fall back to the placeholder.
                         onStatusChanged: {
                             if (status === Image.Error) {
-                                source = "avatar-placeholder.svg"
+                                source = config.avatarPlaceholder
                             }
                         }
                         Accessible.name: display
@@ -160,7 +165,7 @@ Item {
                         Layout.fillWidth: true
                         text: model.realName !== undefined && model.realName !== "" ? model.realName : display
                         color: "white"
-                        font.family: "Inter"
+                        font.family: config.font // theme.conf [General] font (Inter).
                         font.pixelSize: 18
                         elide: Text.ElideRight
                     }
@@ -178,7 +183,7 @@ Item {
                 horizontalAlignment: Text.AlignHCenter
                 text: root.currentUser
                 color: "#e6e6e6"
-                font.family: "Inter"
+                font.family: config.font // theme.conf [General] font (Inter).
                 font.pixelSize: 16
                 visible: root.currentUser !== ""
             }
@@ -189,7 +194,7 @@ Item {
                 echoMode: TextInput.Password
                 passwordMaskDelay: 0
                 enabled: !root.busy && root.currentUser !== ""
-                font.family: "Inter"
+                font.family: config.font // theme.conf [General] font (Inter).
                 font.pixelSize: 18
                 onAccepted: root.submitLogin()
                 onTextChanged: {
@@ -206,7 +211,7 @@ Item {
                 visible: root.passwordWrong
                 text: qsTr("Incorrect password. Try again.")
                 color: "#ff8080"
-                font.family: "Inter"
+                font.family: config.font // theme.conf [General] font (Inter).
                 font.pixelSize: 15
             }
             Button {
@@ -214,7 +219,7 @@ Item {
                 Layout.alignment: Qt.AlignHCenter
                 text: qsTr("Log In")
                 enabled: !root.busy && root.currentUser !== "" && passwordField.text !== ""
-                font.family: "Inter"
+                font.family: config.font // theme.conf [General] font (Inter).
                 onClicked: root.submitLogin()
             }
             BusyIndicator {
@@ -235,13 +240,13 @@ Item {
             spacing: 12
             Button {
                 text: qsTr("Reboot")
-                font.family: "Inter"
+                font.family: config.font // theme.conf [General] font (Inter).
                 enabled: !root.busy
                 onClicked: root.rebootRequested()
             }
             Button {
                 text: qsTr("Shut down")
-                font.family: "Inter"
+                font.family: config.font // theme.conf [General] font (Inter).
                 enabled: !root.busy
                 onClicked: root.shutdownRequested()
             }

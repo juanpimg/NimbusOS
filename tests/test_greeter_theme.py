@@ -199,3 +199,50 @@ def test_nimbus_logo_is_referenced():
     blobs = _theme_text()
     joined = "\n".join(blobs.values()).lower()
     assert "nimbus" in joined, "el greeter debe mostrar el logo de Nimbus"
+
+
+# --- D7: theme.conf conectado con Main.qml --------------------------------------
+
+
+def _theme_conf_keys():
+    """Claves [General] de theme.conf (las expone SDDM como `config`)."""
+    parser = configparser.ConfigParser(interpolation=None)
+    parser.optionxform = str  # SDDM distingue mayusculas (showClock)
+    parser.read(THEME / "theme.conf", encoding="utf-8")
+    keys = []
+    for section in parser.sections():
+        keys.extend(k for k, _ in parser.items(section))
+    return keys
+
+
+def test_theme_conf_keys_are_consumed_by_main_qml():
+    """D7: cada clave de theme.conf se usa como `config.<clave>` en Main.qml.
+
+    Sin esto theme.conf es decorado: SDDM expone [General] via `config`
+    y el tema debe leerlo (fondo, logo, avatar, tipografia, reloj/fecha).
+    """
+    text = (THEME / "Main.qml").read_text(encoding="utf-8")
+    keys = _theme_conf_keys()
+    assert keys, "theme.conf no declara ninguna clave"
+    missing = [key for key in keys if f"config.{key}" not in text]
+    assert missing == [], (
+        f"claves de theme.conf ignoradas por Main.qml: {missing}"
+    )
+
+
+def test_visible_strings_go_through_qstr():
+    """D7: todo literal visible (text:/placeholderText:) pasa por qsTr.
+
+    Los bindings (sin comillas) y formatos (Qt.formatTime) no son
+    literales y estan permitidos.
+    """
+    text = (THEME / "Main.qml").read_text(encoding="utf-8")
+    offenders = []
+    for match in re.finditer(
+            r"(?:^|\n)\s*(?:text|placeholderText)\s*:\s*(.+)", text):
+        value = match.group(1).strip()
+        if value.startswith('"') or value.startswith("'"):
+            offenders.append(value)
+    assert offenders == [], (
+        f"cadenas visibles sin qsTr en Main.qml: {offenders}"
+    )
