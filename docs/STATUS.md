@@ -25,17 +25,21 @@ Los números de tests se obtuvieron ejecutando las suites, no de memoria.
 | La ISO arranca a sesión live | `bash tests/integration/boot_live.sh --iso out/nimbus-*.iso --timeout 600` → `OK: la sesión live de Nimbus está lista` (el marcador `NIMBUS_LIVE_READY` solo se escribe si Hyprland y el shell responden) |
 | ISO netinstall < 3 GB | `out/nimbus-2026.10.22-x86_64.iso` existe en el árbol (perfil en `iso/profiles/nimbus/`, constructor `iso/build.sh --local-repo`) |
 | Cadena de firma bootstrap | `tools/genkeyring.sh`, `tools/sign_repo.sh`, `tools/promote.sh`, `tools/verify_repo.sh`, cubiertos por los 13 tests bats |
-| CI en cada push/PR | `.github/workflows/ci.yml`: lint (SPDX, yamllint, shellcheck, actionlint) + las tres suites. `.github/workflows/iso.yml`: construye la ISO y la arranca en QEMU |
+| CI en cada push/PR | `.github/workflows/ci.yml`: lint (SPDX, yamllint, shellcheck, actionlint) + las tres suites. **Verde en `main`** |
+| El shell **carga** y se ve | La config de Quickshell arrancaba con `IpcHandler is not a type` (faltaba `import Quickshell.Io`) y con `PanelWindow is not a type` (faltaba `import Quickshell`). Corregido: se ven la barra con la marca Nimbus, el reloj y el Dock |
+| El instalador está **empaquetado** | `packages/nimbus-installer/` mete los 6 módulos de Calamares, el tema del greeter y la config de SDDM; `iso/profiles/nimbus/packages.x86_64` lo lista |
+| `settings.conf` lo entiende Calamares | Estaba en INI y Calamares lo lee con YAML: el instalador no arrancaba. Ahora es YAML válido (`yaml.safe_load` OK) |
+| Hay **actualizaciones y rollback** | `packages/nimbus-update/`: `nimbus-update check\|apply\|history\|rollback\|auto`, con snapshot antes de cada transacción y dos units de timer |
+| La CI construye paquetes | `makepkg` exige que su directorio sea escribible (la CI compila como `builder` sobre un checkout de `root`): arreglado, con el error a la vista si vuelve a pasar |
 
 ## Qué NO funciona todavía
 
 Nada de lo siguiente está escrito en ningún otro sitio. Todo verificado contra el árbol.
 
-- **El instalador no está en la ISO.** `iso/profiles/nimbus/packages.x86_64` no contiene
-  `calamares` (`grep -n calamares` vacío, 51 líneas de paquetes live). El código de Calamares
-  existe (`installer/calamares/`, seis módulos) y pasa sus tests, pero no es ejecutable desde
-  la ISO. Primer paso: añadir el paquete y la config al perfil y cubrirlo en
-  `tests/test_iso_profile.py`.
+- **El instalador está en la ISO pero la instalación no se ha probado end-to-end.** El paquete
+  `nimbus-installer` existe y la ISO lo lista, pero **nadie ha instalado Nimbus de verdad**: no
+  hay un test que arranque la ISO, ejecute Calamares y llegue a un escritorio instalado
+  (`tests/integration/` solo arranca la sesión live). Es el hueco más grande que queda.
 - **El shell no puede ejecutar procesos.** Cero usos de `Quickshell.Process` en `shell/src/`;
   la única mención es un comentario en `shell/src/Nimbus/modules/Screenshot.qml:10`.
 - **`nimbus-shell ipc call` no está implementado como subcomando.** `shell/nimbus-shell` es
@@ -51,14 +55,14 @@ Nada de lo siguiente está escrito en ningún otro sitio. Todo verificado contra
   `install()` solo hace `_installed_ids.add(app_id)`; el fichero no invoca `flatpak`,
   `PackageKit` ni `subprocess` (único import externo: `shutil`). El botón Actualizar de
   `SettingsSoftware.qml:30-35` hace `console.info`, no actualiza.
-- **No existe `nimbus-update`.** `find . -name "*nimbus-update*"` vacío; tampoco existe ningún
-  `*.timer` en el repo, aunque `installer/tools/nimbus-postinstall:273-274` nombra
-  `nimbus-snapshots.timer` y `nimbus-auto-update.timer` para activarlos. Las units no existen.
-- **Sin snapshots operativos.** `installer/tools/nimbus-snapshots` existe como CLI, pero sin sus
-  units de systemd el rollback automático no está cableado.
-- **El repo instalado apunta a un servidor inexistente.** `installer/tools/nimbus-postinstall:272`:
-  `NIMBUS_REPO_SERVER = "https://mirror.nimbus.org/nimbus/os/$arch"`. El repo `nimbus` aún no
-  está alojado en ningún servidor; la ISO se construye contra un repo local de bootstrap
+- **`nimbus-update` existe pero solo se ha probado con dobles de prueba.** El paquete
+  `packages/nimbus-update/` trae la CLI y las dos units (`nimbus-snapshots.timer`,
+  `nimbus-auto-update.timer`), pero el snapshot y el rollback **no se han probado sobre un disco
+  Btrfs real**: los tests usan fakes. Queda por verificar en una VM con Btrfs.
+- **El repo público aún no existe.** `installer/tools/nimbus-postinstall` ya **no** apunta a
+  `mirror.nimbus.org` (un dominio inexistente): usa el repo local de bootstrap
+  (`file:///var/lib/nimbus/repo`) y declara con honestidad que el repo público está pendiente.
+  Mientras tanto, **un sistema instalado no puede actualizarse** hasta que se aloje el repo.
   (`iso/build.sh --local-repo`).
 - **Ajustes muestra claves crudas.** 66 claves distintas `settings.*` usadas vía
   `Config.translated("settings.…")` en `shell/src/Nimbus/apps/Settings/`, cero definidas en la
