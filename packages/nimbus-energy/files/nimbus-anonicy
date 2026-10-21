@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# nimbus-anonicy — activa o desactiva las reglas de rendimiento de ananicy.
+# `disable` retira las reglas de juego y restaura el conjunto por defecto.
+#
+# Variables de entorno (pensadas para pruebas sin privilegios):
+#   NIMBUS_ANANICY_RULES_DIR   directorio de reglas (por defecto /etc/ananicy.d)
+#   NIMBUS_ANANICY_SOURCE       regla de juego empaquetada
+set -euo pipefail
+
+RULES_DIR="${NIMBUS_ANANICY_RULES_DIR:-/etc/ananicy.d}"
+SOURCE_RULE="${NIMBUS_ANANICY_SOURCE:-/usr/share/nimbus-energy/ananicy/50-nimbus-gaming.rules}"
+GAMING_RULE="50-nimbus-gaming.rules"
+
+usage() {
+  echo "Uso: nimbus-anonicy enable|disable|status" >&2
+}
+
+cmd_enable() {
+  if [ ! -f "$SOURCE_RULE" ]; then
+    echo "nimbus-anonicy: no se encuentra la regla empaquetada $SOURCE_RULE" >&2
+    exit 1
+  fi
+  mkdir -p "$RULES_DIR"
+  install -m644 "$SOURCE_RULE" "$RULES_DIR/$GAMING_RULE"
+  echo "Reglas de rendimiento activadas (ananicy)."
+}
+
+cmd_disable() {
+  rm -f "$RULES_DIR/$GAMING_RULE"
+  echo "Reglas de juego retiradas; conjunto de reglas por defecto restaurado."
+}
+
+cmd_status() {
+  if [ -f "$RULES_DIR/$GAMING_RULE" ]; then
+    echo "enabled: las reglas de rendimiento de Nimbus están activas."
+  else
+    echo "disabled: rige el conjunto de reglas por defecto."
+  fi
+}
+
+main() {
+  case "${1:-}" in
+    enable) cmd_enable ;;
+    disable) cmd_disable ;;
+    status) cmd_status ;;
+    *) usage; exit 2 ;;
+  esac
+}
+
+main "$@"

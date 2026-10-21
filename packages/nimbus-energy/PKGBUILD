@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+pkgname=nimbus-energy
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Perfiles de energía, límite de carga y GPU híbrida de Nimbus"
+arch=('any')
+license=('GPL-3.0-or-later')
+url="https://github.com/juanpimg/NimbusOS"
+# power-profiles-daemon gestiona los perfiles; auto-cpufreq las governors;
+# ananicy-cpp las prioridades. nvidia-prime solo tiene sentido con dGPU.
+# TLP queda excluido a propósito: es invasivo y entra en conflicto con
+# power-profiles-daemon.
+depends=('power-profiles-daemon' 'auto-cpufreq' 'ananicy-cpp')
+optdepends=('nvidia-prime: control de GPU híbrida en equipos con dGPU NVIDIA')
+conflicts=('tlp')
+backup=('etc/nimbus/energy-helper.conf')
+source=()
+sha256sums=()
+package() {
+  install -Dm755 "$startdir/files/nimbus-energy" "$pkgdir/usr/bin/nimbus-energy"
+  install -Dm755 "$startdir/files/nimbus-scheduler" "$pkgdir/usr/bin/nimbus-scheduler"
+  install -Dm755 "$startdir/files/nimbus-anonicy" "$pkgdir/usr/bin/nimbus-anonicy"
+  install -Dm644 "$startdir/files/energy-helper.conf" "$pkgdir/etc/nimbus/energy-helper.conf"
+  install -Dm644 "$startdir/files/90-nimbus-gaming.conf" "$pkgdir/etc/ananicy.d/90-nimbus-gaming.conf"
+  install -Dm644 "$startdir/files/ananicy/ananicy.d/50-nimbus-gaming.rules" \
+    "$pkgdir/usr/share/nimbus-energy/ananicy/50-nimbus-gaming.rules"
+}
