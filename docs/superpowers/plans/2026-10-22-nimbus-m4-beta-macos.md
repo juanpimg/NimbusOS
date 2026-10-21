@@ -241,7 +241,84 @@ tema del greeter (propio), `iso/profiles/nimbus/airootfs/etc/systemd/system/nimb
 - [ ] La pantalla **llama a los CLI** (`nimbus-energy`, `nimbus-anonicy`) con
       polkit donde haga falta.
 
-## Task 13: Organización del repositorio y estado documentado
+## Task 13: El instalador **dentro** de la ISO  ← CRÍTICO, §9.2
+
+> La auditoría del spec verificó que la ISO construida **no contiene
+> `calamares`**: `grep -c calamares iso/profiles/nimbus/packages.x86_64` → **0**,
+> y el `pkglist` real de la ISO tampoco lo tiene. Los 6 módulos de Calamares y
+> el tema del greeter son **código muerto**: hoy la ISO **no tiene ningún
+> camino para instalar Nimbus**.
+
+**Files:** `packages/nimbus-installer/` (nuevo), `iso/profiles/nimbus/**`,
+`installer/calamares/settings.conf`
+**Tests:** `tests/test_installer_packaging.py` (nuevo), `tests/integration/install_iso.sh` (nuevo)
+
+- [ ] Paquete `nimbus-installer`: instala Calamares (`cachyos-calamares-next`),
+      los **6 módulos** de Nimbus, el **tema del greeter** y el `netinstall.yaml`.
+- [ ] Que el paquete esté en la **ISO live** (`packages.x86_64`) y que el
+      **post-instalación** lo ejecute.
+- [ ] **Btrfs por defecto** (`defaultFileSystemType=btrfs`): el spec (D6) lo
+      exige y sin él el rollback es inalcanzable.
+- [ ] Arreglar el bug de `nimbus-appearance.py:172-190`: invoca
+      `kwriteconfig6`, que **no está en la ISO** → el paso 6 del instalador
+      revienta.
+- [ ] Test de integración que **instala de verdad** en QEMU (hoy
+      `tests/integration/` solo arranca la sesión live).
+
+## Task 14: El shell que **hace** algo  ← CRÍTICO, §9.8
+
+> Verificado por la auditoría: `grep -rn "Quickshell.Process" shell/src/` →
+> **cero**. El shell **no puede ejecutar nada**. Y `nimbus-shell ipc call`,
+> que usan **todos** los atajos de `dots/hypr/hyprland.lua`, **no está
+> implementado**: los atajos no hacen nada.
+
+**Files:** `shell/src/Nimbus/Services.qml`, `shell/src/Nimbus/PolkitAgent.qml`,
+`shell/src/Nimbus/Ipc.qml`, `shell/nimbus-shell`, `shell/src/Nimbus/lib/Process.qml` (nuevo)
+**Tests:** `shell/tests/tst_services.qml` (nuevo), `tests/test_shell_entrypoint.py`
+
+- [ ] **Puente de procesos**: un envoltorio sobre `Quickshell.Process` para
+      invocar los CLI de Nimbus (`nimbus-energy`, `nimbus-update`,
+      `nimbus-gaming-tune`) con **polkit** cuando lo necesitan.
+- [ ] **`nimbus-shell ipc call <target> <función>`** funcionando de verdad:
+      es lo que disparan los atajos.
+- [ ] `Services.qml` con los backends **reales** (notificaciones,
+      StatusNotifier, Mpris, UPower, red) en vez de `false`.
+- [ ] `PolkitAgent` **registrado en `polkitd`** (`available` deja de ser
+      `false`).
+- [ ] **Store con backend real** (Flathub + PackageKit) y **cableado** en
+      `shell.qml` (hoy `Store.qml` cae al modo "sin backend" y la tienda queda
+      vacía).
+- [ ] Ajustes→Energía **aplica de verdad** (llama a `nimbus-energy`), sin
+      mutar solo propiedades QML.
+
+## Task 15: Las claves que Ajustes no tiene  ← CRÍTICO, §9.1
+
+> `grep -c '"settings\.' Translations.qml` → **0**. Las 11 páginas de Ajustes
+> piden ~70 claves `settings.*` inexistentes: **el usuario ve cadenas como
+> "settings.power.title" en pantalla**.
+
+**Files:** `shell/src/Nimbus/Translations.qml`
+**Tests:** `tests/test_translations.py` (o el que ya comprueba la simetría)
+
+- [ ] Añadir las ~70 claves `settings.*` **con sus dos variantes** (ES y EN).
+- [ ] La tabla debe seguir **simétrica** (el test existente lo comprueba).
+- [ ] Sin claves literales visibles en ninguna pantalla.
+
+## Task 16: El bloqueo, que hoy es un callejón sin salida  ← §9.3
+
+> `LockScreen.qml:48,70` emite `unlockRequested(password)` y **no hay ningún
+> receptor en todo `shell/src/`**: el usuario bloquea y **no puede
+> desbloquear**.
+
+**Files:** `shell/src/Nimbus/modules/LockScreen.qml`, `shell/src/shell.qml`
+**Tests:** `shell/tests/` (nuevo test del bloqueo)
+
+- [ ] Receptor de `unlockRequested` que **desbloquea de verdad**.
+- [ ] Verificación de la contraseña **contra el sistema** (no una comprobación
+      en memoria).
+
+## Task 17: Organización del repositorio y estado documentado
+
 
 **Files:** `docs/ESTADO.md`, `README.md`, `CONTRIBUTING.md`, `SECURITY.md`,
 `CHANGELOG.md`, `.github/ISSUE_TEMPLATE/**`, `.github/workflows/**`
@@ -255,7 +332,7 @@ tema del greeter (propio), `iso/profiles/nimbus/airootfs/etc/systemd/system/nimb
       issue y PR, badges reales.
 - [ ] Todos los enlaces y rutas documentados **resuelven**.
 
-## Task 14: Publicación de la beta
+## Task 18: Publicación de la beta
 
 **Files:** `docs/RELEASE.md`, `.github/workflows/release.yml`
 **Tests:** el workflow en modo `dry-run`
@@ -284,3 +361,10 @@ tema del greeter (propio), `iso/profiles/nimbus/airootfs/etc/systemd/system/nimb
 8. La **firma de los repos** es offline y manual: la CI no firma.
 9. Todo lo que se afirma en la documentación es **verificable** con un comando
    o una captura, o se dice explícitamente que está pendiente de hardware real.
+10. **La ISO contiene el instalador** y una instalación completa en QEMU llega
+    a un escritorio con Nimbus instalado (no solo la sesión live).
+11. **El shell ejecuta acciones**: `nimbus-shell ipc call` funciona, los
+    atajos hacen algo, y Ajustes→Energía cambia el perfil real.
+12. **Ninguna pantalla muestra una clave literal** (`settings.*` y compañía):
+    las tablas ES/EN son simétricas y completas.
+13. El bloqueo se puede **desbloquear**.
