@@ -57,6 +57,19 @@ Item {
     }
 
     // --- Lecturas sincronas sobre la cache (misma semantica que el backend) ---
+    // Devuelven copias planas (como `_with_state` en Python), nunca
+    // referencias internas: la cache solo cambia por refresh/acciones.
+
+    function _copy(item) {
+        var out = {}
+        for (var key in item) {
+            if (key === "screenshots" && Array.isArray(item[key]))
+                out[key] = item[key].slice()
+            else
+                out[key] = item[key]
+        }
+        return out
+    }
 
     function listApps(category) {
         var cat = (category === undefined || category === null) ? "" : String(category)
@@ -65,7 +78,7 @@ Item {
         var out = []
         for (var i = 0; i < catalog.length; ++i) {
             if (cat === "" || catalog[i].category === cat)
-                out.push(catalog[i])
+                out.push(_copy(catalog[i]))
         }
         return out
     }
@@ -73,13 +86,13 @@ Item {
     function search(query) {
         var needle = String(query === undefined || query === null ? "" : query).toLowerCase()
         if (needle === "")
-            return catalog.slice()
+            return listApps("")
         var out = []
         for (var i = 0; i < catalog.length; ++i) {
             var item = catalog[i]
             if (String(item.title || "").toLowerCase().indexOf(needle) !== -1
                     || String(item.id || "").toLowerCase().indexOf(needle) !== -1)
-                out.push(item)
+                out.push(_copy(item))
         }
         return out
     }
@@ -87,7 +100,7 @@ Item {
     function getApp(appId) {
         for (var i = 0; i < catalog.length; ++i) {
             if (catalog[i].id === appId)
-                return catalog[i]
+                return _copy(catalog[i])
         }
         return null
     }
@@ -104,7 +117,7 @@ Item {
         var out = []
         for (var i = 0; i < catalog.length; ++i) {
             if (catalog[i].origin === "Flathub" && catalog[i].installed === true)
-                out.push(catalog[i])
+                out.push(_copy(catalog[i]))
         }
         return out
     }
