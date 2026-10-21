@@ -184,7 +184,7 @@ Crea además:
 - `README.md` con el nombre, la frase "Arch por debajo, Hyprland en la superficie, la pulido de macOS encima", el estado "M0 — en construcción", y una tabla de los repos del roadmap.
 - `CONTRIBUTING.md` y `CODE_OF_CONDUCT.md` ( Contributor Covenant v2.1 ).
 - `.editorconfig` con `indent_style = space`, `indent_size = 4`, `end_of_line = lf`, `insert_final_newline = true`, `charset = utf-8`.
-- `.gitignore` con: `*.iso`, `build/`, `out/`, `__pycache__/`, `.pytest_cache/`, `*.qcow2`, `*.pkg.tar.zst`, `*.db`, `*.db.sig`, `*.sig`, `keys/`, `gpg/`.
+- `.gitignore` con: `*.iso`, `build/`, `out/`, `__pycache__/`, `.pytest_cache/`, `*.qcow2`, `*.pkg.tar.zst`, `*.db`, `*.db.sig`, `*.sig`, `keys/`, `gpg/`, `.superpowers/`.
 - `pytest.ini`:
   ```ini
   [pytest]
@@ -213,7 +213,8 @@ Workflow con dos jobs, ambos en `ubuntu-latest` salvo donde se indique:
       - name: Shellcheck
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck $(git ls-files '*.sh')
+          sh_files="$(git ls-files '*.sh')"
+          if [ -n "$sh_files" ]; then shellcheck $sh_files; fi
 ```
 
 `test`, en `container: archlinux:latest` con los repos de CachyOS añadidos antes de instalar dependencias:
@@ -231,8 +232,16 @@ Workflow con dos jobs, ambos en `ubuntu-latest` salvo donde se indique:
           done
       - name: Instalar dependencias
         run: pacman -Sy --noconfirm python-pytest bats qt6-declarative qt6-wayland qt6-shadertools lua
-      - name: Tests
+      - name: Tests Python
         run: python -m pytest tests -v
+      - name: Tests Bats
+        run: |
+          if ls tests/*.bats >/dev/null 2>&1; then bats tests/*.bats; fi
+      - name: Tests QML
+        run: |
+          if [ -d shell/tests ]; then
+            QML2_IMPORT_PATH="$PWD/shell/src" qmltestrunner -input shell/tests
+          fi
 ```
 
 - [ ] **Step 6: Commit**
@@ -285,6 +294,8 @@ teardown() {
   [ "$status" -eq 0 ]
   [ -f "$TESTDIR/out/nimbus.gpg" ]
   [ -f "$TESTDIR/out/nimbus-keyring/nimbus.gpg" ]
+  [ -f "$TESTDIR/out/nimbus-keyring/nimbus-trusted" ]
+  [ -f "$TESTDIR/out/nimbus-keyring/nimbus-revoked" ]
   [ -f "$TESTDIR/out/nimbus-keyring/nimbus-keyring.install" ]
   [[ "$output" =~ ^[0-9A-F]{40}$ ]]
 }
@@ -357,10 +368,24 @@ Script bash con `set -euo pipefail`, cabecera SPDX. Comportamiento:
            --keyring "$OUTDIR/nimbus.gpg" --import
      ```
    - `<outdir>/nimbus-public.asc` — la clave pública en ASCII, para leerla y publicarla en el wiki.
-4. Crea `<outdir>/nimbus-keyring/` con `nimbus.gpg` (el keybox) y `nimbus-keyring.install` con esta línea exacta:
-   ```
-   usr/share/pacman/keyrings/nimbus.gpg
-   ```
+4. Crea `<outdir>/nimbus-keyring/` con **cuatro** ficheros:
+   - `nimbus.gpg` — copia del keybox.
+   - `nimbus-trusted` — el ownertrust: `printf '%s:6:\n' "$FPR" > nimbus-trusted`.
+     **Sin este fichero, `pacman-key --populate` importa la clave pero no le da confianza,
+     y toda firma del repo de Nimbus falla con "signature from unknown trust".** El formato
+     es el de `gpg --export-ownertrust`.
+   - `nimbus-revoked` — fichero vacío, placeholder para revocaciones futuras.
+   - `nimbus-keyring.install` con este contenido exacto:
+     ```
+     usr/share/pacman/keyrings/nimbus.gpg
+     usr/share/pacman/keyrings/nimbus-trusted
+     usr/share/pacman/keyrings/nimbus-revoked
+     post_install() {
+       pacman-key --populate nimbus
+     }
+     ```
+     El patrón está verificado contra `cachyos-keyring`, que_distribution `cachyos.gpg`,
+     `cachyos-trusted` y `cachyos-revoked` en `/usr/share/pacman/keyrings/`.
 5. Imprime **solo** el fingerprint: `gpg --homedir "$OUTDIR/gnupg" --list-keys --with-colons | awk -F: '/^fpr/{print $10; exit}'`.
 
 **Nota sobre `--quick-generate-key`:** usa el alias `sign` para que la clave sirva tanto para firmar como para ser la clave de un owner-trusted en el keyring de pacman. Si `gpg` se queja de que el alias no existe en esta versión, usa `--quick-gen-key "$UID" rsa4096 default never`.
@@ -394,12 +419,19 @@ source=("nimbus.gpg")
 sha256sums=('SKIP')
 package() {
   install -Dm644 nimbus.gpg "$pkgdir/usr/share/pacman/keyrings/nimbus.gpg"
+  install -Dm644 nimbus-trusted "$pkgdir/usr/share/pacman/keyrings/nimbus-trusted"
+  install -Dm644 nimbus-revoked "$pkgdir/usr/share/pacman/keyrings/nimbus-revoked"
 }
 ```
 
 `packages/nimbus-keyring/nimbus-keyring.install`:
 ```
 usr/share/pacman/keyrings/nimbus.gpg
+usr/share/pacman/keyrings/nimbus-trusted
+usr/share/pacman/keyrings/nimbus-revoked
+post_install() {
+  pacman-key --populate nimbus
+}
 ```
 
 - [ ] **Step 6: Ejecuta los tests para verificar que pasan**
@@ -900,12 +932,15 @@ pkgdesc="Shell de escritorio Nimbus para Hyprland (Quickshell/QML)"
 arch=('any')
 license=('GPL-3.0-or-later')
 depends=('quickshell>=0.3.2' 'hyprland>=0.56.2' 'qt6-declarative' 'qt6-wayland' 'qt6-shadertools' 'inter-font')
-source=('shell::git+https://github.com/juanpimg/NimbusOS.git')
-sha256sums=('SKIP')
+# Monorepo: el paquete se compila desde el árbol local, sin clonar de GitHub.
+# Cuando el repo se divida por subsistema, esto pasa a
+# source=('shell::git+https://github.com/juanpimg/NimbusOS.git').
+source=()
+sha256sums=()
 package() {
-  install -Dm644 shell/src/qmldir "$pkgdir/usr/lib/nimbus/shell/qmldir"
-  cp -r shell/src "$pkgdir/usr/lib/nimbus/shell/src"
-  install -Dm755 shell/nimbus-shell "$pkgdir/usr/bin/nimbus-shell"
+  install -Dm644 "$startdir/../../shell/src/qmldir" "$pkgdir/usr/lib/nimbus/shell/qmldir"
+  cp -r "$startdir/../../shell/src" "$pkgdir/usr/lib/nimbus/shell/src"
+  install -Dm755 "$startdir/../../shell/nimbus-shell" "$pkgdir/usr/bin/nimbus-shell"
 }
 ```
 
@@ -1169,13 +1204,15 @@ pkgdesc="Configuración de Hyprland y defaults del sistema para Nimbus"
 arch=('any')
 license=('GPL-3.0-or-later')
 depends=('hyprland>=0.56.2' 'nimbus-shell' 'kitty')
-source=('dots::git+https://github.com/juanpimg/NimbusOS.git')
-sha256sums=('SKIP')
+# Monorepo: se compila desde el árbol local. Al dividir el repo, esto pasa a
+# source=('dots::git+https://github.com/juanpimg/NimbusOS.git').
+source=()
+sha256sums=()
 package() {
-  install -Dm644 dots/hypr/hyprland.lua "$pkgdir/usr/lib/nimbus/dots/hypr/hyprland.lua"
-  install -Dm644 dots/hypr/quirks.conf "$pkgdir/usr/lib/nimbus/dots/hypr/quirks.conf"
-  install -Dm644 dots/nimbus/defaults.conf "$pkgdir/usr/lib/nimbus/dots/defaults.conf"
-  install -Dm755 dots/nimbus/nimbus-start "$pkgdir/usr/lib/nimbus/dots/nimbus-start"
+  install -Dm644 "$startdir/../../dots/hypr/hyprland.lua" "$pkgdir/usr/lib/nimbus/dots/hypr/hyprland.lua"
+  install -Dm644 "$startdir/../../dots/hypr/quirks.conf" "$pkgdir/usr/lib/nimbus/dots/hypr/quirks.conf"
+  install -Dm644 "$startdir/../../dots/nimbus/defaults.conf" "$pkgdir/usr/lib/nimbus/dots/defaults.conf"
+  install -Dm755 "$startdir/../../dots/nimbus/nimbus-start" "$pkgdir/usr/lib/nimbus/dots/nimbus-start"
 }
 ```
 
@@ -1360,7 +1397,11 @@ EOF
 cat >> /etc/pacman.conf <<'EOF'
 
 [nimbus]
-SigLevel = Required DatabaseOptional
+# TODO(bootstrap): el repo local de bootstrap va sin firmar, asi que la
+# verificacion se relaja. Cuando el repo publico este alojado y firmado
+# (repo de produccion), esto pasa a:
+#   SigLevel = Required DatabaseOptional
+SigLevel = Optional
 Server = file:///run/archiso/bootmnt/nimbus-repo
 EOF
 
@@ -1392,8 +1433,12 @@ ANSI_COLOR="38;2;0;122;255"
 HOME_URL="https://github.com/juanpimg/NimbusOS"
 EOF
 
-# Mot de passe y configuración de la sesión live.
+# Mot de passe y configuracion de la sesion live.
 echo "root:nimbus" | chpasswd
+
+# En la ISO live la sesion la aporta nimbus-live.service, no SDDM: dos gestores
+# de display peleandose por la pantalla hacen que la sesion parpadee.
+systemctl disable sddm.service 2>/dev/null || true
 cat > /etc/sddm.conf <<'EOF'
 [Autologin]
 Session=hyprland
@@ -1604,11 +1649,18 @@ def test_module_sequence_is_the_expected_one():
     assert _sequence() == EXPECTED_SEQUENCE
 
 
-def test_every_module_has_a_conf_file():
+NIMBUS_OWNED_MODULES = {"nimbus-appearance", "nimbus-software", "nimbus-verify"}
+
+
+def test_every_nimbus_module_has_a_conf_file():
+    # welcome, locale, partition, lukspass, users, hardware, bootloader y finished
+    # son modulos de Calamares upstream: los aporta el paquete cachyos-calamares-next,
+    # no este repositorio. Solo exigimos los que son propiedad de Nimbus.
     missing = [
         name
         for name in _sequence()
-        if not (CALAMARES / "modules" / name / f"{name}.conf").is_file()
+        if name in NIMBUS_OWNED_MODULES
+        and not (CALAMARES / "modules" / name / f"{name}.conf").is_file()
     ]
     assert missing == []
 
