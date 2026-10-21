@@ -52,9 +52,23 @@ ACCENT_PRESETS = (
     "8E8E93",  # gris
 )
 
-THEME_PAGE_MODES = ("claro", "oscuro", "auto")
+THEME_PAGE_MODES = (
+    "appearance.theme.light",
+    "appearance.theme.dark",
+    "appearance.theme.auto",
+)
 
+# Clave de traduccion -> modo interno. La pagina QML muestra
+# ``translated(clave, locale)`` y el backend compara por clave.
 THEME_LABEL_TO_MODE = {
+    "appearance.theme.light": "light",
+    "appearance.theme.dark": "dark",
+    "appearance.theme.auto": "auto",
+}
+
+# Etiquetas en español de la pagina QML anterior (compatibilidad con
+# instalaciones que aun envian el texto mostrado en vez de la clave).
+LEGACY_THEME_LABEL_TO_MODE = {
     "claro": "light",
     "oscuro": "dark",
     "auto": "auto",
@@ -65,41 +79,78 @@ DEFAULT_WALLPAPER = "nimbus-default"
 KWRITECONFIG_BINARIES = ("kwriteconfig6", "kwriteconfig5", "kwriteconfig")
 
 
-def normalize_accent(value):
+def normalize_accent(value, locale=None):
     """Normaliza un acento a hex RGB en mayusculas sin '#'.
 
     Acepta cualquiera de los 12 presets o un hex valido de 6 digitos.
+    El mensaje de error se muestra al usuario, asi que sale traducido.
     """
+    lang = _current_locale(locale)
     text = str(value).strip().lstrip("#").upper()
     if len(text) != 6 or any(c not in "0123456789ABCDEF" for c in text):
-        raise ValueError(f"acento no valido: {value!r}")
+        raise ValueError(
+            translated("appearance.accent.invalid", lang).format(
+                value=repr(value)))
     return text
 
 
-def validate_mode(mode):
-    """Valida el modo de tema (light/dark/auto)."""
+def validate_mode(mode, locale=None):
+    """Valida el modo de tema (light/dark/auto).
+
+    El mensaje de error se muestra al usuario, asi que sale traducido.
+    """
+    lang = _current_locale(locale)
     text = str(mode).strip().lower()
     if text not in VALID_MODES:
-        raise ValueError(f"modo no valido: {mode!r} (usa {VALID_MODES})")
+        raise ValueError(
+            translated("appearance.mode.invalid", lang).format(
+                mode=repr(mode), valid=", ".join(VALID_MODES)))
     return text
 
 
-def theme_label_to_mode(label):
+def theme_page_labels(locale=None):
+    """Etiquetas de la pagina Tema ya traducidas, en el orden de la QML."""
+    lang = _current_locale(locale)
+    return [translated(key, lang) for key in THEME_PAGE_MODES]
+
+
+def theme_mode_label(key, locale=None):
+    """Texto traducido de una clave de THEME_PAGE_MODES."""
+    return translated(key, _current_locale(locale))
+
+
+def theme_label_to_mode(label, locale=None):
     """Convierte la etiqueta de la pagina Tema a modo interno.
 
-    Valida contra THEME_PAGE_MODES, las unicas etiquetas que la pagina QML
-    puede producir.
+    Acepta la clave de traduccion (lo que envia la pagina QML), el modo
+    interno, la etiqueta legacy en español o el texto ya traducido
+    (ES/EN, insensible a mayusculas). Cualquier otro valor lanza
+    ValueError con el mensaje traducido, que Calamares muestra al usuario.
     """
-    text = str(label).strip().lower()
-    if text not in THEME_PAGE_MODES:
-        raise ValueError(f"tema no valido: {label!r} (usa {THEME_PAGE_MODES})")
-    return THEME_LABEL_TO_MODE[text]
+    lang = _current_locale(locale)
+    text = str(label).strip()
+    if text in THEME_LABEL_TO_MODE:
+        return THEME_LABEL_TO_MODE[text]
+    lowered = text.lower()
+    if lowered in VALID_MODES:
+        return lowered
+    if lowered in LEGACY_THEME_LABEL_TO_MODE:
+        return LEGACY_THEME_LABEL_TO_MODE[lowered]
+    for key, mode in THEME_LABEL_TO_MODE.items():
+        for probe_locale in ("es", "en", lang):
+            if lowered == str(translated(key, probe_locale)).strip().lower():
+                return mode
+    valid = ", ".join(translated(key, lang) for key in THEME_PAGE_MODES)
+    raise ValueError(
+        translated("appearance.theme.invalid", lang).format(
+            label=repr(label), valid=valid))
 
 
-def render_appearance_conf(mode, accent, wallpaper=DEFAULT_WALLPAPER):
+def render_appearance_conf(mode, accent, wallpaper=DEFAULT_WALLPAPER,
+                           locale=None):
     """Genera el contenido de /etc/nimbus/appearance.conf."""
-    mode = validate_mode(mode)
-    accent = normalize_accent(accent)
+    mode = validate_mode(mode, locale=locale)
+    accent = normalize_accent(accent, locale=locale)
     return (
         "# SPDX-License-Identifier: GPL-3.0-or-later\n"
         "[appearance]\n"
@@ -118,10 +169,10 @@ def find_kwriteconfig():
     return None
 
 
-def kwriteconfig_commands(mode, accent):
+def kwriteconfig_commands(mode, accent, locale=None):
     """Comandos kwriteconfig que aplican tema y acento en ~/.config/."""
-    accent = normalize_accent(accent)
-    mode = validate_mode(mode)
+    accent = normalize_accent(accent, locale=locale)
+    mode = validate_mode(mode, locale=locale)
     color_scheme = {
         "light": "NimbusLight",
         "dark": "NimbusDark",
@@ -138,11 +189,11 @@ def kwriteconfig_commands(mode, accent):
     ]
 
 
-def apply_with_kwriteconfig(mode, accent, runner=None):
+def apply_with_kwriteconfig(mode, accent, runner=None, locale=None):
     """Aplica tema y acento con kwriteconfig. Devuelve la lista ejecutada."""
     runner = runner or subprocess.run
     executed = []
-    for command in kwriteconfig_commands(mode, accent):
+    for command in kwriteconfig_commands(mode, accent, locale=locale):
         runner(command, check=False)
         executed.append(command)
     return executed
@@ -199,17 +250,24 @@ def write_appearance_conf(content, root="/"):
     return target
 
 
-def run():
-    """Punto de entrada de Calamares: escribe y aplica la apariencia."""
+def run(locale=None):
+    """Punto de entrada de Calamares: escribe y aplica la apariencia.
+
+    Calamares muestra al usuario el texto de cualquier excepcion no
+    capturada, por eso los validadores reciben el locale efectivo y
+    lanzan ValueError ya traducidos.
+    """
+    effective = _current_locale(locale)
     selection = read_selection()
-    mode = validate_mode(selection["mode"])
-    accent = normalize_accent(selection["accent"])
+    mode = validate_mode(selection["mode"], locale=effective)
+    accent = normalize_accent(selection["accent"], locale=effective)
     wallpaper = selection.get("wallpaper") or DEFAULT_WALLPAPER
-    content = render_appearance_conf(mode, accent, wallpaper)
+    content = render_appearance_conf(mode, accent, wallpaper,
+                                     locale=effective)
     if libcalamares is not None:
         root = libcalamares.globalstorage.value("rootMountPoint") or "/"
     else:  # pragma: no cover - solo en el instalador real
         root = "/"
     write_appearance_conf(content, root=root)
-    apply_with_kwriteconfig(mode, accent)
+    apply_with_kwriteconfig(mode, accent, locale=effective)
     return None

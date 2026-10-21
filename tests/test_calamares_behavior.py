@@ -104,7 +104,7 @@ def test_gate_offline_without_acceptance_installs_nothing(monkeypatch):
         sw, "read_selected_profiles", lambda: ["gaming", "office"])
     gate = sw.connectivity_gate(accepted_offline=False)
     assert gate == {"online": False, "profiles": [],
-                    "message": sw.NO_CONNECTIVITY_MESSAGE}
+                    "message": sw.no_connectivity_message()}
     assert sw.packages_for_profiles(gate["profiles"]) == []
 
 
@@ -181,13 +181,95 @@ def test_check_connectivity_survives_unexpected_framework_errors(monkeypatch):
 
 # --- nimbus-appearance --------------------------------------------------------
 
+THEME_KEYS_BY_MODE = {
+    "light": "appearance.theme.light",
+    "dark": "appearance.theme.dark",
+    "auto": "appearance.theme.auto",
+}
+
 
 def test_theme_label_maps_to_internal_mode():
+    # La pagina QML envia claves, no texto: el backend compara por clave.
+    assert ap.theme_label_to_mode("appearance.theme.light") == "light"
+    assert ap.theme_label_to_mode("appearance.theme.dark") == "dark"
+    assert ap.theme_label_to_mode("appearance.theme.auto") == "auto"
+    # Compat: la pagina antigua enviaba el texto en español.
     assert ap.theme_label_to_mode("claro") == "light"
     assert ap.theme_label_to_mode("oscuro") == "dark"
     assert ap.theme_label_to_mode("auto") == "auto"
+    # Modo interno y texto ya traducido (ES/EN) tambien se aceptan.
+    assert ap.theme_label_to_mode("light") == "light"
+    assert ap.theme_label_to_mode("Claro") == "light"
+    assert ap.theme_label_to_mode("Light") == "light"
     with pytest.raises(ValueError):
         ap.theme_label_to_mode("neon")
+
+
+def test_theme_labels_are_translated():
+    """Las etiquetas de la pagina Tema salen de la tabla ES/EN."""
+    assert ap.THEME_PAGE_MODES == (
+        "appearance.theme.light",
+        "appearance.theme.dark",
+        "appearance.theme.auto",
+    )
+    assert ap.theme_page_labels("es") == [
+        i18n.TRANSLATIONS["es"]["appearance.theme.light"],
+        i18n.TRANSLATIONS["es"]["appearance.theme.dark"],
+        i18n.TRANSLATIONS["es"]["appearance.theme.auto"],
+    ]
+    assert ap.theme_page_labels("en") == [
+        i18n.TRANSLATIONS["en"]["appearance.theme.light"],
+        i18n.TRANSLATIONS["en"]["appearance.theme.dark"],
+        i18n.TRANSLATIONS["en"]["appearance.theme.auto"],
+    ]
+    # ES y EN difieren al menos en claro/oscuro (no es la clave suelta).
+    assert ap.theme_page_labels("es") != ap.theme_page_labels("en")
+    for key in ap.THEME_PAGE_MODES:
+        assert ap.theme_mode_label(key, "es") == i18n.TRANSLATIONS["es"][key]
+        assert ap.theme_mode_label(key, "en") == i18n.TRANSLATIONS["en"][key]
+
+
+def test_accent_error_message_is_localized():
+    with pytest.raises(ValueError, match="Acento no válido"):
+        ap.normalize_accent("ZZZZZZ", locale="es")
+    with pytest.raises(ValueError, match="Invalid accent"):
+        ap.normalize_accent("ZZZZZZ", locale="en")
+    assert "nohex!" in str(
+        _capture_value_error(ap.normalize_accent, "nohex!", "es"))
+    assert "nohex!" in str(
+        _capture_value_error(ap.normalize_accent, "nohex!", "en"))
+
+
+def test_mode_error_message_is_localized():
+    with pytest.raises(ValueError, match="Modo no válido"):
+        ap.validate_mode("neon", locale="es")
+    with pytest.raises(ValueError, match="Invalid mode"):
+        ap.validate_mode("neon", locale="en")
+
+
+def test_theme_error_message_is_localized():
+    with pytest.raises(ValueError, match="Tema no válido"):
+        ap.theme_label_to_mode("neon", locale="es")
+    with pytest.raises(ValueError, match="Invalid theme"):
+        ap.theme_label_to_mode("neon", locale="en")
+    # El mensaje en español lista las etiquetas en español, no las claves.
+    try:
+        ap.theme_label_to_mode("neon", locale="es")
+    except ValueError as exc:
+        assert "Claro" in str(exc)
+        assert "appearance.theme" not in str(exc)
+    try:
+        ap.theme_label_to_mode("neon", locale="en")
+    except ValueError as exc:
+        assert "Light" in str(exc)
+
+
+def _capture_value_error(func, *args, **kwargs):
+    try:
+        func(*args, **kwargs)
+    except ValueError as exc:
+        return exc
+    raise AssertionError(f"{func.__name__} no lanzo ValueError")
 
 
 def test_write_appearance_conf_roundtrips_malicious_wallpaper(tmp_path):
@@ -283,11 +365,22 @@ def _key_constant_values(path):
     return values
 
 
+def _theme_page_mode_keys():
+    """Claves de THEME_PAGE_MODES (la QML las muestra traducidas)."""
+    try:
+        return set(ap.THEME_PAGE_MODES)
+    except AttributeError:
+        return set()
+
+
 def _all_used_keys():
     keys = set()
     for path in _I18N_MODULE_SOURCES.values():
         keys |= _translated_literal_keys(path)
         keys |= _key_constant_values(path)
+    # THEME_PAGE_MODES no se pasa como literal a translated() (se itera
+    # con `translated(key, lang)`), asi que se recoge por separado.
+    keys |= _theme_page_mode_keys()
     return keys
 
 
@@ -318,10 +411,29 @@ def test_pretty_and_connectivity_strings_come_from_the_table():
     assert vv.pretty_status_message("en") == i18n.TRANSLATIONS["en"]["verify.pretty_status"]
     assert sw.no_connectivity_message("es") == i18n.TRANSLATIONS["es"]["software.no_connectivity"]
     assert sw.no_connectivity_message("en") == i18n.TRANSLATIONS["en"]["software.no_connectivity"]
-    assert sw.NO_CONNECTIVITY_MESSAGE in (
-        i18n.TRANSLATIONS["es"]["software.no_connectivity"],
-        i18n.TRANSLATIONS["en"]["software.no_connectivity"],
-    )
+    # NO_CONNECTIVITY_MESSAGE ya no es una cadena congelada en el import:
+    # es una funcion que resuelve por locale (mejora I-2).
+    assert callable(sw.NO_CONNECTIVITY_MESSAGE)
+    assert not isinstance(sw.NO_CONNECTIVITY_MESSAGE, str)
+    assert sw.NO_CONNECTIVITY_MESSAGE("es") == i18n.TRANSLATIONS["es"]["software.no_connectivity"]
+    assert sw.NO_CONNECTIVITY_MESSAGE("en") == i18n.TRANSLATIONS["en"]["software.no_connectivity"]
+    # Los dos nombres son el mismo mecanismo.
+    assert sw.NO_CONNECTIVITY_MESSAGE("es") == sw.no_connectivity_message("es")
+
+
+def test_no_frozen_no_connectivity_string():
+    """El mensaje de falta de red no queda congelado con el locale inicial."""
+    source = (MODULES / "nimbus-software" / "nimbus-software.py").read_text(
+        encoding="utf-8")
+    tree = _ast.parse(source)
+    for node in _ast.walk(tree):
+        if isinstance(node, _ast.Assign) and any(
+                getattr(t, "id", "") == "NO_CONNECTIVITY_MESSAGE"
+                for t in node.targets):
+            raise AssertionError(
+                "NO_CONNECTIVITY_MESSAGE no debe ser una asignacion "
+                "congelada en el import; debe ser funcion por locale")
+    assert sw.no_connectivity_message("es") != sw.no_connectivity_message("en")
 
 
 def test_unknown_key_returns_the_key_itself():
@@ -402,8 +514,11 @@ def test_no_user_string_bypasses_translated():
     """Ninguna cadena visible queda fuera del mecanismo i18n.
 
     Revisa el AST de los tres modulos: todo pretty_name/pretty_status_message,
-    NO_CONNECTIVITY_MESSAGE y todo str devuelto por un check_* debe resolverse
-    por translated(). Un literal nuevo sin traducir hace fallar este test.
+    NO_CONNECTIVITY_MESSAGE (ahora funcion, no cadena congelada) y todo
+    str devuelto por un check_* debe resolverse por translated(); todo
+    ``raise`` con texto para el usuario (los ValueError de appearance, que
+    Calamares muestra) tambien; y THEME_PAGE_MODES deben ser claves de la
+    tabla, no texto en español. Un literal nuevo sin traducir hace fallar.
     """
     for label, path in _I18N_MODULE_SOURCES.items():
         tree = _ast.parse(path.read_text(encoding="utf-8"))
@@ -424,16 +539,111 @@ def test_no_user_string_bypasses_translated():
             assert _function_uses_translated(tree, "connectivity_gate")
             assert _function_uses_translated(tree, "packages_for_profiles")
             assert _function_uses_translated(tree, "run")
-            # NO_CONNECTIVITY_MESSAGE se define via translated().
-            found = False
+            assert _function_uses_translated(tree, "no_connectivity_message")
+            assert _function_uses_translated(tree, "NO_CONNECTIVITY_MESSAGE")
+            # NO_CONNECTIVITY_MESSAGE ya no es una cadena congelada.
             for node in _ast.walk(tree):
                 if (isinstance(node, _ast.Assign)
                         and any(getattr(t, "id", "") == "NO_CONNECTIVITY_MESSAGE"
                                 for t in node.targets)):
-                    found = True
-                    assert any(
-                        isinstance(child, _ast.Call)
-                        and getattr(child.func, "id", "") == "translated"
-                        for child in _ast.walk(node.value)
-                    ), "NO_CONNECTIVITY_MESSAGE no usa translated()"
-            assert found, "NO_CONNECTIVITY_MESSAGE desaparecio del modulo"
+                    raise AssertionError(
+                        "NO_CONNECTIVITY_MESSAGE debe ser funcion, "
+                        "no asignacion congelada")
+            for node in _ast.walk(tree):
+                if (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                        and node.name == "run"):
+                    assert _returns_through_translated(node), (
+                        "software.run devuelve un literal sin traducir")
+        if label == "appearance":
+            for name in ("normalize_accent", "validate_mode",
+                         "theme_label_to_mode", "theme_page_labels",
+                         "theme_mode_label"):
+                assert _function_uses_translated(tree, name), (
+                    f"appearance.{name} no usa translated()")
+            for node in _ast.walk(tree):
+                if (isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+                        and node.name in ("normalize_accent", "validate_mode",
+                                          "theme_label_to_mode")):
+                    assert _raises_through_translated(node), (
+                        f"appearance.{node.name} lanza sin translated()")
+            # Las etiquetas de la pagina QML son claves, no texto.
+            assert _theme_page_modes_are_keys(tree), (
+                "THEME_PAGE_MODES debe contener claves de traduccion, "
+                "no texto en español")
+    # Guardarraíl generico: cualquier raise con texto en los tres modulos
+    # debe pasar por translated(). Si mañana alguien añade un
+    # `raise ValueError("...")` en español, este test se rompe.
+    for label, path in _I18N_MODULE_SOURCES.items():
+        tree = _ast.parse(path.read_text(encoding="utf-8"))
+        for node in _ast.walk(tree):
+            if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                if any(isinstance(child, _ast.Raise)
+                       for child in _ast.walk(node)):
+                    assert _raises_through_translated(node), (
+                        f"{label}.{node.name} lanza sin translated()")
+
+
+def _raises_through_translated(func_node):
+    """Todo raise con texto para el usuario pasa por translated().
+
+    Acepta ``raise ValueError(translated(...))`` y
+    ``raise ValueError(translated(...).format(...))``; cualquier f-string
+    o literal con pinta de mensaje fuera de translated() falla.
+    """
+    for node in _ast.walk(func_node):
+        if not isinstance(node, _ast.Raise) or node.exc is None:
+            continue
+        exc = node.exc
+        translated_calls = [
+            child for child in _ast.walk(exc)
+            if (isinstance(child, _ast.Call)
+                and getattr(child.func, "id", "") == "translated")
+        ]
+        if not translated_calls:
+            return False
+        # Un f-string en el raise es texto sin traducir (el codigo usa
+        # translated(...).format(...), nunca f-strings para mensajes).
+        if any(isinstance(child, _ast.JoinedStr)
+               for child in _ast.walk(exc)):
+            return False
+        # Literales con pinta de mensaje fuera de translated() tampoco valen.
+        translated_args = set()
+        for call in translated_calls:
+            for arg in call.args:
+                if (isinstance(arg, _ast.Constant)
+                        and isinstance(arg.value, str)):
+                    translated_args.add(id(arg))
+        for child in _ast.walk(exc):
+            if (isinstance(child, _ast.Constant)
+                    and isinstance(child.value, str)
+                    and " " in child.value.strip()
+                    and id(child) not in translated_args):
+                return False
+    return True
+
+
+def _theme_page_modes_are_keys(tree):
+    """THEME_PAGE_MODES solo contiene claves existentes en ES y EN."""
+    for node in _ast.walk(tree):
+        if (isinstance(node, _ast.Assign)
+                and any(getattr(t, "id", "") == "THEME_PAGE_MODES"
+                        for t in node.targets)):
+            elements = []
+            if isinstance(node.value, (_ast.Tuple, _ast.List)):
+                elements = node.value.elts
+            else:
+                return False
+            if not elements:
+                return False
+            for item in elements:
+                if not (isinstance(item, _ast.Constant)
+                        and isinstance(item.value, str)
+                        and "." in item.value):
+                    return False
+                key = item.value
+                if key not in i18n.TRANSLATIONS["es"]:
+                    return False
+                if key not in i18n.TRANSLATIONS["en"]:
+                    return False
+            return True
+    return False
