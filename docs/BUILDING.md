@@ -24,14 +24,18 @@ Tres suites, todas verificadas (salidas resumidas bajo cada comando):
 
 ```bash
 python -m pytest tests -v
-# 90 passed: cabeceras SPDX, config de Hyprland, perfil de la ISO, Calamares y punto de entrada del shell
+# 189 passed: cabeceras SPDX, config de Hyprland, perfil de la ISO, Calamares
+# (settings, comportamiento, arranque dual, bootloader, post-instalación,
+# tema del greeter) y punto de entrada del shell
 # (en este contenedor: /tmp/opencode/nimbus-venv/bin/python -m pytest tests -v)
 
 PATH="$HOME/.local/bin:$PATH" bats tests/*.bats
 # 13 passed: keyring, firma, promoción testing -> stable y verificación
 
 QT_QPA_PLATFORM=offscreen QML2_IMPORT_PATH="$PWD/shell/src" /usr/lib/qt6/bin/qmltestrunner -input shell/tests
-# 17 passed: singletons Theme, Config y Translations (Qt 6.12.0)
+# 249 passed: singletons (Theme, Config, Translations, ShellController, Ipc,
+# Services, PolkitAgent), lib, superficies, Ajustes, Store, tour y fondos
+# (Qt 6.12.0)
 ```
 
 Y el validador SPDX suelto:
@@ -146,13 +150,15 @@ El harness (`tests/integration/boot_live.sh`, con `tests/integration/lib.sh` y `
 
 Diferencia `-accel kvm` / `-accel tcg`: con KVM la VM usa virtualización por hardware (rápida); sin `/dev/kvm` QEMU cae a `tcg`, emulación pura por software (lenta: 5–10 minutos solo el arranque). El harness elige solo: `kvm` si `/dev/kvm` existe y es escribible, `tcg` si no. En este equipo `/dev/kvm` **existe** (verificado); en los runners alojados de GitHub **no** existe, así que la CI usará `tcg`. Además la VM usa `-cpu max`: el modelo por defecto (`qemu64`) no expone AVX2 y los binarios x86-64-v3 abortarían con SIGILL dentro de la VM.
 
+Nota honesta: el harness verifica que la sesión live arranca (marcador `NIMBUS_LIVE_READY`, que solo se escribe cuando Hyprland y el shell responden de verdad). El escritorio de verdad —las superficies del M1 en pantalla— solo se verá cuando la integración del M1 termine; no hay capturas porque nadie lo ha visto aún.
+
 No toques tu instalación para probar: el desarrollo ocurre en el repo, las pruebas de integración en VM y las de hardware real en disco externo USB, nunca sobre la instalación CachyOS principal.
 
 ## Instalar en una VM o en un disco de repuesto
 
-El instalador existe como configuración de Calamares más tres módulos propios (`installer/calamares/modules/nimbus-appearance`, `nimbus-software`, `nimbus-verify`, con su secuencia en `installer/calamares/settings.conf`): elige modo y acento, instala por perfiles de software y verifica el sistema instalado. Cubierto por `tests/test_calamares_settings.py` y `tests/test_calamares_behavior.py`.
+El instalador existe como configuración de Calamares más seis módulos propios (`installer/calamares/modules/`: `nimbus-dualboot`, `nimbus-appearance`, `nimbus-software`, `nimbus-bootloader`, `nimbus-postinstall`, `nimbus-verify`, con su secuencia en `installer/calamares/settings.conf` y su tabla i18n ES/EN en `installer/calamares/nimbus_i18n.py`), herramientas (`installer/tools/`: `nimbus-postinstall`, `nimbus-partitionsafe`, `nimbus-snapshots`) y tema de SDDM (`installer/greeter/nimbus-greeter/`). Cubierto por `tests/test_calamares_settings.py`, `tests/test_calamares_behavior.py`, `tests/test_dualboot_safety.py`, `tests/test_bootloader_rollback.py`, `tests/test_postinstall.py` y `tests/test_greeter_theme.py`. El orden de los módulos y por qué importa se explica en [ARCHITECTURE.md](ARCHITECTURE.md) (§ "Instalador Calamares").
 
-Lo que sigue sin existir: arranque dual implementado, Secure Boot (llega en M6; las betas usan MOK provisional) y publicación del repo de paquetes.
+Lo que sigue sin existir: el perfil gameready completo (el instalador ya ofrece el perfil de software `gaming`, pero la sesión gaming con VRR/HDR, energía e híbridos es M3), Secure Boot (llega en M6; las betas usan MOK provisional) y la publicación del repo de paquetes.
 
 Reglas vigentes desde ya (documento de diseño §4.11): nunca pruebes sobre tu instalación principal; en VM para integración, en USB externo para hardware real (drivers NVIDIA, suspensión, batería). El dual-boot con Windows llevará salvaguardas (copia de la tabla de particiones, aviso de Fast Boot, verificación post-instalación) y se marcará como beta en v1.
 

@@ -8,24 +8,27 @@ Está pensada para personas que nunca van a abrir una terminal. El objetivo: un 
 
 ## Estado
 
-El proyecto está en el hito **M0 ("cimientos")** y ya hay un sistema mínimo que se construye y se prueba de extremo a extremo, pero **todavía no es un sistema utilizable**: el escritorio visual (barra, Dock, Spotlight, Centro de Control) está planificado para el Plan 2 / M1 y no existe.
+El proyecto ha completado los hitos **M0 ("cimientos")**, **M1 (shell)** y **M2 (instalador)**: el código de los tres está en el repo con tests. El escritorio visual (barra, Dock, Spotlight, Centro de Control, notificaciones, switcher, capturas, QuickLook, fondos, bloqueo, Ajustes, Store, tour de bienvenida) y el instalador completo (seis módulos de Calamares, herramientas de post-instalación y tema de SDDM) existen como código verificado por tests, no como maquetas.
 
-**Lo que funciona hoy** (verificado con los tres suites de tests: 90 pytest + 13 bats + 17 QML, ver salidas en [docs/BUILDING.md](docs/BUILDING.md)):
+**Sé honesto con lo verificado aquí:** el arranque de la sesión live en la ISO se verifica con QEMU (el harness espera el marcador `NIMBUS_LIVE_READY`, que solo se escribe cuando Hyprland y el shell responden de verdad). **El escritorio de verdad solo se verá cuando la integración del M1 termine**: nadie ha visto aún estas pantallas en una sesión real, y no se promete ninguna captura que no exista.
 
-- Andamiaje del monorepo, control de licencias SPDX (`tools/check_spdx.py`, 34 ficheros) y CI (`ci.yml` con lint + tests, `iso.yml` que construye la ISO y la arranca en QEMU).
+**Lo que funciona hoy** (verificado con los tres suites de tests: 189 pytest + 13 bats + 249 QML, ver salidas en [docs/BUILDING.md](docs/BUILDING.md)):
+
+- Andamiaje del monorepo, control de licencias SPDX (`tools/check_spdx.py`, verificado con `python tools/check_spdx.py --root .`) y CI (`ci.yml` con lint + tests, `iso.yml` que construye la ISO y la arranca en QEMU).
 - Cadena de confianza: generación del keyring (`tools/genkeyring.sh`), firma offline (`tools/sign_repo.sh`) y promoción `testing` → `stable` con verificación (`tools/promote.sh`, `tools/verify_repo.sh`).
 - Paquetes `nimbus-keyring`, `nimbus-shell` y `nimbus-dots` con sus PKGBUILDs.
-- Sistema de diseño del shell: singletons `Theme`, `Config` y `Translations` con tests QML.
+- Shell completo (M1): singletons `Theme`, `Config`, `Translations`, `ShellController`, `Ipc`, `Services` y `PolkitAgent`; biblioteca de componentes (`shell/src/Nimbus/lib/`); superficies (`shell/src/Nimbus/modules/`: TopBar, Dock, Spotlight, Centro de Control, notificaciones, switcher, capturas, QuickLook, fondos, bloqueo); aplicaciones (`shell/src/Nimbus/apps/`: Ajustes, Store, tour). Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (§ "Arquitectura del shell").
 - Configuración de Hyprland (`dots/hypr/hyprland.lua`, API Lua nativa): layout flotante, atajos estilo macOS y sesión de emergencia con terminal (`SUPER + MAYÚS + E`).
 - Perfil de ISO para **archiso 91** (`iso/profiles/nimbus/`) y constructor (`iso/build.sh --local-repo`), con banco de pruebas rootless (`tools/build-iso-rootless.sh`).
-- Instalador Calamares con los módulos `nimbus-appearance`, `nimbus-software` y `nimbus-verify`.
+- Instalador Calamares (M2) con los seis módulos propios (`nimbus-dualboot`, `nimbus-appearance`, `nimbus-software`, `nimbus-bootloader`, `nimbus-postinstall`, `nimbus-verify`), tabla i18n ES/EN (`installer/calamares/nimbus_i18n.py`), herramientas (`installer/tools/`: `nimbus-postinstall`, `nimbus-partitionsafe`, `nimbus-snapshots`) y tema de SDDM (`installer/greeter/nimbus-greeter/`). Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (§ "Instalador Calamares").
 - Harness de integración en QEMU (`tests/integration/boot_live.sh`) que arranca la ISO y espera el marcador `NIMBUS_LIVE_READY`.
 - Documentación: arquitectura, guía de build, guía de contribución, roadmap (este fichero y `docs/`).
 
 **Lo que no existe todavía** (sin adornos):
 
-- El shell visual en sí: barra, Dock, Spotlight, Centro de Control, notificaciones y resto de módulos (Plan 2 / M1).
-- La Nimbus Store, los Ajustes del sistema, el perfil gameready, el arranque dual implementado, Secure Boot y la publicación del repo de paquetes (el repo `nimbus` aún no está alojado; la ISO se construye contra un repo local de bootstrap, ver [docs/BUILDING.md](docs/BUILDING.md)).
+- El perfil gameready completo (M3): sesión gaming, VRR/HDR, gestión de energía y gráficos híbridos. El instalador ya ofrece un perfil de software `gaming` (lista de paquetes en `nimbus-software.conf`), pero eso no es el perfil de un clic.
+- Secure Boot con shim firmado (M6; las betas usan MOK provisional), el sistema de actualizaciones maduro (`nimbus-update`, M3) y la publicación del repo de paquetes (el repo `nimbus` aún no está alojado; la ISO se construye contra un repo local de bootstrap, ver [docs/BUILDING.md](docs/BUILDING.md)).
+- La verificación visual del escritorio en una sesión real (ver nota sobre QEMU arriba).
 
 ## Estructura del repositorio
 
@@ -33,11 +36,11 @@ El proyecto está en el hito **M0 ("cimientos")** y ya hay un sistema mínimo qu
 |------------|-----------|
 | `tools/` | Scripts de la cadena de firma y promoción (bash + Python). |
 | `packages/` | PKGBUILDs del repo `nimbus` y el documento del modelo de pins. |
-| `shell/` | Shell QML/Quickshell: singletons `Theme`, `Config`, `Translations`, punto de entrada y tests. |
+| `shell/` | Shell Quickshell/QML: singletons (`Theme`, `Config`, `Translations`, `ShellController`, `Ipc`, `Services`, `PolkitAgent`), biblioteca (`lib/`), superficies (`modules/`) y aplicaciones (`apps/`: Ajustes, Store, tour); punto de entrada `shell.qml` y tests en `shell/tests/` (16 ficheros). |
 | `dots/` | Configuración de Hyprland (layout flotante, atajos estilo macOS, sesión de emergencia) y defaults del sistema. |
 | `iso/` | Perfil archiso 91 y constructor de la ISO (`build.sh --local-repo`). |
-| `installer/` | Configuración de Calamares y módulos propios (`nimbus-appearance`, `nimbus-software`, `nimbus-verify`). |
-| `tests/` | Tests pytest (90) y bats (13); `tests/integration/` con el harness QEMU (`boot_live.sh`, espera `NIMBUS_LIVE_READY`). |
+| `installer/` | Configuración de Calamares (`settings.conf`), seis módulos propios (`nimbus-dualboot`, `nimbus-appearance`, `nimbus-software`, `nimbus-bootloader`, `nimbus-postinstall`, `nimbus-verify`), tabla i18n (`nimbus_i18n.py`), herramientas (`tools/`) y tema de SDDM (`greeter/nimbus-greeter/`). |
+| `tests/` | Tests pytest (189) y bats (13); `tests/integration/` con el harness QEMU (`boot_live.sh`, espera `NIMBUS_LIVE_READY`). |
 | `docs/` | Índice, arquitectura, guía de construcción, roadmap y documentos de diseño. |
 | `third_party/` | Código vendorizado de terceros (MIT); hoy solo existe como convención documentada: el directorio no existe aún en el árbol. |
 | `.github/` | Workflows de CI (`ci.yml`: lint + tests; `iso.yml`: construye la ISO y la arranca en QEMU). |

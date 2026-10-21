@@ -12,7 +12,7 @@ Orden de lectura recomendado. Los enlaces son relativos y funcionan en GitHub.
 
 ## Comprender el sistema
 
-4. [ARCHITECTURE.md](ARCHITECTURE.md) — capas, modelo de pins, repo y firma, cadena de confianza y arquitectura del shell.
+4. [ARCHITECTURE.md](ARCHITECTURE.md) — capas, modelo de pins, repo y firma, cadena de confianza, arquitectura del shell (singletons, IPC, superficies) e instalador Calamares (módulos, orden e i18n).
 5. [BUILDING.md](BUILDING.md) — guía de construcción: ISO local, QEMU, instalación en VM y resolución de problemas.
 6. [ROADMAP.md](ROADMAP.md) — hitos M0…M6, qué entrega cada uno y su criterio de salida.
 
