@@ -34,6 +34,17 @@ jobs:
           Server = https://mirror.bali0531.hu/repo/$arch/$repo
           Server = https://cdn77.cachyos.org/repo/$arch/$repo
           EOF
+      - name: Importar la clave de CachyOS
+        # El contenedor es archlinux:latest: trae archlinux-keyring pero NO la
+        # clave maestra de CachyOS (882DCFE48E2051D48E2562ABF3B607488DB35A47),
+        # que es la que firma su base de datos y sus paquetes (linux-cachyos va
+        # ahi). Sin importarla, `pacman -Sy` aborta con
+        #   error: cachyos: key "882DCFE..." is unknown
+        # y el job entero se cae.
+        run: |
+          pacman-key --init
+          pacman-key --recv-keys 882DCFE48E2051D48E2562ABF3B607488DB35A47
+          pacman-key --lsign-key 882DCFE48E2051D48E2562ABF3B607488DB35A47
       - name: Instalar dependencias
         run: |
           pacman --config /etc/pacman.conf -Sy --noconfirm --needed \

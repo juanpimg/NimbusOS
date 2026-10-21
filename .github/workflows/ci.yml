@@ -24,11 +24,13 @@ jobs:
       - name: Shellcheck
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
-          sh_files="$(git ls-files '*.sh')"
           # -x: sigue los ficheros que se|sourcean, para que tambien se
           # comprueben. Sin -x, shellcheck avisa SC1091 y sale distinto de 0
           # (la CI corre con `set -e`, asi que un info tumba el job).
-          if [ -n "$sh_files" ]; then shellcheck -x $sh_files; fi
+          # xargs en vez de una variable sin comillas: actionlint tambien
+          # analiza este bloque con shellcheck y SC2086 (palabras sin comillas)
+          # lo reportaria como problema.
+          git ls-files '*.sh' | xargs -r shellcheck -x
 
   test:
     runs-on: ubuntu-latest
@@ -69,7 +71,11 @@ jobs:
       - name: Actionlint
         run: |
           actionlint -version
-          actionlint
+          # actionlint busca el proyecto subiendo desde el directorio actual y
+          # aborta con "no project was found in any parent directories" si no
+          # encuentra .github/workflows. Pasarle los ficheros por `git ls-files`
+          # lo hace independiente del directorio de trabajo.
+          git ls-files '.github/workflows/*.yml' | xargs -r actionlint
       - name: Tests Python
         run: python -m pytest tests -v
       - name: Tests Bats
