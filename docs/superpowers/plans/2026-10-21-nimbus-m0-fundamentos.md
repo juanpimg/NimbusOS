@@ -578,12 +578,20 @@ Script bash con `set -euo pipefail`. Comportamiento:
    pkgs=("$TO"/*.pkg.tar.*)
    shopt -u nullglob
    if [ ${#pkgs[@]} -gt 0 ]; then
-       repo-add "$TO/nimbus.db" "${pkgs[@]}"
-   else
-       repo-add "$TO/nimbus.db"
+       repo-add "$TO/nimbus.db.tar.gz" "${pkgs[@]}"
    fi
    ```
+   **La base de datos se llama `nimbus.db.tar.gz`, no `nimbus.db`.** pacman 7 rechaza
+   `nimbus.db` con el error "does not have a valid database archive extension". `repo-add`
+   crea el archivo `nimbus.db.tar.gz` y un **symlink** `nimbus.db` -> `nimbus.db.tar.gz`;
+   pacman sigue leyendo la base como `nimbus.db` y la firma como `nimbus.db.sig`, asi que
+   el contrato de `tools/sign_repo.sh` (busca el primer `*.db` lexicografico) se mantiene.
+
    `repo-add` requiere el paquete `repo` (`pacman -S repo`). Si no está disponible, el script imprime `repo-add no encontrado: instala el paquete repo` y sale con 1.
+
+   **Si no hay paquetes que promover, la DB del destino NO se toca**: `repo-add` con cero
+   paquetes responde "No changes made to package database" y no crea ningun archivo, y un
+   tar vacio manufactured no es una base de datos valida para pacman.
 5. Firma la DB con `tools/sign_repo.sh --repo "$TO" --gpgdir "$GPGDIR" --key "$KEY"`.
 
 **Nota:** el test usa `.pkg.tar.gz` (no `.zst`) porque `repo-add` y `pacman` aceptan ambos, pero `.zst` requiere `zstd`. Mantén el soporte de ambos patrones en el glob: `*.pkg.tar.zst` y `*.pkg.tar.gz`.
@@ -1586,7 +1594,9 @@ if [ -n "$LOCAL_REPO" ]; then
     echo "[nimbus] compilando $name"
     ( cd "$pkgdir" && makepkg --nodeps --noconfirm --packagelist "$REPO_DIR" >/dev/null )
   done
-  repo-add "$REPO_DIR/nimbus.db" "$REPO_DIR"/*.pkg.tar.*
+  # pacman 7 exige una extension de archivo valida: repo-add crea
+  # nimbus.db.tar.gz y el symlink nimbus.db -> nimbus.db.tar.gz.
+  repo-add "$REPO_DIR/nimbus.db.tar.gz" "$REPO_DIR"/*.pkg.tar.*
   mkdir -p "$WORK/profile/overlay/run/archiso/bootmnt"
   cp -r "$REPO_DIR" "$WORK/profile/overlay/run/archiso/bootmnt/nimbus-repo"
 fi
