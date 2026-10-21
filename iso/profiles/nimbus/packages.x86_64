@@ -26,6 +26,7 @@ linux-firmware-realtek
 mkinitcpio
 mkinitcpio-archiso
 nimbus-dots
+nimbus-installer
 nimbus-shell
 pacman
 pacman-mirrorlist

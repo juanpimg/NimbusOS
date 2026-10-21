@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-import configparser
 import importlib.util
 import pathlib
 import sys
 
 import pytest
+import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CALAMARES = ROOT / "installer" / "calamares"
@@ -46,18 +46,30 @@ EXPECTED_SEQUENCE = [
 EXPECTED_PROFILES = {"base", "gaming", "creative", "development", "communication", "office"}
 
 
+def _settings():
+    """Calamares lee este fichero con un parser YAML, no con INI."""
+    return yaml.safe_load(SETTINGS.read_text(encoding="utf-8"))
+
+
 def _sequence():
-    parser = configparser.ConfigParser()
-    parser.read(SETTINGS, encoding="utf-8")
-    return [
-        line.strip()
-        for line in parser["sequence"]["modules"].strip().splitlines()
-        if line.strip()
-    ]
+    return [step["module"] for step in _settings()["sequence"]]
 
 
 def test_settings_conf_exists():
     assert SETTINGS.is_file()
+
+
+def test_settings_conf_is_valid_yaml_for_calamares():
+    # Calamares::Settings usa YAML::LoadFile: un settings.conf en INI (o en
+    # YAML invalido) hace que el instalador NO ARRANQUE. Esta es la guarda que
+    # faltaba cuando el fichero estaba en formato INI.
+    data = yaml.safe_load(SETTINGS.read_text(encoding="utf-8"))
+    assert isinstance(data, dict)
+    for key in ("sequence", "general", "locale", "partition", "users"):
+        assert key in data, f"falta la seccion {key}"
+    assert isinstance(data["sequence"], list)
+    for step in data["sequence"]:
+        assert "module" in step, step
 
 
 def test_module_sequence_is_the_expected_one():
@@ -132,9 +144,7 @@ def test_installer_requires_connectivity_step():
 
 
 def _partition_section():
-    parser = configparser.ConfigParser()
-    parser.read(SETTINGS, encoding="utf-8")
-    return parser["partition"]
+    return _settings()["partition"]
 
 
 def test_default_filesystem_is_btrfs():
@@ -144,12 +154,8 @@ def test_default_filesystem_is_btrfs():
 
 def test_btrfs_is_offered_first():
     """D2: Btrfs abre la lista de sistemas de ficheros ofertados."""
-    offered = [
-        line.strip()
-        for line in _partition_section()["availableFileSystemTypes"]
-        .strip().splitlines()
-        if line.strip()
-    ]
+    offered = _partition_section()["availableFileSystemTypes"]
+    assert isinstance(offered, list), "en YAML la lista es una lista, no un texto"
     assert offered[0] == "btrfs"
     assert "ext4" in offered  # sigue disponible, con aviso (sin rollback)
 

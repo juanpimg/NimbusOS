@@ -1,10 +1,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 name: iso
 
+# MANUAL A PROPOSITO: la construccion de la ISO necesita privilegios que el
+# contenedor de GitHub Actions no tiene, y se ha comprobado que NO hay forma
+# de conseguirlos:
+#   - mount: .../airootfs/proc: permission denied (el contenedor ENMASCARA
+#     rutas de /proc y el kernel no permite montar un /proc nuevo en ese
+#     espacio de nombres de montajes), y
+#   - unshare: unshare failed: Operation not permitted, tanto con
+#     `--mount --pid` como con `--user` (el contenedor no tiene CAP_SYS_ADMIN
+#     ni permite user namespaces).
+# Un job que falla siempre por el entorno NO es un job: es ruido que hace
+# creer al repositorio que la ISO esta rota cuando lo que no puede es el
+# contenedor. La ISO se construye en una maquina con root (ver docs/BUILDING.md)
+# y se verifica con `bash tests/integration/boot_live.sh`.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   build-and-boot:
