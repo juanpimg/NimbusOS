@@ -8,11 +8,13 @@ con ``libcalamares is None``) en vez de buscar subcadenas en el fuente.
 import importlib.util
 import json
 import pathlib
+import sys
 
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MODULES = ROOT / "installer" / "calamares" / "modules"
+I18N_PATH = ROOT / "installer" / "calamares" / "nimbus_i18n.py"
 
 
 def _load(name, relative):
@@ -21,6 +23,14 @@ def _load(name, relative):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+_i18n_spec = importlib.util.spec_from_file_location(
+    "nimbus_i18n", I18N_PATH)
+i18n = importlib.util.module_from_spec(_i18n_spec)
+sys.modules.setdefault("nimbus_i18n", i18n)
+_i18n_spec.loader.exec_module(sys.modules["nimbus_i18n"])
+i18n = sys.modules["nimbus_i18n"]
 
 
 sw = _load("nimbus_software_under_test",
@@ -224,3 +234,206 @@ def test_run_always_returns_none_and_stores_serializable(monkeypatch):
                       "bad-thing": [False, "haz X para arreglarlo"]}
     json.dumps(stored)  # debe ser serializable, sin ValueError
     assert any("bad-thing" in warning for warning in fake.utils.warnings)
+
+
+# --- nimbus i18n (ES/EN desde el primer dia) ---------------------------------
+
+import ast as _ast
+import re as _re
+
+_I18N_MODULE_SOURCES = {
+    "appearance": MODULES / "nimbus-appearance" / "nimbus-appearance.py",
+    "software": MODULES / "nimbus-software" / "nimbus-software.py",
+    "verify": MODULES / "nimbus-verify" / "nimbus-verify.py",
+}
+
+
+def _translated_literal_keys(path):
+    """Claves literales pasadas a translated() en un fichero."""
+    tree = _ast.parse(path.read_text(encoding="utf-8"))
+    keys = set()
+    for node in _ast.walk(tree):
+        if (isinstance(node, _ast.Call)
+                and getattr(node.func, "id", "") == "translated"
+                and node.args
+                and isinstance(node.args[0], _ast.Constant)
+                and isinstance(node.args[0].value, str)):
+            keys.add(node.args[0].value)
+    return keys
+
+
+def _key_constant_values(path):
+    """Valores de asignaciones *_KEY = "..." que sean claves i18n.
+
+    Solo cuentan los valores con pinta de clave de traduccion (con punto,
+    p. ej. ``software.no_connectivity``); claves de globalstorage como
+    ``nimbusSoftwareOfflineAccepted`` no son cadenas visibles.
+    """
+    tree = _ast.parse(path.read_text(encoding="utf-8"))
+    values = set()
+    for node in _ast.walk(tree):
+        if isinstance(node, _ast.Assign):
+            for target in node.targets:
+                if (isinstance(target, _ast.Name)
+                        and target.id.endswith("_KEY")
+                        and isinstance(node.value, _ast.Constant)
+                        and isinstance(node.value.value, str)
+                        and "." in node.value.value):
+                    values.add(node.value.value)
+    return values
+
+
+def _all_used_keys():
+    keys = set()
+    for path in _I18N_MODULE_SOURCES.values():
+        keys |= _translated_literal_keys(path)
+        keys |= _key_constant_values(path)
+    return keys
+
+
+def test_every_visible_string_exists_in_es_and_en():
+    keys = _all_used_keys()
+    assert keys, "no se detecto ninguna clave translated() en los modulos"
+    for key in sorted(keys):
+        assert key in i18n.TRANSLATIONS["es"], f"falta ES: {key}"
+        assert key in i18n.TRANSLATIONS["en"], f"falta EN: {key}"
+        assert isinstance(i18n.TRANSLATIONS["es"][key], str)
+        assert i18n.TRANSLATIONS["es"][key].strip()
+        assert isinstance(i18n.TRANSLATIONS["en"][key], str)
+        assert i18n.TRANSLATIONS["en"][key].strip()
+
+
+def test_pretty_and_connectivity_strings_come_from_the_table():
+    assert ap.pretty_name("es") == i18n.TRANSLATIONS["es"]["appearance.pretty_name"]
+    assert ap.pretty_name("en") == i18n.TRANSLATIONS["en"]["appearance.pretty_name"]
+    assert ap.pretty_status_message("es") == i18n.TRANSLATIONS["es"]["appearance.pretty_status"]
+    assert ap.pretty_status_message("en") == i18n.TRANSLATIONS["en"]["appearance.pretty_status"]
+    assert sw.pretty_name("es") == i18n.TRANSLATIONS["es"]["software.pretty_name"]
+    assert sw.pretty_name("en") == i18n.TRANSLATIONS["en"]["software.pretty_name"]
+    assert sw.pretty_status_message("es") == i18n.TRANSLATIONS["es"]["software.pretty_status"]
+    assert sw.pretty_status_message("en") == i18n.TRANSLATIONS["en"]["software.pretty_status"]
+    assert vv.pretty_name("es") == i18n.TRANSLATIONS["es"]["verify.pretty_name"]
+    assert vv.pretty_name("en") == i18n.TRANSLATIONS["en"]["verify.pretty_name"]
+    assert vv.pretty_status_message("es") == i18n.TRANSLATIONS["es"]["verify.pretty_status"]
+    assert vv.pretty_status_message("en") == i18n.TRANSLATIONS["en"]["verify.pretty_status"]
+    assert sw.no_connectivity_message("es") == i18n.TRANSLATIONS["es"]["software.no_connectivity"]
+    assert sw.no_connectivity_message("en") == i18n.TRANSLATIONS["en"]["software.no_connectivity"]
+    assert sw.NO_CONNECTIVITY_MESSAGE in (
+        i18n.TRANSLATIONS["es"]["software.no_connectivity"],
+        i18n.TRANSLATIONS["en"]["software.no_connectivity"],
+    )
+
+
+def test_unknown_key_returns_the_key_itself():
+    assert i18n.translated("this.key.does.not.exist") == "this.key.does.not.exist"
+    assert i18n.translated("this.key.does.not.exist", "es") == "this.key.does.not.exist"
+    assert i18n.translated("this.key.does.not.exist", "en") == "this.key.does.not.exist"
+
+
+def test_unknown_locale_falls_back_to_english():
+    key = "appearance.pretty_name"
+    for weird in ("xx", "fr", "C", "", "de_DE.UTF-8"):
+        assert i18n.translated(key, weird) == i18n.TRANSLATIONS["en"][key], weird
+
+
+def test_active_locale_defaults_to_english():
+    assert i18n.active_locale(env={}) == "en"
+    assert i18n.active_locale(env={"LANG": "C.UTF-8", "LC_ALL": "", "LANGUAGE": ""}) == "en"
+    assert i18n.active_locale(env={"LANG": "fr_FR.UTF-8"}) == "en"
+    assert i18n.active_locale(env={"LANG": "es_ES.UTF-8"}) == "es"
+    assert i18n.active_locale(env={"LC_ALL": "en_US.UTF-8"}) == "en"
+    assert i18n.active_locale(env={"LANGUAGE": "es"}) == "es"
+
+
+def _returns_through_translated(func_node):
+    """Todo str devuelto por la funcion pasa por translated().
+
+    Acepta ``return translated(...)`` y ``return translated(...).format(...)``;
+    cualquier otro literal (``return "..."``, f-string, ``%``) falla.
+    """
+    for node in _ast.walk(func_node):
+        if not isinstance(node, _ast.Return) or node.value is None:
+            continue
+        value = node.value
+        candidates = []
+        if isinstance(value, _ast.Tuple):
+            candidates = list(value.elts)
+        elif isinstance(value, _ast.Dict):
+            candidates = list(value.values)
+        else:
+            candidates = [value]
+        for item in candidates:
+            if isinstance(item, _ast.Constant) and isinstance(item.value, str):
+                # Solo importan las cadenas de usuario; las claves internas
+                # ("", "online", "base"...) no son visibles. Si el literal
+                # parece un mensaje (contiene un espacio), debe traducirse.
+                if " " in item.value.strip():
+                    return False
+            elif isinstance(item, _ast.JoinedStr):
+                return False
+            elif isinstance(item, _ast.Call):
+                func = item.func
+                if getattr(func, "id", "") == "translated":
+                    continue
+                if (isinstance(func, _ast.Attribute)
+                        and func.attr == "format"
+                        and isinstance(func.value, _ast.Call)
+                        and getattr(func.value.func, "id", "") == "translated"):
+                    continue
+                # Otras llamadas (str(...), repr, llamadas internas): no son
+                # literales de usuario; se revisan por separado abajo.
+                continue
+            elif isinstance(item, (_ast.Name, _ast.Constant)):
+                continue
+    return True
+
+
+def _function_uses_translated(tree, name):
+    for node in _ast.walk(tree):
+        if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)) and node.name == name:
+            for child in _ast.walk(node):
+                if (isinstance(child, _ast.Call)
+                        and getattr(child.func, "id", "") == "translated"):
+                    return True
+    return False
+
+
+def test_no_user_string_bypasses_translated():
+    """Ninguna cadena visible queda fuera del mecanismo i18n.
+
+    Revisa el AST de los tres modulos: todo pretty_name/pretty_status_message,
+    NO_CONNECTIVITY_MESSAGE y todo str devuelto por un check_* debe resolverse
+    por translated(). Un literal nuevo sin traducir hace fallar este test.
+    """
+    for label, path in _I18N_MODULE_SOURCES.items():
+        tree = _ast.parse(path.read_text(encoding="utf-8"))
+        for node in _ast.walk(tree):
+            if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                continue
+            # Los check_* con mensajes de usuario son los de verificacion;
+            # check_connectivity (sonda de red) no devuelve texto visible.
+            is_user_check = node.name.startswith("check_") and label == "verify"
+            if node.name in ("pretty_name", "pretty_status_message") or is_user_check:
+                assert _function_uses_translated(tree, node.name), (
+                    f"{label}.{node.name} no usa translated()"
+                )
+                assert _returns_through_translated(node), (
+                    f"{label}.{node.name} devuelve un literal sin traducir"
+                )
+        if label == "software":
+            assert _function_uses_translated(tree, "connectivity_gate")
+            assert _function_uses_translated(tree, "packages_for_profiles")
+            assert _function_uses_translated(tree, "run")
+            # NO_CONNECTIVITY_MESSAGE se define via translated().
+            found = False
+            for node in _ast.walk(tree):
+                if (isinstance(node, _ast.Assign)
+                        and any(getattr(t, "id", "") == "NO_CONNECTIVITY_MESSAGE"
+                                for t in node.targets)):
+                    found = True
+                    assert any(
+                        isinstance(child, _ast.Call)
+                        and getattr(child.func, "id", "") == "translated"
+                        for child in _ast.walk(node.value)
+                    ), "NO_CONNECTIVITY_MESSAGE no usa translated()"
+            assert found, "NO_CONNECTIVITY_MESSAGE desaparecio del modulo"

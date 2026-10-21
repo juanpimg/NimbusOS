@@ -15,6 +15,25 @@ try:  # Calamares provee libcalamares en el ISO live; ausente en CI/test.
 except ImportError:  # pragma: no cover - entorno sin Calamares
     libcalamares = None
 
+try:
+    from nimbus_i18n import active_locale, translated
+except ImportError:  # cargado por ruta (Calamares/test) sin paquete
+    import importlib.util as _importlib_util
+    import sys as _sys
+
+    _i18n_module = _sys.modules.get("nimbus_i18n")
+    if _i18n_module is None:
+        _i18n_path = (
+            pathlib.Path(__file__).resolve().parents[2] / "nimbus_i18n.py"
+        )
+        _i18n_spec = _importlib_util.spec_from_file_location(
+            "nimbus_i18n", _i18n_path)
+        _i18n_module = _importlib_util.module_from_spec(_i18n_spec)
+        _sys.modules["nimbus_i18n"] = _i18n_module
+        _i18n_spec.loader.exec_module(_i18n_module)
+    active_locale = _i18n_module.active_locale
+    translated = _i18n_module.translated
+
 VALID_MODES = ("light", "dark", "auto")
 
 # 12 presets de color de acento (hex RGB sin '#', 007AFF es el defecto).
@@ -143,12 +162,28 @@ def read_selection():
     }
 
 
-def pretty_name():
-    return "Apariencia"
+def _current_locale(locale=None):
+    """Idioma efectivo: parametro, ajuste del instalador o entorno."""
+    if locale is not None:
+        return locale
+    if libcalamares is not None:
+        try:
+            storage = libcalamares.globalstorage
+            for key in ("nimbusLocale", "locale", "lang"):
+                value = storage.value(key)
+                if value:
+                    return str(value)
+        except Exception:
+            pass
+    return active_locale()
 
 
-def pretty_status_message():
-    return "Configurando la apariencia de Nimbus."
+def pretty_name(locale=None):
+    return translated("appearance.pretty_name", _current_locale(locale))
+
+
+def pretty_status_message(locale=None):
+    return translated("appearance.pretty_status", _current_locale(locale))
 
 
 def write_appearance_conf(content, root="/"):

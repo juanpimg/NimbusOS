@@ -14,10 +14,28 @@ try:  # Calamares provee libcalamares en el ISO live; ausente en CI/test.
 except ImportError:  # pragma: no cover - entorno sin Calamares
     libcalamares = None
 
-NO_CONNECTIVITY_MESSAGE = (
-    "No hay conexión a Internet. Nimbus necesita conexión para descargar "
-    "los drivers y las aplicaciones que elijas."
-)
+try:
+    from nimbus_i18n import active_locale, translated
+except ImportError:  # cargado por ruta (Calamares/test) sin paquete
+    import importlib.util as _importlib_util
+    import pathlib as _pathlib
+    import sys as _sys
+
+    _i18n_module = _sys.modules.get("nimbus_i18n")
+    if _i18n_module is None:
+        _i18n_path = (
+            _pathlib.Path(__file__).resolve().parents[2] / "nimbus_i18n.py"
+        )
+        _i18n_spec = _importlib_util.spec_from_file_location(
+            "nimbus_i18n", _i18n_path)
+        _i18n_module = _importlib_util.module_from_spec(_i18n_spec)
+        _sys.modules["nimbus_i18n"] = _i18n_module
+        _i18n_spec.loader.exec_module(_i18n_module)
+    active_locale = _i18n_module.active_locale
+    translated = _i18n_module.translated
+
+NO_CONNECTIVITY_KEY = "software.no_connectivity"
+NO_CONNECTIVITY_MESSAGE = translated(NO_CONNECTIVITY_KEY)
 
 CONNECTIVITY_HOST = ("8.8.8.8", 53)
 CONNECTIVITY_TIMEOUT = 5
@@ -48,7 +66,28 @@ PROFILE_PACKAGES = {
 }
 
 
-def packages_for_profiles(profiles):
+def _current_locale(locale=None):
+    """Idioma efectivo: parametro, ajuste del instalador o entorno."""
+    if locale is not None:
+        return locale
+    if libcalamares is not None:
+        try:
+            storage = libcalamares.globalstorage
+            for key in ("nimbusLocale", "locale", "lang"):
+                value = storage.value(key)
+                if value:
+                    return str(value)
+        except Exception:
+            pass
+    return active_locale()
+
+
+def no_connectivity_message(locale=None):
+    """Mensaje accionable de falta de red en el idioma efectivo."""
+    return translated(NO_CONNECTIVITY_KEY, _current_locale(locale))
+
+
+def packages_for_profiles(profiles, locale=None):
     """Traduce perfiles marcados a la lista ordenada y sin duplicados.
 
     Los perfiles desconocidos se omiten con un aviso: nunca fallan
@@ -57,7 +96,9 @@ def packages_for_profiles(profiles):
     packages = []
     for profile in profiles:
         if profile not in PROFILE_PACKAGES:
-            message = f"perfil de software desconocido: {profile!r} (se omite)"
+            message = translated(
+                "software.unknown_profile",
+                _current_locale(locale)).format(profile=repr(profile))
             if libcalamares is not None:
                 libcalamares.utils.warning(message)
             warnings.warn(message, stacklevel=2)
@@ -119,7 +160,7 @@ def read_offline_accepted():
     return bool(value)
 
 
-def connectivity_gate(accepted_offline=False):
+def connectivity_gate(accepted_offline=False, locale=None):
     """Puerta de conectividad: decide con que perfiles continuar.
 
     Si hay red, continua con los perfiles elegidos. Si no hay red,
@@ -127,14 +168,15 @@ def connectivity_gate(accepted_offline=False):
     perfil ``base`` cuando el usuario lo acepta; en caso contrario
     senala que la instalacion no debe seguir descargando software.
     """
+    effective = _current_locale(locale)
     selected = read_selected_profiles()
     if check_connectivity():
         return {"online": True, "profiles": selected, "message": ""}
     if accepted_offline:
         return {"online": False, "profiles": ["base"],
-                "message": NO_CONNECTIVITY_MESSAGE}
+                "message": translated(NO_CONNECTIVITY_KEY, effective)}
     return {"online": False, "profiles": [],
-            "message": NO_CONNECTIVITY_MESSAGE}
+            "message": translated(NO_CONNECTIVITY_KEY, effective)}
 
 
 def install_packages(packages, runner=None):
@@ -152,23 +194,26 @@ def install_packages(packages, runner=None):
     return completed.returncode
 
 
-def pretty_name():
-    return "Software"
+def pretty_name(locale=None):
+    return translated("software.pretty_name", _current_locale(locale))
 
 
-def pretty_status_message():
-    return "Instalando el software seleccionado."
+def pretty_status_message(locale=None):
+    return translated("software.pretty_status", _current_locale(locale))
 
 
 def run():
     """Punto de entrada de Calamares."""
     # La aceptacion la escribe la pagina QML en el globalstorage; sin
     # leerla aqui la rama de solo-base seria inalcanzable en el flujo real.
-    gate = connectivity_gate(accepted_offline=read_offline_accepted())
+    locale = _current_locale()
+    gate = connectivity_gate(accepted_offline=read_offline_accepted(),
+                             locale=locale)
     if not gate["online"] and not gate["profiles"]:
+        message = translated(NO_CONNECTIVITY_KEY, locale)
         if libcalamares is not None:
-            libcalamares.utils.warning(NO_CONNECTIVITY_MESSAGE)
-        return NO_CONNECTIVITY_MESSAGE
+            libcalamares.utils.warning(message)
+        return message
     packages = packages_for_profiles(gate["profiles"])
     install_packages(packages)
     return None

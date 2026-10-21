@@ -16,6 +16,7 @@ EXPECTED_SEQUENCE = [
     "nimbus-software",
     "hardware",
     "bootloader",
+    "nimbus-verify",
     "finished",
 ]
 
@@ -54,6 +55,27 @@ def test_every_nimbus_module_has_a_conf_file():
         and not (CALAMARES / "modules" / name / f"{name}.conf").is_file()
     ]
     assert missing == []
+
+
+def test_nimbus_module_dirs_match_sequence_exactly():
+    """Todo modulo nimbus-* con directorio debe estar en la secuencia.
+
+    Si alguien crea un modulo nuevo y no lo enchufa, este test falla.
+    El fichero compartido de traducciones (nimbus_i18n.py) vive fuera de
+    modules/ a proposito para no romper esta correspondencia.
+    """
+    dirs = {p.name for p in (CALAMARES / "modules").glob("nimbus-*")
+            if p.is_dir()}
+    in_sequence = {name for name in _sequence() if name.startswith("nimbus-")}
+    assert dirs == in_sequence, (
+        f"directorios sin secuencia: {sorted(dirs - in_sequence)}; "
+        f"en secuencia sin directorio: {sorted(in_sequence - dirs)}"
+    )
+
+
+def test_nimbus_verify_runs_between_bootloader_and_finished():
+    seq = _sequence()
+    assert seq.index("bootloader") < seq.index("nimbus-verify") < seq.index("finished")
 
 
 def test_software_profiles_are_complete():
