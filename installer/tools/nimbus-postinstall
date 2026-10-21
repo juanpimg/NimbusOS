@@ -111,6 +111,12 @@ POSTINSTALL_STRINGS = {
         "postinstall.keyring.done": "keyring copiado y poblado.",
         "postinstall.repo.added": "bloque {header} añadido.",
         "postinstall.repo.present": "bloque {header} ya presente.",
+        "postinstall.repo.bootstrap": (
+            "bootstrap local (ver /etc/nimbus/repo.conf): el repo público "
+            "aún no está alojado y está pendiente, así que los paquetes "
+            "nimbus no recibirán actualizaciones hasta su publicación; "
+            "`pacman -Syu` sigue funcionando para el resto."
+        ),
         "postinstall.cachyos.v3": "CPU con AVX2: activado [cachyos-v3].",
         "postinstall.cachyos.generic": (
             "CPU sin AVX2: se deja el genérico [cachyos]."
@@ -209,6 +215,12 @@ POSTINSTALL_STRINGS = {
         "postinstall.keyring.done": "keyring copied and populated.",
         "postinstall.repo.added": "{header} block added.",
         "postinstall.repo.present": "{header} block already present.",
+        "postinstall.repo.bootstrap": (
+            "local bootstrap (see /etc/nimbus/repo.conf): the public repo "
+            "is not hosted yet and is pending, so nimbus packages will get "
+            "no updates until it is published; `pacman -Syu` keeps working "
+            "for everything else."
+        ),
         "postinstall.cachyos.v3": "AVX2 CPU: [cachyos-v3] enabled.",
         "postinstall.cachyos.generic": (
             "No AVX2 CPU: keeping the generic [cachyos]."
@@ -268,8 +280,16 @@ CRITICAL_STEPS = frozenset(
 # Pasos que necesitan red: en --offline se omiten, nunca fallan.
 NETWORK_STEPS = frozenset({"refresh-keys"})
 
+# El sistema instalado NO puede apuntar a un dominio inexistente: el repo
+# público aún no está alojado (no se inventa ninguna URL), así que [nimbus]
+# usa el bootstrap local file:// con una DB válida (vacía hasta la
+# publicación). `pacman -Syu` funciona: Arch/CachyOS actualizan y nimbus
+# simplemente no aporta paquetes nuevos; /etc/nimbus/repo.conf lo declara.
 NIMBUS_MIRRORLIST = "mirrorlist.nimbus"
-NIMBUS_REPO_SERVER = "https://mirror.nimbus.org/nimbus/os/$arch"
+NIMBUS_REPO_SERVER = "file:///var/lib/nimbus/repo"
+NIMBUS_REPO_DIR = "/var/lib/nimbus/repo"
+NIMBUS_REPO_DB = "nimbus.db.tar.gz"
+NIMBUS_REPO_CONF = "etc/nimbus/repo.conf"
 SNAPSHOT_TIMER = "nimbus-snapshots.timer"
 AUTOUPDATE_TIMER = "nimbus-auto-update.timer"
 POWER_PROFILE = "balanced"
@@ -439,7 +459,26 @@ def render_nimbus_repo_block():
 
 
 def render_nimbus_mirrorlist():
-    return f"Server = {NIMBUS_REPO_SERVER}\n"
+    return (
+        "# Repo Nimbus en el sistema instalado: bootstrap local.\n"
+        "# El repo público aún no está alojado (ver /etc/nimbus/repo.conf):\n"
+        "# hasta su publicación no hay actualizaciones de paquetes nimbus,\n"
+        "# pero `pacman -Syu` sigue funcionando para Arch/CachyOS.\n"
+        f"Server = {NIMBUS_REPO_SERVER}\n"
+    )
+
+
+def render_repo_conf():
+    """Estado del repo Nimbus que deja el postinstall: sin farsa."""
+    return (
+        "# /etc/nimbus/repo.conf — estado del repositorio Nimbus.\n"
+        "# source=bootstrap-local: DB local creada por el postinstall.\n"
+        "# status=pending-public-repo: el repo público aún no está alojado;\n"
+        "# hasta su publicación, `pacman -Syu` funciona (Arch/CachyOS) pero\n"
+        "# los paquetes nimbus no reciben actualizaciones.\n"
+        "source=bootstrap-local\n"
+        "status=pending-public-repo\n"
+    )
 
 
 def render_cachyos_repo_block(variant):
@@ -515,7 +554,13 @@ def step_keyring(ctx):
 
 
 def step_repo_nimbus(ctx):
-    """Añade [nimbus] a pacman.conf sin duplicarlo (critico)."""
+    """Añade [nimbus] a pacman.conf sin duplicarlo (critico).
+
+    Apunta al bootstrap local file:// con una DB válida (vacía hasta que
+    se publique el repo público): sin `Server` activo `pacman -Syu`
+    fallaría, y con un dominio inexistente también. El estado honesto
+    queda en /etc/nimbus/repo.conf.
+    """
     name, lang = "repo-nimbus", ctx.locale
     try:
         conf_path = _pacman_conf_path(ctx)
@@ -532,9 +577,38 @@ def step_repo_nimbus(ctx):
         else:
             detail = translated("postinstall.repo.present", lang).format(
                 header="[nimbus]")
+        _ensure_local_repo_db(ctx)
+        repo_conf = str(pathlib.Path(str(ctx.root)) / NIMBUS_REPO_CONF)
+        ctx.ex.write_text(repo_conf, render_repo_conf())
+        detail += " " + translated("postinstall.repo.bootstrap", lang)
         return "ok", detail
     except Exception as exc:
         return "failed", _failed(name, exc, lang)
+
+
+def _ensure_local_repo_db(ctx):
+    """Garantiza una DB válida en el bootstrap local del destino.
+
+    `tar` viene en la base de Arch; una DB vacía sincroniza bien
+    (`pacman -Sy` rc=0 verificado) y no finge paquetes que no hay.
+    """
+    repo_dir = str(pathlib.Path(str(ctx.root), *NIMBUS_REPO_DIR.split("/")))
+    db_tar = str(pathlib.Path(repo_dir) / NIMBUS_REPO_DB)
+    try:
+        ctx.ex.read_text(db_tar)
+        return
+    except Exception:
+        pass  # no hay DB: se crea una vacía y válida
+    mkdir = ctx.ex.run(["mkdir", "-p", repo_dir])
+    if getattr(mkdir, "returncode", 0) != 0:
+        raise RuntimeError(f"mkdir -p {repo_dir} falló")
+    tar = ctx.ex.run(["tar", "-czf", db_tar, "--files-from", "/dev/null"])
+    if getattr(tar, "returncode", 0) != 0:
+        raise RuntimeError(f"tar -czf {db_tar} falló")
+    link = ctx.ex.run(["ln", "-sf", NIMBUS_REPO_DB,
+                       str(pathlib.Path(repo_dir) / "nimbus.db")])
+    if getattr(link, "returncode", 0) != 0:
+        raise RuntimeError("ln -sf nimbus.db falló")
 
 
 def step_repo_cachyos(ctx):

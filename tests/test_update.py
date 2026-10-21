@@ -339,6 +339,16 @@ def test_snapshot_then_history_lists_it(tmp_path, monkeypatch):
     assert re.search(r"nimbus-\d{8}-\d{6}", hist.stdout), hist.stdout
     assert re.search(r"\d{4}-\d{2}-\d{2}", hist.stdout), "fecha visible"
     assert "snapshot" in hist.stdout.lower(), "estado visible"
+    snap_id = re.search(r"(nimbus-\S+)", hist.stdout).group(1)
+    state = tmp_path / "state"
+    # Cada snapshot respalda la config de pacman (el rollback la restaura
+    # junto al subvolumen) y la lista de paquetes (auditoría).
+    if pathlib.Path("/etc/pacman.conf").is_file():
+        assert (state / f"{snap_id}.pacman.conf").is_file(), \
+            "cada snapshot respalda pacman.conf"
+    assert (state / f"{snap_id}.packages.txt").is_file()
+    assert "nimbus-shell" in (state / f"{snap_id}.packages.txt").read_text(
+        encoding="utf-8")
 
 
 def test_rollback_restores_and_verifies(tmp_path, monkeypatch):
@@ -693,9 +703,10 @@ def test_installed_system_pacman_conf_has_no_bogus_server():
     fake = FakePostExec()
     ctx = tool.Ctx(root="/target", offline=False, locale="en", ex=fake)
     assert tool.step_repo_nimbus(ctx)[0] == "ok"
-    conf = fake.files["/target/etc/pacman.conf"]
-    section = conf.split("[nimbus]")[1].split("[")[0]
-    servers = _active_servers(section)
+    # El `Server` vive en la mirrorlist (vía `Include`): se recogen todas
+    # las Server activas de todos los ficheros escritos.
+    servers = [u for content in fake.files.values()
+               for u in _active_servers(content)]
     assert servers, "sin Server, `pacman -Syu` falla (verificado aparte)"
     for url in servers:
         assert url.startswith("file://"), \
