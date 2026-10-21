@@ -240,7 +240,9 @@ Workflow con dos jobs, ambos en `ubuntu-latest` salvo donde se indique:
       - name: Tests QML
         run: |
           if [ -d shell/tests ]; then
-            QML2_IMPORT_PATH="$PWD/shell/src" qmltestrunner -input shell/tests
+            QT_QPA_PLATFORM=offscreen \
+              QML2_IMPORT_PATH="$PWD/shell/src" \
+              /usr/lib/qt6/bin/qmltestrunner -input shell/tests
           fi
 ```
 
@@ -630,7 +632,7 @@ git commit -m "feat: pin model with testing and stable channels and manual promo
 ### Task 4: Tokens de diseño y configuración del shell (`Theme` y `Config`)
 
 **Files:**
-- Create: `shell/src/qmldir`
+- Create: `shell/src/Nimbus/qmldir`
 - Create: `shell/src/Theme.qml`
 - Create: `shell/src/Config.qml`
 - Create: `shell/src/Translations.qml`
@@ -643,7 +645,8 @@ git commit -m "feat: pin model with testing and stable channels and manual promo
 **Interfaces:**
 - Consumes: nada (arranca en paralelo con Task 2 y 3).
 - Produces:
-  - Módulo QML `Nimbus` con los singletons `Theme` y `Config`, registrado en `shell/qmldir`:
+  - Módulo QML `Nimbus` con los singletons `Theme`, `Config` y `Translations`, registrado en
+    **`shell/src/Nimbus/qmldir`** (no en `shell/src/qmldir`):
     ```
     module Nimbus
     singleton Theme 1.0 Theme.qml
@@ -841,9 +844,12 @@ QtObject {
     readonly property int dockSize: 64
     readonly property string fontFamily: "Inter"
 
-    property color _accentLight: "#007AFF"
-    property color _accentDark: "#0A84FF"
-    readonly property color accent: dark ? _accentDark : _accentLight
+    readonly property color _accentLight: "#007AFF"
+    readonly property color _accentDark: "#0A84FF"
+    // El acento elegido por el usuario gana en los DOS modos.
+    property string _userAccent: ""   // string, no color: "" no es un inicializador valido para color
+    readonly property color accent: _userAccent !== "" ? _userAccent
+                                                       : (dark ? _accentDark : _accentLight)
 
     function setMode(mode) {
         if (mode === "dark") {
@@ -862,8 +868,11 @@ QtObject {
     }
 
     function setAccent(value) {
-        _accentLight = value
-        _accentDark = value
+        _userAccent = value
+    }
+
+    function resetAccent() {
+        _userAccent = ""
     }
 }
 ```
@@ -884,7 +893,7 @@ QtObject {
     readonly property int schemaVersion: 2
 
     property string mode: "light"
-    property string accent: "007AFF"
+    property string accent: "007aff"
     property string locale: "es"
 
     function setMode(value) {
@@ -894,7 +903,9 @@ QtObject {
     }
 
     function setAccent(hex) {
-        accent = hex.replace("#", "").toUpperCase()
+        if (typeof hex !== "string")
+            return
+        accent = hex.replace("#", "").toLowerCase()
         Theme.setAccent("#" + accent)
     }
 
@@ -918,9 +929,9 @@ QtObject {
 Crea además `shell/src/Translations.qml` con el singleton del bloque de Interfaces
 (Step 4, segundo bloque de código).
 
-- [ ] **Step 5: Crea `shell/src/qmldir` y `shell/src/main.qml`**
+- [ ] **Step 5: Crea `shell/src/Nimbus/qmldir` y `shell/src/main.qml`**
 
-`shell/src/qmldir`:
+`shell/src/Nimbus/qmldir`:
 ```
 module Nimbus
 singleton Theme 1.0 Theme.qml
@@ -952,12 +963,14 @@ Window {
 
 - [ ] **Step 6: Ejecuta los tests para verificar que pasan**
 
-Run: `QML2_IMPORT_PATH=$PWD/shell/src qmltestrunner -input shell/tests`
+Run: `QT_QPA_PLATFORM=offscreen QML2_IMPORT_PATH=$PWD/shell/src /usr/lib/qt6/bin/qmltestrunner -input shell/tests`
 Expected: PASS — Theme: 4 passed, Config: 3 passed.
 
 Si `qmltestrunner` no encuentra el módulo, añade `shell/src` al `QML2_IMPORT_PATH`. El
-`qmldir` **va en `shell/src/`**, junto a los `.qml` que registra; si lo pones en `shell/`, el
-módulo no se encuentra.
+**El `qmldir` va en `shell/src/Nimbus/`, NO en `shell/src/`.** Verificado empiricamente: con
+`shell/src/qmldir` el import `import Nimbus` falla con `module "Nimbus" is not installed`,
+porque QML resuelve un modulo buscando un **directorio** con ese nombre en el `QML2_IMPORT_PATH`.
+El layout plano solo resolveria `import src`.
 
 - [ ] **Step 7: Crea `packages/nimbus-shell/PKGBUILD`**
 
@@ -976,7 +989,6 @@ depends=('quickshell>=0.3.2' 'hyprland>=0.56.2' 'qt6-declarative' 'qt6-wayland' 
 source=()
 sha256sums=()
 package() {
-  install -Dm644 "$startdir/../../shell/src/qmldir" "$pkgdir/usr/lib/nimbus/shell/qmldir"
   cp -r "$startdir/../../shell/src" "$pkgdir/usr/lib/nimbus/shell/src"
   install -Dm755 "$startdir/../../shell/nimbus-shell" "$pkgdir/usr/bin/nimbus-shell"
 }
@@ -1283,7 +1295,7 @@ git commit -m "feat: floating Hyprland layout with macOS-style keybindings and e
 **Interfaces:**
 - Consumes: `packages/nimbus-shell` (Task 4) y `packages/nimbus-dots` (Task 5).
 - Produces:
-  - `iso/build.sh --outdir <dir> [--local-repo <dir>]` → construye la ISO con `archiso` y produce `<outdir>/nimbus-<YYYYMMDD>-<git-short-sha>.iso`. Exit != 0 si el perfil no valida.
+  - `iso/build.sh --outdir <dir> [--local-repo]` → construye la ISO con `archiso` y produce `<outdir>/nimbus-<YYYYMMDD>-<git-short-sha>.iso`. `--local-repo` es una **bandera booleana sin argumento**: el directorio del repo local se deriva del directorio de trabajo. Exit != 0 si el perfil no valida o si el repo local queda vacío.
     - `--local-repo <dir>` es **imprescindible durante el bootstrap**: el repo `nimbus` todavía no está alojado en ningún servidor, así que `build.sh` compila los PKGBUILDs de `packages/` con `makepkg` en un repo local `file://` y lo añade al `pacman.conf` del perfil. Sin este flag la construcción falla, porque `nimbus-shell` no se puede resolver.
   - `nimbus-live.service` — unit systemd que **arranca el shell** en la sesión live.
   - `nimbus-live-ready.service` — unit systemd que escribe `NIMBUS_LIVE_READY` en `/dev/console` **solo si** `nimbus-live.service` arrancó bien. **Este es el marcador que Task 8 espera encontrar.**
@@ -1560,9 +1572,9 @@ LOCAL_REPO=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --outdir) OUTDIR="$2"; shift 2 ;;
-    --profile) PROFILE="$2"; shift 2 ;;
-    --local-repo) LOCAL_REPO="$2"; shift 2 ;;
+    --outdir) OUTDIR="${2:?falta el valor de --outdir}"; shift 2 ;;
+    --profile) PROFILE="${2:?falta el valor de --profile}"; shift 2 ;;
+    --local-repo) LOCAL_REPO="1"; shift ;;
     *) echo "opción desconocida: $1" >&2; exit 1 ;;
   esac
 done
@@ -1578,6 +1590,13 @@ if [ ! -f "$ROOT/iso/profiles/$PROFILE/airoot.sh" ]; then
   exit 1
 fi
 
+for bin in archiso makepkg repo-add; do
+  command -v "$bin" >/dev/null 2>&1 || {
+    echo "$bin no encontrado: instálalo antes de construir la ISO" >&2
+    exit 1
+  }
+done
+
 mkdir -p "$WORK" "$OUTDIR"
 rm -rf "$WORK"/*
 cp -r "$ROOT/iso/profiles/$PROFILE" "$WORK/profile"
@@ -1592,8 +1611,17 @@ if [ -n "$LOCAL_REPO" ]; then
     name="$(basename "$pkgdir")"
     [ -f "$pkgdir/PKGBUILD" ] || continue
     echo "[nimbus] compilando $name"
-    ( cd "$pkgdir" && makepkg --nodeps --noconfirm --packagelist "$REPO_DIR" >/dev/null )
+    # PKGDEST es la variable que dice a makepkg donde dejar el paquete.
+    # `--packagelist` NO construye nada: solo imprime las rutas que se producirian.
+    ( cd "$pkgdir" && PKGDEST="$REPO_DIR" makepkg --nodeps --noconfirm ) \
+      >"$WORK/build-${name}.log" 2>&1
   done
+  # Si no ha salido ningun paquete, el repo local quedaria vacio y la ISO no
+  # podria resolver nimbus-shell. Falla aqui, de forma ruidosa.
+  compgen -G "$REPO_DIR/*.pkg.tar.*" >/dev/null || {
+    echo "no se ha construido ningun paquete en $REPO_DIR" >&2
+    exit 1
+  }
   # pacman 7 exige una extension de archivo valida: repo-add crea
   # nimbus.db.tar.gz y el symlink nimbus.db -> nimbus.db.tar.gz.
   repo-add "$REPO_DIR/nimbus.db.tar.gz" "$REPO_DIR"/*.pkg.tar.*
