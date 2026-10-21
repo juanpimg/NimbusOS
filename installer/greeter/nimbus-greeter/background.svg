@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Nimbus greeter background: original aurora-gradient artwork. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1026"/>
+      <stop offset="0.45" stop-color="#16245c"/>
+      <stop offset="0.75" stop-color="#1f6f8b"/>
+      <stop offset="1" stop-color="#3fc1a7"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.72" cy="0.28" r="0.55">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <rect width="1920" height="1080" fill="url(#glow)"/>
+  <ellipse cx="1350" cy="220" rx="420" ry="180" fill="#ffffff" opacity="0.06"/>
+  <ellipse cx="420" cy="880" rx="520" ry="200" fill="#000000" opacity="0.18"/>
+</svg>
