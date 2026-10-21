@@ -33,24 +33,33 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Preparar repos CachyOS
+      - name: Configurar pacman
         run: |
-          printf 'Server = %s\n' \
-            'https://archlinux.cachyos.org/repo/$repo/os/$arch' \
-            | tee -a /etc/pacman.d/mirrorlist
-          printf '[cachyos]\nServer = %s\n' \
-            'https://cdn77.cachyos.org/repo/$arch/$repo' \
-            > /etc/pacman.d/mirrorlist.cachyos
-          printf '[cachyos-v3]\nServer = %s\n' \
-            'https://cdn77.cachyos.org/repo/$arch_v3/$repo' \
-            > /etc/pacman.d/mirrorlist.cachyos-v3
-          for r in cachyos cachyos-v3; do
-            printf '[%s]\nInclude = %s\n' "$r" \
-              "/etc/pacman.d/mirrorlist.$r" >> /etc/pacman.conf
-          done
+          cat > /etc/pacman.conf <<'EOF'
+          [options]
+          HoldPkg = pacman glibc
+          Architecture = auto
+          ParallelDownloads = 3
+          SigLevel = Required DatabaseOptional
+          LocalFileSigLevel = Optional
+
+          [core]
+          Server = https://mirror.rackspace.com/archlinux/$repo/os/$arch
+          Server = https://mirror.leaseweb.com/archlinux/$repo/os/$arch
+
+          [extra]
+          Server = https://mirror.rackspace.com/archlinux/$repo/os/$arch
+          Server = https://mirror.leaseweb.com/archlinux/$repo/os/$arch
+
+          [cachyos]
+          Server = https://mirror.bali0531.hu/repo/$arch/$repo
+          Server = https://cdn77.cachyos.org/repo/$arch/$repo
+          EOF
       - name: Instalar dependencias
-        run: pacman -Sy --noconfirm python-pytest bats qt6-declarative
-          qt6-wayland qt6-shadertools lua actionlint
+        run: |
+          pacman --config /etc/pacman.conf -Sy --noconfirm --needed \
+            python-pytest bats qt6-declarative qt6-wayland \
+            qt6-shadertools lua actionlint
       - name: Actionlint
         run: |
           actionlint -version
