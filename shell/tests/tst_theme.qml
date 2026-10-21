@@ -9,7 +9,7 @@ TestCase {
 
     function init() {
         Theme.setMode("light")
-        Theme.setAccent("#007AFF")
+        Theme.resetAccent()
     }
 
     function test_light_defaults() {
@@ -42,6 +42,17 @@ TestCase {
     function test_accent_is_overridable() {
         Theme.setAccent("#ff2d55")
         compare(Theme.accent, "#ff2d55")
+    }
+
+    function test_user_accent_applies_in_dark_mode() {
+        Theme.setAccent("#ff2d55")
+        compare(Theme.accent, "#ff2d55")
+        Theme.setMode("dark")
+        compare(Theme.accent, "#ff2d55")
+        Theme.resetAccent()
+        compare(Theme.accent, "#0a84ff")
+        Theme.setMode("light")
+        compare(Theme.accent, "#007aff")
     }
 
     function test_glass_has_opaque_fallback() {

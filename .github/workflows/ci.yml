@@ -66,5 +66,7 @@ jobs:
       - name: Tests QML
         run: |
           if [ -d shell/tests ]; then
-            QML2_IMPORT_PATH="$PWD/shell/src" qmltestrunner -input shell/tests
+            QT_QPA_PLATFORM=offscreen \
+              QML2_IMPORT_PATH="$PWD/shell/src" \
+              /usr/lib/qt6/bin/qmltestrunner -input shell/tests
           fi

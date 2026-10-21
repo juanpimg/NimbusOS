@@ -9,7 +9,7 @@ QtObject {
     readonly property int schemaVersion: 2
 
     property string mode: "light"
-    property string accent: "007AFF"
+    property string accent: "007aff"
     property string locale: "es"
 
     function setMode(value) {

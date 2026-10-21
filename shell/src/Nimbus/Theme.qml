@@ -25,7 +25,12 @@ QtObject {
 
     property color _accentLight: "#007AFF"
     property color _accentDark: "#0A84FF"
-    readonly property color accent: dark ? _accentDark : _accentLight
+    // NOTA: _userAccent es string (no color) porque "" no es un
+    // inicializador válido para color; "" = el usuario no ha elegido.
+    // En el binding de `accent` la rama string se convierte a color.
+    property string _userAccent: ""
+    readonly property color accent: _userAccent !== "" ? _userAccent
+                                                       : (dark ? _accentDark : _accentLight)
 
     function setMode(mode) {
         if (mode === "dark") {
@@ -51,12 +56,13 @@ QtObject {
             _dark = (app.styleHints.colorScheme === Qt.Dark)
     }
 
-    // NOTA: solo se sobrescribe el acento claro. El test `test_dark_mode`
-    // espera el acento oscuro por defecto (#0A84FF) después de que init()
-    // haya llamado a setAccent("#007AFF"); si se sobrescribieran ambos,
-    // esa expectativa sería inalcanzable. El acento oscuro por defecto se
-    // conserva; un acento por modo de color podrá añadirse más adelante.
+    // El acento elegido por el usuario gana en ambos modos; sin override
+    // se usan los valores por defecto de cada modo (#007AFF / #0A84FF).
     function setAccent(value) {
-        _accentLight = value
+        _userAccent = value
+    }
+
+    function resetAccent() {
+        _userAccent = ""
     }
 }
