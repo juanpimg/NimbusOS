@@ -107,8 +107,12 @@ subs = [
   mkdir -p "$1/dev/pts" "$1/dev/shm" "$1/dev/mqueue" &&'''),
     # En el user namespace solo hay un gid mapeado (0), asi que gid=5 no existe.
     ('-t devpts -o mode=0620,gid=5,nosuid,noexec &&', '-t devpts -o mode=0620,gid=0,nosuid,noexec &&'),
-    # /run y /sys no hacen falta para construir la ISO y fallan en el namespace.
-    ('''  chroot_add_mount /run "$1/run" --bind --make-private &&''', '''  true &&'''),
+    # /run: un bind del /run del host no se puede montar en un user namespace
+    # (tiene submontajes "locked"), pero un tmpfs limpio si. Y hace FALTA:
+    # gpg-agent necesita un runtime dir, y sin el, `pacman-key --populate`
+    # falla con "keyring is not writable" y aborta la transaccion.
+    ('''  chroot_add_mount /run "$1/run" --bind --make-private &&''',
+     '''  chroot_add_mount run "$1/run" -t tmpfs -o mode=0755,nosuid,nodev &&'''),
     ('''  chroot_add_mount sys "$1/sys" -t sysfs -o nosuid,noexec,nodev,ro &&''', '''  true &&'''),
     # Los mountpoints deben ser directorios reales, no symlinks.
     ('''  chroot_add_mount proc "$1/proc" -t proc -o nosuid,noexec,nodev &&''',
