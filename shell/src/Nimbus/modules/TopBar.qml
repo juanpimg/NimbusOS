@@ -28,7 +28,11 @@ PanelWindow {
         left: true
         right: true
     }
-    height: Theme.barHeight
+    // La ventana crece cuando el menu esta abierto: el desplegable cae por
+    // debajo de la barra y, si la ventana midiese solo `barHeight`, el
+    // compositor lo recortaria (el menu se veria cortado por el borde).
+    // La zona exclusiva sigue siendo solo la franja de la barra.
+    height: root.menuOpen ? Theme.barHeight + appMenu.implicitHeight : Theme.barHeight
     exclusiveZone: Theme.barHeight
 
     property alias menuOpen: appMenu.menuOpen
@@ -84,7 +88,14 @@ PanelWindow {
     }
 
     Glass {
-        anchors.fill: parent
+        anchors {
+            left: parent.left
+            right: parent.right
+            top: parent.top
+        }
+        // Solo la franja de la barra es opaca; el resto de la ventana (la
+        // zona del desplegable) se queda transparente.
+        height: Theme.barHeight
         // Sin redondeo: la barra ocupa todo el ancho (0 = ausencia de radio,
         // no una metrica del sistema de diseno).
         radius: 0
