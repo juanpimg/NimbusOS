@@ -265,9 +265,11 @@ git commit -m "chore: bootstrap monorepo, SPDX enforcement and CI"
 **Interfaces:**
 - Consumes: `tools/check_spdx.py` (Task 1) — las cabeceras SPDX de los scripts nuevos.
 - Produces:
-  - `tools/genkeyring.sh --outdir <dir> --uid <uid> --email <email>` → genera una clave GPG RSA-4096 sin passphrase en `<dir>/gnupg/`, exporta la clave pública a `<dir>/nimbus.gpg`, crea el árbol de paquete `<dir>/nimbus-keyring/` con `nimbus.gpg` dentro y `nimbus-keyring.install`, e imprime por stdout **solo** el fingerprint de 40 hex. Sale con 1 si `--outdir` ya contiene `nimbus.gpg` (no sobrescribe).
+  - `tools/genkeyring.sh --outdir <dir> --uid <uid> --email <email>` → genera una clave GPG RSA-4096 sin passphrase en `<dir>/gnupg/`, exporta la clave pública **armored** a `<dir>/nimbus.gpg`, crea el árbol de paquete `<dir>/nimbus-keyring/` con `nimbus.gpg`, `nimbus-trusted`, `nimbus-revoked` y `nimbus-keyring.install`, e imprime por stdout **solo** el fingerprint de 40 hex. Sale con 1 si `--outdir` ya contiene `nimbus.gpg` (no sobrescribe).
   - `tools/sign_repo.sh --repo <dir> --gpgdir <dir> --key <fpr>` → firma `<dir>/<nombre>.db` produciendo `<dir>/<nombre>.db.sig`. **No sobrescribe** una `.sig` existente: sale con 1 e imprime `ya firmado`.
-  - El paquete `nimbus-keyring` instala `/usr/share/pacman/keyrings/nimbus.gpg` y `/usr/share/pacman/keyrings/nimbus-keyring.install`.
+  - El paquete `nimbus-keyring` instala `/usr/share/pacman/keyrings/nimbus.gpg`, `nimbus-trusted` y `nimbus-revoked`, y su `.install` ejecuta `pacman-key --populate nimbus` en `post_install`.
+
+  **FORMATO DEL ARTEFACTO (load-bearing).** `nimbus.gpg` debe ser la **clave pública exportada en ASCII armored**, igual que `cachyos.gpg` y `archlinux.gpg` en `/usr/share/pacman/keyrings/`. **No** debe ser un keybox KBXf. La razón es concreta: `pacman-key --populate` importa el fichero con `gpg --import <fichero>`, y `gpg --import` solo acepta **exportaciones de clave pública** (armored o binarias), no bases de datos de keyring. Con un keybox, `gpg --import` responde "no valid OpenPGP data found", el populate no importa nada, y **toda firma del repositorio de Nimbus falla con "signature from unknown trust"**. Verificado contra `/usr/bin/pacman-key` (línea 318) y contra los keyring de producción.
 
 - [ ] **Step 1: Escribe el test que falla**
 
@@ -316,6 +318,19 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
+@test "nimbus.gpg es importable con gpg --import, como exige pacman-key --populate" {
+  bash "$REPO_ROOT/tools/genkeyring.sh" --outdir "$TESTDIR/out" --uid "Nimbus Signing <nimbus@example.org>" --email "nimbus@example.org"
+  # pacman-key --populate hace exactamente esto: gpg --import <nimbus.gpg>.
+  # Si el artefacto es un keybox en vez de una exportacion armored, falla aqui.
+  mkdir -p "$TESTDIR/importhome"
+  chmod 700 "$TESTDIR/importhome"
+  run gpg --homedir "$TESTDIR/importhome" --quiet --import "$TESTDIR/out/nimbus.gpg"
+  [ "$status" -eq 0 ]
+  # Y la clave importada debe ser la de Nimbus.
+  run gpg --homedir "$TESTDIR/importhome" --list-keys --with-colons
+  [[ "$output" == *"nimbus@example.org"* ]]
+}
+
 @test "el keybox exportado verifica con la clave pública, sin la clave privada" {
   bash "$REPO_ROOT/tools/genkeyring.sh" --outdir "$TESTDIR/out" --uid "Nimbus Signing <nimbus@example.org>" --email "nimbus@example.org"
   FPR="$(gpg --homedir "$TESTDIR/out/gnupg" --list-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
@@ -359,17 +374,16 @@ Script bash con `set -euo pipefail`, cabecera SPDX. Comportamiento:
        --quick-generate-key "$UID" rsa4096 sign never
    ```
    La clave debe tener capacidad de **firmar** (no certificar-only) para poder firmar DBs de pacman.
-3. Exporta la clave en **dos artefactos distintos**:
-   - `<outdir>/nimbus.gpg` — el **keybox** binario que consume pacman:
-     ```bash
-     rm -f "$OUTDIR/nimbus.gpg"
-     gpg --homedir "$OUTDIR/gnupg" --batch --yes --export "$UID" \
-       | gpg --homedir "$OUTDIR/gnupg" --batch --yes --no-default-keyring \
-           --keyring "$OUTDIR/nimbus.gpg" --import
-     ```
-   - `<outdir>/nimbus-public.asc` — la clave pública en ASCII, para leerla y publicarla en el wiki.
+3. Exporta la clave pública en **ASCII armored** a `<outdir>/nimbus.gpg`:
+   ```bash
+   gpg --homedir "$OUTDIR/gnupg" --batch --yes --armor --export "$KEYUID" > "$OUTDIR/nimbus.gpg"
+   ```
+   **Este es el formato que consumen `pacman-key --populate` y los keyring de
+   producción (`cachyos.gpg`, `archlinux.gpg`): una exportación de clave pública armored.
+   NO un keybox KBXf** — ver la nota de formato en el bloque Interfaces. El fichero debe
+   empezar por `-----BEGIN PGP PUBLIC KEY BLOCK-----`.
 4. Crea `<outdir>/nimbus-keyring/` con **cuatro** ficheros:
-   - `nimbus.gpg` — copia del keybox.
+   - `nimbus.gpg` — copia de la exportación armored.
    - `nimbus-trusted` — el ownertrust: `printf '%s:6:\n' "$FPR" > nimbus-trusted`.
      **Sin este fichero, `pacman-key --populate` importa la clave pero no le da confianza,
      y toda firma del repo de Nimbus falla con "signature from unknown trust".** El formato
@@ -414,8 +428,8 @@ pkgdesc="Clave pública de firma de los paquetes de Nimbus"
 arch=('any')
 license=('GPL-3.0-or-later')
 url="https://github.com/juanpimg/NimbusOS"
-install=install -Dm644
-source=("nimbus.gpg")
+install=nimbus-keyring.install
+source=("nimbus.gpg" "nimbus-trusted" "nimbus-revoked")
 sha256sums=('SKIP')
 package() {
   install -Dm644 nimbus.gpg "$pkgdir/usr/share/pacman/keyrings/nimbus.gpg"
