@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Construye la ISO de Nimbus SIN root.
+#
+# Por qué existe esto: `archiso` necesita montar un chroot, y `pacstrap` monta
+# devtmpfs y sysfs, cosa que el kernel no permite dentro de un user namespace
+# salvo que /dev y /sys esten "totalmente visibles". En una maquina de
+# desarrollo normal esto obliga a `sudo`.
+#
+# La solucion es:
+#   1. Descargar `archiso`, `squashfs-tools` y `arch-install-scripts` del
+#      mirror y extraerlos a un prefijo local (sin instalar nada).
+#   2. Parchar las copias locales de `pacstrap` y `makepkg` para que funcionen
+#      dentro de un user namespace.
+#   3. Ejecutar el build dentro de
+#      `unshare --user --map-root-user --mount --pid --fork --mount-proc --ipc --uts`.
+#
+# En el CI (GitHub Actions, contenedor con root) NO hace falta nada de esto:
+# ahi se instala `archiso` con pacman y se construye con normalidad. Este
+# script es una comodidad para maquinas de desarrollo y para hardening.
+#
+# Uso:
+#   tools/build-iso-rootless.sh [--outdir <dir>] [--keep]
+#
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PREFIX="${NIMBUS_ROOTLESS_PREFIX:-${TMPDIR:-/tmp}/nimbus-rootless}"
+OUTDIR="$ROOT/out"
+KEEP=0
+MIRROR="https://archlinux.cachyos.org/repo/extra/os/x86_64"
+SYNC_DB="/var/lib/pacman/sync/extra.db"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --outdir) OUTDIR="$2"; shift 2 ;;
+    --keep) KEEP=1; shift ;;
+    *) echo "opción desconocida: $1" >&2; exit 1 ;;
+  esac
+done
+
+log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
+die() { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
+
+[ -f "$SYNC_DB" ] || die "no se encuentra la base de datos de sincronizacion en $SYNC_DB (ejecuta: sudo pacman -Sy)"
+
+# --- 1. Descargar y extraer las herramientas de build a un prefijo local ---
+mkdir -p "$PREFIX/pacman-cache" "$PREFIX/prefix" "$PREFIX/db"
+
+if [ ! -x "$PREFIX/prefix/usr/bin/mkarchiso" ]; then
+  log "Extrayendo el perfil de base de datos de pacman"
+  bsdtar -xf "$SYNC_DB" -C "$PREFIX/db" 2>/dev/null || true
+
+  for pkg in archiso squashfs-tools arch-install-scripts; do
+    dir="$(ls -d "$PREFIX/db/${pkg}-"* 2>/dev/null | head -1)" \
+      || die "el paquete $pkg no aparece en la base de datos"
+    file="$(grep -A1 '^%FILENAME%$' "$dir/desc" | tail -1)"
+    [ -n "$file" ] || die "no se encuentra el nombre de fichero de $pkg"
+    if [ ! -f "$PREFIX/pacman-cache/$file" ]; then
+      log "Descargando $file"
+      curl -fsSL -o "$PREFIX/pacman-cache/$file" "$MIRROR/$file" \
+        || die "no se puede descargar $file de $MIRROR"
+    fi
+  done
+
+  log "Extrayendo los paquetes"
+  for f in "$PREFIX"/pacman-cache/*.pkg.tar.zst; do
+    bsdtar -xf "$f" -C "$PREFIX/prefix" 2>/dev/null || true
+  done
+fi
+
+[ -x "$PREFIX/prefix/usr/bin/mkarchiso" ] || die "mkarchiso no esta en el prefijo local"
+
+# --- 2. Parchar las copias locales para que funcionen sin root ---
+patch_pacstrap() {
+  local p="$PREFIX/prefix/usr/bin/pacstrap"
+  [ -f "$p" ] || die "pacstrap no encontrado en el prefijo"
+  grep -q "NIMBUS_ROOTLESS_PATCH" "$p" && return 0
+  cp "$p" "$p.orig"
+
+  python3 - "$p" <<'PY'
+import io, sys
+p = sys.argv[1]
+s = io.open(p, encoding="utf-8").read()
+subs = [
+    # devtmpfs no se puede montar en un user namespace: se usa tmpfs y se
+    # enlazan los nodos de dispositivo que si se pueden enlazar.
+    ('''  chroot_add_mount udev "$1/dev" -t devtmpfs -o mode=0755,nosuid &&''',
+     '''  chroot_add_mount udev "$1/dev" -t tmpfs -o mode=0755,nosuid &&
+  for _dn in null zero full random urandom tty; do
+    touch "$1/dev/$_dn" && mount --bind "/dev/$_dn" "$1/dev/$_dn"
+  done &&
+  mkdir -p "$1/dev/pts" "$1/dev/shm" "$1/dev/mqueue" &&'''),
+    # En el user namespace solo hay un gid mapeado (0), asi que gid=5 no existe.
+    ('-t devpts -o mode=0620,gid=5,nosuid,noexec &&', '-t devpts -o mode=0620,gid=0,nosuid,noexec &&'),
+    # /run y /sys no hacen falta para construir la ISO y fallan en el namespace.
+    ('''  chroot_add_mount /run "$1/run" --bind --make-private &&''', '''  true &&'''),
+    ('''  chroot_add_mount sys "$1/sys" -t sysfs -o nosuid,noexec,nodev,ro &&''', '''  true &&'''),
+    # Los mountpoints deben ser directorios reales, no symlinks.
+    ('''  chroot_add_mount proc "$1/proc" -t proc -o nosuid,noexec,nodev &&''',
+     '''  rm -f "$1/run" "$1/proc" "$1/sys" "$1/tmp" 2>/dev/null
+  mkdir -p "$1/run" "$1/proc" "$1/sys" "$1/tmp" &&
+  chroot_add_mount proc "$1/proc" -t proc -o nosuid,noexec,nodev &&'''),
+]
+for a, b in subs:
+    if a not in s:
+        sys.exit("pacstrap: no se encuentra el patron:\n" + a)
+    s = s.replace(a, b, 1)
+s = "# NIMBUS_ROOTLESS_PATCH\n" + s
+io.open(p, "w", encoding="utf-8").write(s)
+PY
+  log "pacstrap parcheado para user namespace"
+}
+
+patch_makepkg() {
+  local p="$PREFIX/prefix/usr/bin/makepkg"
+  [ -f "$p" ] || die "makepkg no encontrado en el prefijo"
+  grep -q "NIMBUS_ALLOW_ROOT" "$p" && return 0
+  cp /usr/bin/makepkg "$p"
+  python3 - "$p" <<'PY'
+import io, sys
+p = sys.argv[1]
+s = io.open(p, encoding="utf-8").read()
+old = "\tif (( EUID == 0 )); then\n\t\terror \"$(gettext \"Running %s as root is not allowed"
+new = "\tif (( EUID == 0 )) && [[ -z ${NIMBUS_ALLOW_ROOT:-} ]]; then\n\t\terror \"$(gettext \"Running %s as root is not allowed"
+if old not in s:
+    sys.exit("makepkg: no se encuentra la comprobacion de root")
+io.open(p, "w", encoding="utf-8").write(s.replace(old, new, 1))
+PY
+  log "makepkg parcheado para permitir NIMBUS_ALLOW_ROOT=1"
+}
+
+patch_pacstrap
+patch_makepkg
+
+# --- 3. Construir la ISO dentro del namespace ---
+mkdir -p "$OUTDIR"
+log "Construyendo la ISO (sin root) en $OUTDIR"
+set +e
+unshare --user --map-root-user --mount --pid --fork --mount-proc --ipc --uts \
+  env NIMBUS_ALLOW_ROOT=1 \
+      PATH="$PREFIX/prefix/usr/bin:$PATH" \
+      bash "$ROOT/iso/build.sh" --outdir "$OUTDIR" --local-repo
+status=$?
+set -e
+
+if [ "$status" -ne 0 ]; then
+  die "la construccion de la ISO fallo con codigo $status"
+fi
+
+log "ISO construida:"
+ls -la "$OUTDIR"/*.iso 2>/dev/null || die "no se ha encontrado ninguna ISO en $OUTDIR"
+
+if [ "$KEEP" -eq 0 ]; then
+  log "Limpiando el directorio de trabajo (usa --keep para conservarlo)"
+  rm -rf "$ROOT/iso/work"
+fi
