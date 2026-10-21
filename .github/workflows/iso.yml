@@ -50,8 +50,11 @@ jobs:
           # fakeroot y debugedit los necesita makepkg (base-devel): la imagen
           # archlinux:latest es minima y no los trae, y sin ellos makepkg
           # aborta con "Cannot find the fakeroot binary".
+          # grub y syslinux los necesita mkarchiso para los dos modos de
+          # arranque del perfil (uefi.grub y bios.syslinux): sin grub,
+          # "grub-install is not available on this host".
           pacman --config /etc/pacman.conf -Sy --noconfirm --needed \
-            archiso repo qemu-desktop sudo fakeroot debugedit
+            archiso repo qemu-desktop sudo fakeroot debugedit grub syslinux
       - name: Crear usuario de compilación
         run: |
           # makepkg se niega a correr como root e iso/build.sh delega
