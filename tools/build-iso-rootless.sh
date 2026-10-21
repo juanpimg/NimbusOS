@@ -112,7 +112,16 @@ subs = [
     # gpg-agent necesita un runtime dir, y sin el, `pacman-key --populate`
     # falla con "keyring is not writable" y aborta la transaccion.
     ('''  chroot_add_mount /run "$1/run" --bind --make-private &&''',
-     '''  chroot_add_mount run "$1/run" -t tmpfs -o mode=0755,nosuid,nodev &&'''),
+     '''  chroot_add_mount run "$1/run" -t tmpfs -o mode=0755,nosuid,nodev &&
+  # El paquete `filesystem` instala /etc/resolv.conf como symlink a
+  # /run/systemd/resolve/stub-resolv.conf (el stub de systemd-resolved). Con
+  # /run como tmpfs ese stub no existe y el symlink queda colgando: el chroot
+  # se queda SIN nameservers y todas las descargas fallan con
+  # "Resolving timed out after 10000 milliseconds". Se crea el stub aqui, antes
+  # de que se extraiga `filesystem`, para que el symlink resuelva.
+  mkdir -p "$1/run/systemd/resolve" &&
+  printf 'nameserver 1.1.1.1\\nnameserver 9.9.9.9\\noptions timeout:2 attempts:3\\n' \\
+    > "$1/run/systemd/resolve/stub-resolv.conf" &&'''),
     ('''  chroot_add_mount sys "$1/sys" -t sysfs -o nosuid,noexec,nodev,ro &&''', '''  true &&'''),
     # Los mountpoints deben ser directorios reales, no symlinks.
     ('''  chroot_add_mount proc "$1/proc" -t proc -o nosuid,noexec,nodev &&''',
