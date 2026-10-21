@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=Nimbus live session ready
+Requires=nimbus-live.service
+After=nimbus-live.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/sh -c 'echo NIMBUS_LIVE_READY > /dev/console'

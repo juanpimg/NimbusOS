@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=Nimbus live session
+After=graphical.target
+ConditionPathExists=/usr/bin/nimbus-shell
+
+[Service]
+Type=simple
+User=nimbus
+WorkingDirectory=/home/nimbus
+Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-1
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=HOME=/home/nimbus
+Environment=QT_QPA_PLATFORM=wayland
+Environment=QSG_RHI_BACKEND=opengl
+ExecStart=/usr/bin/nimbus-shell
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical.target
