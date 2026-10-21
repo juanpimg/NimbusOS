@@ -23,8 +23,8 @@ QtObject {
     readonly property int dockSize: 64
     readonly property string fontFamily: "Inter"
 
-    property color _accentLight: "#007AFF"
-    property color _accentDark: "#0A84FF"
+    readonly property color _accentLight: "#007AFF"
+    readonly property color _accentDark: "#0A84FF"
     // NOTA: _userAccent es string (no color) porque "" no es un
     // inicializador válido para color; "" = el usuario no ha elegido.
     // En el binding de `accent` la rama string se convierte a color.
@@ -33,6 +33,9 @@ QtObject {
                                                        : (dark ? _accentDark : _accentLight)
 
     function setMode(mode) {
+        // Un modo inválido no hace nada (antes caía en la rama "auto").
+        if (mode !== "light" && mode !== "dark" && mode !== "auto")
+            return
         if (mode === "dark") {
             _dark = true
             return

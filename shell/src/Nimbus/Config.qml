@@ -20,6 +20,10 @@ QtObject {
 
     function setAccent(hex) {
         // NOTA: se normaliza a minúsculas (el test espera "ff2d55").
+        // Una entrada que no sea cadena se ignora (null/undefined
+        // lanzarían TypeError en hex.replace).
+        if (typeof hex !== "string")
+            return
         accent = hex.replace("#", "").toLowerCase()
         Theme.setAccent("#" + accent)
     }

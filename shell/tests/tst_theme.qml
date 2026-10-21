@@ -55,10 +55,21 @@ TestCase {
         compare(Theme.accent, "#007aff")
     }
 
+    function test_ignores_invalid_mode() {
+        Theme.setMode("light")
+        Theme.setMode("bogus")
+        verify(!Theme.dark)
+        Theme.setMode("dark")
+        Theme.setMode("bogus")
+        verify(Theme.dark)
+    }
+
     function test_glass_has_opaque_fallback() {
         Theme.setMode("light")
+        compare(Theme.glass, "#80ffffff")
         verify(Theme.glassOpaque.a === 1.0, "glassOpaque debe ser totalmente opaco")
         Theme.setMode("dark")
+        compare(Theme.glass, "#8c1c1c1e")
         verify(Theme.glassOpaque.a === 1.0, "glassOpaque debe ser totalmente opaco")
     }
 }
