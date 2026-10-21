@@ -184,30 +184,30 @@ Item {
         Item {
             anchors.fill: parent
             visible: root.icon === "settings"
-            Column {
-                anchors.centerIn: parent
-                spacing: parent.height * 0.11
-                Repeater {
-                    model: 3
-                    delegate: Item {
-                        required property int index
-                        width: parent.width * 0.54
-                        height: Math.max(2, parent.height * 0.05)
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: height / 2
-                            color: Theme.iconForeground
-                        }
-                        Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            x: parent.width * (index === 1 ? 0.6 : (index === 2 ? 0.25 : 0.45))
-                            width: parent.height * 2.1
-                            height: parent.height * 2.1
-                            radius: width / 2
-                            color: root.iconColor
-                            border.color: Theme.iconForeground
-                            border.width: Math.max(1, parent.height * 0.5)
-                        }
+            Repeater {
+                model: 3
+                delegate: Item {
+                    required property int index
+                    // Cada mando va en un punto distinto de su guia.
+                    readonly property real knobAt: index === 0 ? 0.25 : (index === 1 ? 0.62 : 0.42)
+                    x: parent.width * 0.23
+                    y: parent.height * (0.33 + index * 0.17) - height / 2
+                    width: parent.width * 0.54
+                    height: Math.max(2, root.iconBox * 0.045)
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: height / 2
+                        color: Theme.iconForeground
+                    }
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: parent.width * parent.knobAt - width / 2
+                        width: root.iconBox * 0.13
+                        height: width
+                        radius: width / 2
+                        color: root.iconColor
+                        border.color: Theme.iconForeground
+                        border.width: Math.max(1, root.iconBox * 0.022)
                     }
                 }
             }

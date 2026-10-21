@@ -197,6 +197,84 @@ ShellRoot {
         }
     }
 
+    // --- IPC por superficie -------------------------------------------------
+    //
+    // El contrato del bus (ver Nimbus/Ipc.qml y el plan M1) es
+    // `nimbus-shell ipc call <target> <fn>`: la CLI de Quickshell busca el
+    // IpcHandler cuyo `target` sea el primer argumento, asi que cada
+    // superficie publica el suyo. Sin esto los atajos de Hyprland
+    // (`nimbus-shell ipc call spotlight toggle`) no llegan a nadie.
+    // Cada funcion es de verdad (sin argumentos:IPC-compatible) y delega en
+    // la tabla de `Ipc.qml`, que es la unica que decide.
+    IpcHandler {
+        target: "dock"
+        function toggle() { Ipc.call("dock", "toggle") }
+        function open() { Ipc.call("dock", "open") }
+        function close() { Ipc.call("dock", "close") }
+    }
+    IpcHandler {
+        target: "spotlight"
+        function toggle() { Ipc.call("spotlight", "toggle") }
+        function open() { Ipc.call("spotlight", "open") }
+        function close() { Ipc.call("spotlight", "close") }
+        function apps() { Ipc.call("spotlight", "apps") }
+        function files() { Ipc.call("spotlight", "files") }
+    }
+    IpcHandler {
+        target: "switcher"
+        function next() { Ipc.call("switcher", "next") }
+        function prev() { Ipc.call("switcher", "prev") }
+        function commit() { Ipc.call("switcher", "commit") }
+        function cancel() { Ipc.call("switcher", "cancel") }
+    }
+    IpcHandler {
+        target: "screenshot"
+        function region() { Ipc.call("screenshot", "region") }
+        function window() { Ipc.call("screenshot", "window") }
+        function screen() { Ipc.call("screenshot", "screen") }
+    }
+    IpcHandler {
+        target: "quicklook"
+        function toggle() { Ipc.call("quicklook", "toggle") }
+        function open() { Ipc.call("quicklook", "open") }
+        function close() { Ipc.call("quicklook", "close") }
+    }
+    IpcHandler {
+        target: "wallpaper"
+        function toggle() { Ipc.call("wallpaper", "toggle") }
+        function open() { Ipc.call("wallpaper", "open") }
+        function close() { Ipc.call("wallpaper", "close") }
+        function next() { Ipc.call("wallpaper", "next") }
+        function prev() { Ipc.call("wallpaper", "prev") }
+    }
+    IpcHandler {
+        target: "controlcenter"
+        function toggle() { Ipc.call("controlcenter", "toggle") }
+        function open() { Ipc.call("controlcenter", "open") }
+        function close() { Ipc.call("controlcenter", "close") }
+    }
+    IpcHandler {
+        target: "notifications"
+        function toggle() { Ipc.call("notifications", "toggle") }
+        function clear() { Ipc.call("notifications", "clear") }
+    }
+    IpcHandler {
+        target: "settings"
+        function open() { Ipc.call("settings", "open") }
+    }
+    IpcHandler {
+        target: "store"
+        function open() { Ipc.call("store", "open") }
+    }
+    IpcHandler {
+        target: "tour"
+        function start() { Ipc.call("tour", "start") }
+    }
+    IpcHandler {
+        target: "lock"
+        function lock() { Ipc.call("lock", "lock") }
+    }
+
     // Reapertura del tour y bloqueo: `Ipc.call("tour", "start")` llega como
     // `surfaceRequested("tour", "start")`; `Ipc.call("lock", "lock")` cierra
     // todo y avisa como `surfaceRequested("lock", "lock")`.
