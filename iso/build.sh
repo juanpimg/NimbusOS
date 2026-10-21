@@ -36,6 +36,21 @@ done
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$ROOT/iso/work"
 
+# La cache de pacman del perfil (CacheDir) es la MISMA para todas las
+# builds: /tmp/nimbus-pacman-cache. Dos builds a la vez se pisan la cache a
+# medias y aparecen errores que parecen de confianza ("signature is invalid",
+# "keyring is not writable") pero no son de confianza: son corrupcion. Un
+# flock serializa las builds que comparten cache.
+NIMBUS_BUILD_LOCK="${NIMBUS_BUILD_LOCK:-/tmp/nimbus-build.lock}"
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"$NIMBUS_BUILD_LOCK"
+  if ! flock -n 9; then
+    echo "hay otra build de Nimbus en marcha (bloqueo $NIMBUS_BUILD_LOCK)." >&2
+    echo "espera a que termine, o usa NIMBUS_BUILD_LOCK=<otro fichero>." >&2
+    exit 1
+  fi
+fi
+
 # Punto de montaje del repo nimbus DENTRO de la ISO arrancada. Esta ruta es un
 # contrato: tiene que coincidir exactamente con el `Server = file://...` de la
 # seccion [nimbus] del pacman.conf del perfil.
