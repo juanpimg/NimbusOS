@@ -243,6 +243,59 @@ TRANSLATIONS = {
             "Keyring poblado pero la clave nimbus no esta importada. "
             "Ejecuta pacman-key --populate nimbus y verifica."
         ),
+        "verify.cpu.ok": "CPU {level}: arquitectura soportada.",
+        "verify.cpu.too_old": (
+            "CPU por debajo del mínimo (se exige SSE4.2). "
+            "Este equipo no puede con Nimbus."
+        ),
+        "verify.amd.ok": "AMD lista: {nodes} con RADV (Vulkan).",
+        "verify.amd.skipped": "Omitido: sin GPU AMD en este equipo.",
+        "verify.amd.missing": (
+            "Hay AMD ({nodes}) pero falta RADV (Vulkan). "
+            "Instala vulkan-radeon (mesa) y reinicia."
+        ),
+        "verify.intel.ok": (
+            "Intel lista: {nodes} con anvil (Vulkan) e intel-media-driver."
+        ),
+        "verify.intel.skipped": (
+            "Omitido: sin gráficos Intel en este equipo."
+        ),
+        "verify.intel.missing": (
+            "Hay Intel ({nodes}) pero falta {what}. "
+            "Instala vulkan-intel e intel-media-driver y reinicia."
+        ),
+        "verify.nvidia.ok": "NVIDIA lista con controlador {driver}.",
+        "verify.nvidia.skipped": "Omitido: sin GPU NVIDIA en este equipo.",
+        "verify.nvidia.missing": (
+            "Hay NVIDIA pero sin controlador. Instala nvidia-open-dkms "
+            "(Turing y posteriores) y reinicia."
+        ),
+        "verify.wifi.ok": "WiFi listo en {iface} ({driver}).",
+        "verify.wifi.skipped": "Omitido: este equipo no tiene WiFi.",
+        "verify.wifi.unknown_driver": (
+            "WiFi ({iface}) con controlador {driver}, fuera de la matriz "
+            "soportada (iwlwifi, rtw88, brcmfmac). Revisa la compatibilidad "
+            "en el centro de control o repórtalo al programa beta."
+        ),
+        "verify.codecs.ok": "Codecs listos: ffmpeg con H.264 y AAC.",
+        "verify.codecs.missing": (
+            "Falta {what}. Instala ffmpeg para reproducir H.264 y AAC."
+        ),
+        "verify.printers.ok": "Impresión lista: CUPS con ipp-usb.",
+        "verify.printers.missing": (
+            "Falta {what}. Instala cups e ipp-usb para poder imprimir."
+        ),
+        "verify.laptop.ok": "Portátil listo: tapa y brillo ({backlight}).",
+        "verify.laptop.skipped": "Omitido: este equipo no es un portátil.",
+        "verify.laptop.missing": (
+            "Portátil sin {what}. Revisa el firmware o el kernel."
+        ),
+        "verify.laptop.no_backlight": "control de brillo",
+        "verify.laptop.no_lid": "interruptor de tapa",
+        "verify.snapshots.no_tools": (
+            "Sin herramientas para listar snapshots "
+            "(faltan snapper y btrfs)."
+        ),
         "postinstall.pretty_name": "Post-instalación",
         "postinstall.pretty_status": "Dejando el sistema listo para usar.",
         "postinstall.module.failed": (
@@ -457,6 +510,59 @@ TRANSLATIONS = {
         "verify.keyring.not_imported": (
             "Keyring populated but the nimbus key is not imported. "
             "Run pacman-key --populate nimbus and verify."
+        ),
+        "verify.cpu.ok": "CPU {level}: supported architecture.",
+        "verify.cpu.too_old": (
+            "CPU below the minimum (SSE4.2 required). "
+            "This machine cannot run Nimbus."
+        ),
+        "verify.amd.ok": "AMD ready: {nodes} with RADV (Vulkan).",
+        "verify.amd.skipped": "Skipped: no AMD GPU in this machine.",
+        "verify.amd.missing": (
+            "AMD found ({nodes}) but RADV (Vulkan) is missing. "
+            "Install vulkan-radeon (mesa) and reboot."
+        ),
+        "verify.intel.ok": (
+            "Intel ready: {nodes} with anvil (Vulkan) and intel-media-driver."
+        ),
+        "verify.intel.skipped": (
+            "Skipped: no Intel graphics in this machine."
+        ),
+        "verify.intel.missing": (
+            "Intel found ({nodes}) but {what} is missing. "
+            "Install vulkan-intel and intel-media-driver, then reboot."
+        ),
+        "verify.nvidia.ok": "NVIDIA ready with {driver} driver.",
+        "verify.nvidia.skipped": "Skipped: no NVIDIA GPU in this machine.",
+        "verify.nvidia.missing": (
+            "NVIDIA hardware found but no driver. Install nvidia-open-dkms "
+            "(Turing and newer) and reboot."
+        ),
+        "verify.wifi.ok": "Wi-Fi ready on {iface} ({driver}).",
+        "verify.wifi.skipped": "Skipped: this machine has no Wi-Fi.",
+        "verify.wifi.unknown_driver": (
+            "Wi-Fi ({iface}) with {driver} driver, outside the supported "
+            "matrix (iwlwifi, rtw88, brcmfmac). Check compatibility in the "
+            "control center or report it to the beta program."
+        ),
+        "verify.codecs.ok": "Codecs ready: ffmpeg with H.264 and AAC.",
+        "verify.codecs.missing": (
+            "Missing {what}. Install ffmpeg to play H.264 and AAC."
+        ),
+        "verify.printers.ok": "Printing ready: CUPS with ipp-usb.",
+        "verify.printers.missing": (
+            "Missing {what}. Install cups and ipp-usb to print."
+        ),
+        "verify.laptop.ok": "Laptop ready: lid and brightness ({backlight}).",
+        "verify.laptop.skipped": "Skipped: this machine is not a laptop.",
+        "verify.laptop.missing": (
+            "Laptop without {what}. Check firmware or kernel."
+        ),
+        "verify.laptop.no_backlight": "brightness control",
+        "verify.laptop.no_lid": "lid switch",
+        "verify.snapshots.no_tools": (
+            "No tools to list snapshots "
+            "(snapper and btrfs missing)."
         ),
         "postinstall.pretty_name": "Post-install",
         "postinstall.pretty_status": "Getting the system ready to use.",

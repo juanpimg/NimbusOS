@@ -179,9 +179,20 @@ EXPECTED_VERIFY_CHECKS = [
     "snapshots",
     "updates",
     "keyring",
+    # D3: filas de la matriz §4.13 sin comprobacion (CPU, GPU por marca,
+    # NVIDIA, WiFi por chip, codecs, impresoras, portatil).
+    "cpu",
+    "video-amd",
+    "video-intel",
+    "nvidia",
+    "wifi",
+    "codecs",
+    "printers",
+    "laptop",
 ]
 
-OPTIONAL_CHECKS = {"bluetooth", "webcam", "battery", "dual-boot", "snapshots"}
+OPTIONAL_CHECKS = {"bluetooth", "webcam", "battery", "dual-boot", "snapshots",
+                   "wifi", "video-amd", "video-intel", "nvidia", "laptop"}
 
 
 def _check(name):
@@ -211,18 +222,30 @@ def test_optional_hardware_absent_skips_true(name):
         "battery": {"has_battery": False},
         "dual-boot": {"windows_present": False, "other_systems": []},
         "snapshots": {"is_btrfs": False},
+        "wifi": {"wireless": {}},
+        "video-amd": {"vendors": []},
+        "video-intel": {"vendors": []},
+        "nvidia": {"has_nvidia": False},
+        "laptop": {"chassis_type": 3},
     }[name]
     ok, message = _check(name)("es", **absent_env)
     assert ok is True
     assert isinstance(message, str) and message
 
 
-@pytest.mark.parametrize("name", ["bluetooth", "battery", "snapshots"])
+@pytest.mark.parametrize("name", ["bluetooth", "battery", "snapshots",
+                                   "wifi", "video-amd", "video-intel",
+                                   "nvidia", "laptop"])
 def test_optional_absent_message_says_skipped(name):
     absent_env = {
         "bluetooth": {"has_hardware": False},
         "battery": {"has_battery": False},
         "snapshots": {"is_btrfs": False},
+        "wifi": {"wireless": {}},
+        "video-amd": {"vendors": []},
+        "video-intel": {"vendors": []},
+        "nvidia": {"has_nvidia": False},
+        "laptop": {"chassis_type": 3},
     }[name]
     _, message_es = _check(name)("es", **absent_env)
     _, message_en = _check(name)("en", **absent_env)
@@ -260,6 +283,18 @@ def test_broken_matrix_is_false_with_actionable_message():
             {"repo_configured": False, "key_trusted": False}, "nimbus"),
         "keyring": (
             {"populated": False, "key_imported": False}, "populate"),
+        "cpu": ({"cpuinfo_text": "processor : 0\nflags : fpu sse sse2\n"},
+                "mínimo"),
+        "video-amd": ({"vendors": ["0x1002"], "radv_present": False},
+                      "RADV"),
+        "video-intel": ({"vendors": ["0x8086"], "anvil_present": False,
+                         "media_driver_present": True}, "anvil"),
+        "nvidia": ({"has_nvidia": True, "driver": None}, "nvidia"),
+        "wifi": ({"wireless": {"wlan0": "rtl8821ce"}}, "controlador"),
+        "codecs": ({"ffmpeg": False, "encoders": ""}, "ffmpeg"),
+        "printers": ({"cups": True, "ipp_usb": False}, "ipp-usb"),
+        "laptop": ({"chassis_type": 9, "backlight": [],
+                    "lid_present": True}, "brillo"),
     }
     assert set(broken) == set(EXPECTED_VERIFY_CHECKS)
     for name, (env, hint) in broken.items():
@@ -287,6 +322,18 @@ def test_healthy_matrix_is_true():
         "snapshots": {"is_btrfs": True, "snapshots": ["post-instalacion"]},
         "updates": {"repo_configured": True, "key_trusted": True},
         "keyring": {"populated": True, "key_imported": True},
+        "cpu": {"cpuinfo_text": "processor : 0\n"
+                "flags : fpu sse sse2 ssse3 sse4_1 sse4_2 avx avx2\n"},
+        "video-amd": {"vendors": ["0x1002"], "radv_present": True},
+        "video-intel": {"vendors": ["0x8086"], "anvil_present": True,
+                        "media_driver_present": True},
+        "nvidia": {"has_nvidia": True, "driver": "nvidia"},
+        "wifi": {"wireless": {"wlan0": "iwlwifi"}},
+        "codecs": {"ffmpeg": "/usr/bin/ffmpeg",
+                   "encoders": " V..... libx264\n A..... aac\n"},
+        "printers": {"cups": True, "ipp_usb": True},
+        "laptop": {"chassis_type": 9, "backlight": ["intel_backlight"],
+                   "lid_present": True},
     }
     assert set(healthy) == set(EXPECTED_VERIFY_CHECKS)
     for name, env in healthy.items():

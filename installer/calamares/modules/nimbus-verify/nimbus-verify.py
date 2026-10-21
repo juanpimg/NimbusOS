@@ -1,11 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Modulo Calamares de verificacion post-instalacion de Nimbus.
 
-Ejecuta 14 comprobaciones sobre el sistema instalado, en el orden del spec:
+Ejecuta 22 comprobaciones, en el orden del spec:
 
 ``gpu``, ``graphics-hybrid``, ``audio``, ``network``, ``bluetooth``,
 ``webcam``, ``suspend``, ``battery``, ``disk-space``, ``bootloader``,
-``dual-boot``, ``snapshots``, ``updates`` y ``keyring``.
+``dual-boot``, ``snapshots``, ``updates``, ``keyring`` (las 14 originales)
+mas ``cpu``, ``video-amd``, ``video-intel``, ``nvidia``, ``wifi``,
+``codecs``, ``printers`` y ``laptop`` (las 8 filas de la matriz §4.13
+que no tenian comprobacion: CPU x86-64, AMD GCN3+/RADV, Intel iGPU/Arc,
+NVIDIA Turing+, WiFi por chip, codecs ffmpeg, impresoras CUPS y
+portatiles tapa/brillo).
 
 Cada ``check_*`` devuelve ``(bool, str)``: True con un mensaje ok, o False
 con un mensaje que incluye una accion. Las de hardware opcional
@@ -442,6 +447,186 @@ def _detect_key_imported():
                 timeout=10).returncode == 0
 
 
+# --- D3: deteccion para la matriz §4.13 ---------------------------------------
+
+#: Prefijos de controlador WiFi dentro de la matriz soportada (§4.13).
+WIFI_DRIVER_PREFIXES = ("iwlwifi", "rtw88", "rtl8xxx", "rtl8192",
+                        "rtl8188", "rtl8723", "b43", "brcmfmac")
+
+#: Tipos de chasis SMBIOS que son portatiles (DMI type 3, chassis type).
+LAPTOP_CHASSIS_TYPES = {8, 9, 10, 14, 31}
+
+_INTEL_PCI_VENDOR = "8086"
+_AMD_PCI_VENDOR = "1002"
+_NVIDIA_PCI_VENDOR = "10de"
+
+
+def _normalize_pci_vendor(value):
+    """'0x8086'/'8086' -> '8086' (minusculas, sin prefijo)."""
+    return str(value or "").strip().lower().removeprefix("0x")
+
+
+def _detect_gpu_vendors():
+    """Mapa {cardN: vendor} leido de /sys/class/drm (posible vacio)."""
+    vendors = {}
+    drm = pathlib.Path("/sys/class/drm")
+    if not drm.is_dir():
+        return vendors
+    for card in sorted(p for p in drm.iterdir()
+                       if re.fullmatch(r"card\d+", p.name)):
+        node = card / "device" / "vendor"
+        try:
+            if node.is_file():
+                vendors[card.name] = _normalize_pci_vendor(
+                    node.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+    return vendors
+
+
+def _cards_with_vendor(vendors, wanted):
+    """Nombres de tarjetas cuyo vendor coincide (inyectable)."""
+    wanted_norm = _normalize_pci_vendor(wanted)
+    if isinstance(vendors, dict):
+        items = list(vendors.items())
+    else:
+        items = [(f"card{i}", raw)
+                 for i, raw in enumerate(_as_list(vendors))]
+    return [card for card, raw in items
+            if _normalize_pci_vendor(raw) == wanted_norm]
+
+
+def _detect_vulkan_icds(substring):
+    """Ficheros ICD de Vulkan que contienen `substring`."""
+    node = pathlib.Path("/usr/share/vulkan/icd.d")
+    try:
+        return sorted(p.name for p in node.glob("*.json")
+                      if substring in p.name)
+    except OSError:
+        return []
+
+
+def _detect_media_driver():
+    """True si esta intel-media-driver (iHD_drv_video.so)."""
+    return pathlib.Path("/usr/lib/dri/iHD_drv_video.so").is_file()
+
+
+def _detect_nvidia_driver():
+    """Controlador NVIDIA ligado (nvidia/nouveau), o None."""
+    for name in ("nvidia", "nouveau"):
+        if (pathlib.Path("/sys/module") / name).is_dir():
+            return name
+    return None
+
+
+def _detect_cpuinfo():
+    """Texto de /proc/cpuinfo (puede lanzar; el check lo convierte)."""
+    return pathlib.Path("/proc/cpuinfo").read_text(encoding="utf-8")
+
+
+def _cpu_flags(cpuinfo_text):
+    """Conjunto de flags de CPU unidos de todos los procesadores."""
+    flags = set()
+    for line in str(cpuinfo_text or "").splitlines():
+        if line.split(":")[0].strip() == "flags":
+            flags.update(line.partition(":")[2].split())
+    return flags
+
+
+def _cpu_level(flags):
+    """Nivel x86-64 por flags: v4, v3, v1 o "" (bajo el minimo)."""
+    if "avx512f" in flags:
+        return "x86-64-v4 (AVX-512)"
+    if "avx2" in flags:
+        return "x86-64-v3 (AVX2)"
+    if "sse4_2" in flags:
+        return "x86-64-v1"
+    return ""
+
+
+def _detect_wireless():
+    """Mapa {interfaz: controlador} de las WiFi presentes (posible vacio)."""
+    result = {}
+    base = pathlib.Path("/sys/class/net")
+    try:
+        ifaces = sorted(p for p in base.iterdir())
+    except OSError:
+        return result
+    for iface in ifaces:
+        try:
+            if not (iface / "wireless").exists():
+                continue
+            link = iface / "device" / "driver"
+            if link.is_symlink():
+                result[iface.name] = os.readlink(link).split("/")[-1]
+            elif link.is_dir():
+                result[iface.name] = link.resolve().name
+            else:
+                result[iface.name] = "unknown"
+        except OSError:
+            continue
+    return result
+
+
+def _wifi_driver_supported(driver):
+    """True si el controlador esta en la matriz §4.13."""
+    lowered = str(driver or "").strip().lower()
+    return lowered.startswith(WIFI_DRIVER_PREFIXES)
+
+
+def _detect_ffmpeg():
+    """Ruta de ffmpeg, o None si no esta instalado."""
+    return shutil.which("ffmpeg")
+
+
+def _detect_encoders(ffmpeg):
+    """Salida de `ffmpeg -encoders` (cadena vacia si falla)."""
+    try:
+        proc = _run([ffmpeg, "-hide_banner", "-encoders"])
+    except (FileNotFoundError, subprocess.SubprocessError, OSError):
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return proc.stdout or ""
+
+
+def _detect_cups():
+    """True si CUPS esta instalado (cupsd disponible)."""
+    return shutil.which("cupsd") is not None
+
+
+def _detect_ipp_usb():
+    """True si ipp-usb esta instalado."""
+    return shutil.which("ipp-usb") is not None
+
+
+def _detect_chassis_type():
+    """Tipo de chasis DMI (entero SMBIOS); lanza si no se puede leer."""
+    return int(pathlib.Path(
+        "/sys/class/dmi/id/chassis_type").read_text(
+            encoding="utf-8").strip())
+
+
+def _detect_backlight():
+    """Controles de brillo en /sys/class/backlight (posible vacio)."""
+    node = pathlib.Path("/sys/class/backlight")
+    try:
+        if node.is_dir():
+            return sorted(p.name for p in node.iterdir())
+    except OSError:
+        pass
+    return []
+
+
+def _detect_lid_present():
+    """True si hay interruptor de tapa ACPI."""
+    node = pathlib.Path("/proc/acpi/button/lid")
+    try:
+        return node.is_dir() and any(node.iterdir())
+    except OSError:
+        return False
+
+
 @check("gpu")
 def check_gpu(locale=None, dri_nodes=_AUTO, driver=_AUTO):
     """La GPU aparece en /dev/dri/renderD* y tiene controlador."""
@@ -734,8 +919,7 @@ def check_snapshots(locale=None, is_btrfs=_AUTO, snapshots=_AUTO):
                  else _as_list(snapshots))
         if found is None:
             return False, translated(
-                "verify.internal_error", lang).format(
-                    detail="sin herramientas para listar snapshots")
+                "verify.snapshots.no_tools", lang)
         if found:
             return True, translated(
                 "verify.snapshots.ok", lang).format(count=len(found))
@@ -778,6 +962,204 @@ def check_keyring(locale=None, populated=_AUTO, key_imported=_AUTO):
         if not imported:
             return (False, translated("verify.keyring.not_imported", lang))
         return (True, translated("verify.keyring.ok", lang))
+    except Exception as exc:  # nunca debe lanzar
+        return False, translated(
+            "verify.internal_error", lang).format(detail=exc)
+
+
+@check("cpu")
+def check_cpu(locale=None, cpuinfo_text=_AUTO):
+    """La CPU llega al minimo x86-64 (SSE4.2); informa el nivel v1/v3/v4."""
+    lang = _current_locale(locale)
+    try:
+        text = (_detect_cpuinfo() if cpuinfo_text is _AUTO
+                else str(cpuinfo_text or ""))
+        level = _cpu_level(_cpu_flags(text))
+        if not level:
+            return (False, translated("verify.cpu.too_old", lang))
+        return True, translated(
+            "verify.cpu.ok", lang).format(level=level)
+    except Exception as exc:  # nunca debe lanzar
+        return False, translated(
+            "verify.internal_error", lang).format(detail=exc)
+
+
+@check("video-amd")
+def check_video_amd(locale=None, vendors=_AUTO, radv_present=_AUTO):
+    """Con GPU AMD, RADV (vulkan-radeon) esta instalado."""
+    lang = _current_locale(locale)
+    try:
+        table = (_detect_gpu_vendors() if vendors is _AUTO else vendors)
+        nodes = _cards_with_vendor(table, _AMD_PCI_VENDOR)
+        if not nodes:
+            return True, translated("verify.amd.skipped", lang)
+        present = (bool(_detect_vulkan_icds("radeon"))
+                   if radv_present is _AUTO else bool(radv_present))
+        if not present:
+            return False, translated(
+                "verify.amd.missing", lang).format(
+                    nodes=", ".join(nodes))
+        return True, translated(
+            "verify.amd.ok", lang).format(nodes=", ".join(nodes))
+    except Exception as exc:  # nunca debe lanzar
+        return False, translated(
+            "verify.internal_error", lang).format(detail=exc)
+
+
+@check("video-intel")
+def check_video_intel(locale=None, vendors=_AUTO, anvil_present=_AUTO,
+                      media_driver_present=_AUTO):
+    """Con graficos Intel (incluido Arc), anvil e intel-media-driver."""
+    lang = _current_locale(locale)
+    try:
+        table = (_detect_gpu_vendors() if vendors is _AUTO else vendors)
+        nodes = _cards_with_vendor(table, _INTEL_PCI_VENDOR)
+        if not nodes:
+            return True, translated("verify.intel.skipped", lang)
+        anvil = (bool(_detect_vulkan_icds("intel"))
+                 if anvil_present is _AUTO else bool(anvil_present))
+        media = (_detect_media_driver() if media_driver_present is _AUTO
+                 else bool(media_driver_present))
+        missing = []
+        if not anvil:
+            missing.append("anvil (Vulkan)")
+        if not media:
+            missing.append("intel-media-driver")
+        if missing:
+            return False, translated(
+                "verify.intel.missing", lang).format(
+                    nodes=", ".join(nodes), what=" y ".join(missing))
+        return True, translated(
+            "verify.intel.ok", lang).format(nodes=", ".join(nodes))
+    except Exception as exc:  # nunca debe lanzar
+        return False, translated(
+            "verify.internal_error", lang).format(detail=exc)
+
+
+@check("nvidia")
+def check_nvidia(locale=None, has_nvidia=_AUTO, driver=_AUTO,
+                 vendors=_AUTO):
+    """Con hardware NVIDIA, hay un controlador ligado (nvidia/nouveau)."""
+    lang = _current_locale(locale)
+    try:
+        if has_nvidia is _AUTO:
+            table = (_detect_gpu_vendors() if vendors is _AUTO
+                     else vendors)
+            present = bool(_cards_with_vendor(table, _NVIDIA_PCI_VENDOR))
+        else:
+            present = bool(has_nvidia)
+        if not present:
+            return True, translated("verify.nvidia.skipped", lang)
+        found = (_detect_nvidia_driver() if driver is _AUTO else driver)
+        if not found:
+            return (False, translated("verify.nvidia.missing", lang))
+        return True, translated(
+            "verify.nvidia.ok", lang).format(driver=found)
+    except Exception as exc:  # nunca debe lanzar
+        return False, translated(
+            "verify.internal_error", lang).format(detail=exc)
+
+
+@check("wifi")
+def check_wifi(locale=None, wireless=_AUTO):
+    """Cada WiFi presente usa un controlador de la matriz §4.13."""
+    lang = _current_locale(locale)
+    try:
+        table = (_detect_wireless() if wireless is _AUTO
+                 else dict(wireless or {}))
+        if not table:
+            return True, translated("verify.wifi.skipped", lang)
+        iface = sorted(table)[0]
+        driver = table[iface]
+        if _wifi_driver_supported(driver):
+            return True, translated(
+                "verify.wifi.ok", lang).format(iface=iface, driver=driver)
+        return False, translated(
+            "verify.wifi.unknown_driver", lang).format(
+                iface=iface, driver=driver)
+    except Exception as exc:  # nunca debe lanzar
+        return False, translated(
+            "verify.internal_error", lang).format(detail=exc)
+
+
+@check("codecs")
+def check_codecs(locale=None, ffmpeg=_AUTO, encoders=_AUTO):
+    """ffmpeg esta instalado con H.264 (libx264) y AAC."""
+    lang = _current_locale(locale)
+    try:
+        binary = (_detect_ffmpeg() if ffmpeg is _AUTO else ffmpeg)
+        if not binary:
+            return False, translated(
+                "verify.codecs.missing", lang).format(what="ffmpeg")
+        text = (_detect_encoders(binary) if encoders is _AUTO
+                else str(encoders or ""))
+        missing = []
+        if "libx264" not in text:
+            missing.append("H.264 (libx264)")
+        if "aac" not in text:
+            missing.append("AAC")
+        if missing:
+            return False, translated(
+                "verify.codecs.missing", lang).format(
+                    what=" y ".join(missing))
+        return (True, translated("verify.codecs.ok", lang))
+    except Exception as exc:  # nunca debe lanzar
+        return False, translated(
+            "verify.internal_error", lang).format(detail=exc)
+
+
+@check("printers")
+def check_printers(locale=None, cups=_AUTO, ipp_usb=_AUTO):
+    """CUPS e ipp-usb instalados (impresion sin drivers de fabricante)."""
+    lang = _current_locale(locale)
+    try:
+        has_cups = (_detect_cups() if cups is _AUTO else bool(cups))
+        has_ipp = (_detect_ipp_usb() if ipp_usb is _AUTO
+                   else bool(ipp_usb))
+        missing = []
+        if not has_cups:
+            missing.append("CUPS")
+        if not has_ipp:
+            missing.append("ipp-usb")
+        if missing:
+            return False, translated(
+                "verify.printers.missing", lang).format(
+                    what=" y ".join(missing))
+        return (True, translated("verify.printers.ok", lang))
+    except Exception as exc:  # nunca debe lanzar
+        return False, translated(
+            "verify.internal_error", lang).format(detail=exc)
+
+
+@check("laptop")
+def check_laptop(locale=None, chassis_type=_AUTO, backlight=_AUTO,
+                 lid_present=_AUTO):
+    """En portatil, hay control de brillo e interruptor de tapa."""
+    lang = _current_locale(locale)
+    try:
+        chassis = (_detect_chassis_type() if chassis_type is _AUTO
+                   else chassis_type)
+        try:
+            kind = int(str(chassis).strip())
+        except (TypeError, ValueError):
+            kind = -1
+        if kind not in LAPTOP_CHASSIS_TYPES:
+            return True, translated("verify.laptop.skipped", lang)
+        lights = (_detect_backlight() if backlight is _AUTO
+                  else [str(item) for item in _as_list(backlight)])
+        lid = (_detect_lid_present() if lid_present is _AUTO
+               else bool(lid_present))
+        missing = []
+        if not lights:
+            missing.append(translated("verify.laptop.no_backlight", lang))
+        if not lid:
+            missing.append(translated("verify.laptop.no_lid", lang))
+        if missing:
+            return False, translated(
+                "verify.laptop.missing", lang).format(
+                    what=" y ".join(missing))
+        return True, translated(
+            "verify.laptop.ok", lang).format(backlight=", ".join(lights))
     except Exception as exc:  # nunca debe lanzar
         return False, translated(
             "verify.internal_error", lang).format(detail=exc)
