@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Fix A: la sesion live la gestiona Hyprland y el marcador es verdadero.
+"""La sesion live: la arranca el greeter (SDDM) y el marcador es verdadero.
 
 Comprueba, sobre los ficheros del perfil y de dots/, que:
-- nimbus-live.service arranca Hyprland (no el shell) como nimbus;
+- la sesion live la arranca el GREETER (SDDM con autologin del usuario
+  nimbus), no un unit suelto: asi hay sesion de logind de verdad, que es lo
+  que necesita el compositor para el asiento;
+- el script de sesion arranca Hyprland (no el shell) con la config del home;
 - el marcador NIMBUS_LIVE_READY sale del script de readiness, no del unit;
 - la config de Hyprland esta en el home del usuario live;
 - dots/ y el paquete nimbus-dots son coherentes con la sesion live;
@@ -23,28 +26,35 @@ def _exec_start_lines(text):
     return [line.strip() for line in text.splitlines() if line.strip().startswith("ExecStart=")]
 
 
-def test_live_service_runs_hyprland_with_home_config():
-    text = (AIROOTFS / "etc" / "systemd" / "system" / "nimbus-live.service").read_text(encoding="utf-8")
-    assert "User=nimbus" in text
-    starts = _exec_start_lines(text)
-    assert any(
-        "/usr/bin/Hyprland" in line
-        and "--config" in line
-        and "/home/nimbus/.config/hypr/hyprland.lua" in line
-        for line in starts
-    ), starts
-    assert all("/usr/bin/nimbus-shell" not in line for line in starts), starts
+def test_live_session_runs_hyprland_with_home_config():
+    """El script de sesion arranca Hyprland (no el shell) con la config del
+    home del usuario live, a traves del wrapper start-hyprland (que es lo que
+    evita el aviso "Hyprland was started without start-hyprland")."""
+    text = (AIROOTFS / "usr" / "lib" / "nimbus" / "nimbus-session").read_text(encoding="utf-8")
+    assert "/usr/bin/start-hyprland" in text
+    assert "--config" in text
+    # La config se busca en el HOME del usuario live (el home de la ISO) y,
+    # si no esta, se usa la que instala el paquete nimbus-dots.
+    assert '$HOME/.config/hypr/hyprland.lua' in text
+    assert "/usr/lib/nimbus/dots/hypr/hyprland.lua" in text
+    assert "/usr/bin/nimbus-shell" not in text
 
 
-def test_live_service_sets_wayland_session_env():
-    text = (AIROOTFS / "etc" / "systemd" / "system" / "nimbus-live.service").read_text(encoding="utf-8")
-    for var in (
-        "HOME=/home/nimbus",
-        "XDG_RUNTIME_DIR=/run/user/1000",
-        "WAYLAND_DISPLAY=",
-        "XDG_CURRENT_DESKTOP=Hyprland",
-    ):
-        assert var in text, var
+def test_live_session_is_offered_by_the_greeter():
+    """La sesion live la ofrece el greeter, con autologin del usuario nimbus."""
+    desktop = (AIROOTFS / "usr" / "share" / "wayland-sessions" / "nimbus.desktop").read_text(encoding="utf-8")
+    assert "Exec=/usr/lib/nimbus/nimbus-session" in desktop
+    assert "Type=Application" in desktop
+    conf = (AIROOTFS / "etc" / "sddm.conf.d" / "nimbus.conf").read_text(encoding="utf-8")
+    assert "[Autologin]" in conf
+    assert "User=nimbus" in conf
+    assert "Session=nimbus.desktop" in conf
+    # El greeter tiene que estar habilitado: la via estandar es el symlink
+    # display-manager.service -> sddm.service.
+    system = AIROOTFS / "etc" / "systemd" / "system"
+    dm = system / "display-manager.service"
+    assert dm.is_symlink(), "falta el symlink que habilita el greeter"
+    assert dm.resolve().name == "sddm.service"
 
 
 def test_ready_script_gates_the_marker():
@@ -65,11 +75,13 @@ def test_ready_script_gates_the_marker():
 
 def test_ready_unit_delegates_to_the_script():
     text = (AIROOTFS / "etc" / "systemd" / "system" / "nimbus-live-ready.service").read_text(encoding="utf-8")
-    assert "Requires=nimbus-live.service" in text
     starts = _exec_start_lines(text)
     assert starts
     assert any("nimbus-live-ready" in line for line in starts), starts
+    # El unit NUNCA escribe el marcador: lo escribe el script, y solo cuando
+    # el shell ha dicho que esta listo.
     assert all("echo" not in line for line in starts), starts
+    assert "NIMBUS_LIVE_READY" not in text or "nimbus-live-ready" in text
 
 
 def test_nimbus_start_has_emergency_fallback_without_exec():
