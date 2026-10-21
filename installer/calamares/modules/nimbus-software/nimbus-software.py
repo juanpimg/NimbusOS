@@ -7,6 +7,7 @@ de empezar y traduce cada perfil a su lista de paquetes, que instala con
 """
 
 import socket
+import warnings
 
 try:  # Calamares provee libcalamares en el ISO live; ausente en CI/test.
     import libcalamares
@@ -48,10 +49,20 @@ PROFILE_PACKAGES = {
 
 
 def packages_for_profiles(profiles):
-    """Traduce perfiles marcados a la lista ordenada y sin duplicados."""
+    """Traduce perfiles marcados a la lista ordenada y sin duplicados.
+
+    Los perfiles desconocidos se omiten con un aviso: nunca fallan
+    en silencio.
+    """
     packages = []
     for profile in profiles:
-        for package in PROFILE_PACKAGES.get(profile, []):
+        if profile not in PROFILE_PACKAGES:
+            message = f"perfil de software desconocido: {profile!r} (se omite)"
+            if libcalamares is not None:
+                libcalamares.utils.warning(message)
+            warnings.warn(message, stacklevel=2)
+            continue
+        for package in PROFILE_PACKAGES[profile]:
             if package not in packages:
                 packages.append(package)
     return packages
@@ -66,7 +77,7 @@ def check_connectivity(timeout=CONNECTIVITY_TIMEOUT):
     if libcalamares is not None:
         try:
             return bool(libcalamares.utils.check_network_connection())
-        except (AttributeError, RuntimeError, OSError):
+        except Exception:  # cualquier error del framework -> via socket
             pass
     try:
         socket.create_connection(CONNECTIVITY_HOST, timeout=timeout).close()
@@ -86,6 +97,26 @@ def read_selected_profiles():
     if isinstance(selected, str):
         return [p.strip() for p in selected.split(",") if p.strip()]
     return list(selected)
+
+
+# Clave de globalstorage donde la pagina QML guarda si el usuario acepto
+# continuar solo con el perfil base cuando no hay conexion.
+OFFLINE_ACCEPT_KEY = "nimbusSoftwareOfflineAccepted"
+
+
+def read_offline_accepted():
+    """Lee si el usuario acepto continuar solo con base sin red.
+
+    La pagina QML del modulo muestra el mensaje accionable y, si el
+    usuario pulsa "Continuar solo con base", guarda True en
+    OFFLINE_ACCEPT_KEY del globalstorage antes de avanzar.
+    """
+    if libcalamares is None:
+        return False
+    value = libcalamares.globalstorage.value(OFFLINE_ACCEPT_KEY)
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes")
+    return bool(value)
 
 
 def connectivity_gate(accepted_offline=False):
@@ -131,7 +162,9 @@ def pretty_status_message():
 
 def run():
     """Punto de entrada de Calamares."""
-    gate = connectivity_gate()
+    # La aceptacion la escribe la pagina QML en el globalstorage; sin
+    # leerla aqui la rama de solo-base seria inalcanzable en el flujo real.
+    gate = connectivity_gate(accepted_offline=read_offline_accepted())
     if not gate["online"] and not gate["profiles"]:
         if libcalamares is not None:
             libcalamares.utils.warning(NO_CONNECTIVITY_MESSAGE)

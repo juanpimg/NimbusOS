@@ -35,6 +35,12 @@ ACCENT_PRESETS = (
 
 THEME_PAGE_MODES = ("claro", "oscuro", "auto")
 
+THEME_LABEL_TO_MODE = {
+    "claro": "light",
+    "oscuro": "dark",
+    "auto": "auto",
+}
+
 DEFAULT_WALLPAPER = "nimbus-default"
 
 KWRITECONFIG_BINARIES = ("kwriteconfig6", "kwriteconfig5", "kwriteconfig")
@@ -57,6 +63,18 @@ def validate_mode(mode):
     if text not in VALID_MODES:
         raise ValueError(f"modo no valido: {mode!r} (usa {VALID_MODES})")
     return text
+
+
+def theme_label_to_mode(label):
+    """Convierte la etiqueta de la pagina Tema a modo interno.
+
+    Valida contra THEME_PAGE_MODES, las unicas etiquetas que la pagina QML
+    puede producir.
+    """
+    text = str(label).strip().lower()
+    if text not in THEME_PAGE_MODES:
+        raise ValueError(f"tema no valido: {label!r} (usa {THEME_PAGE_MODES})")
+    return THEME_LABEL_TO_MODE[text]
 
 
 def render_appearance_conf(mode, accent, wallpaper=DEFAULT_WALLPAPER):
@@ -133,6 +151,19 @@ def pretty_status_message():
     return "Configurando la apariencia de Nimbus."
 
 
+def write_appearance_conf(content, root="/"):
+    """Escribe appearance.conf en el sistema destino sin invocar shell.
+
+    Usa solo pathlib con argumentos discretos: ni el fondo ni ningun
+    otro valor que venga de globalstorage pasa por un interprete de
+    comandos, asi que un salto de linea malicioso no puede inyectar nada.
+    """
+    target = pathlib.Path(str(root)) / "etc" / "nimbus" / "appearance.conf"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+    return target
+
+
 def run():
     """Punto de entrada de Calamares: escribe y aplica la apariencia."""
     selection = read_selection()
@@ -141,13 +172,9 @@ def run():
     wallpaper = selection.get("wallpaper") or DEFAULT_WALLPAPER
     content = render_appearance_conf(mode, accent, wallpaper)
     if libcalamares is not None:
-        libcalamares.utils.target_env_command(
-            "mkdir", "-p", "/etc/nimbus")
-        libcalamares.utils.target_env_command(
-            "sh", "-c", f"cat > /etc/nimbus/appearance.conf <<'EOF'\n{content}EOF")
+        root = libcalamares.globalstorage.value("rootMountPoint") or "/"
     else:  # pragma: no cover - solo en el instalador real
-        target = pathlib.Path("/etc/nimbus/appearance.conf")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
+        root = "/"
+    write_appearance_conf(content, root=root)
     apply_with_kwriteconfig(mode, accent)
     return None

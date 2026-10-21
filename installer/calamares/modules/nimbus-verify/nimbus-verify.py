@@ -7,6 +7,7 @@ False con un mensaje que incluye una accion. Ninguna comprobacion lanza
 excepcion y un fallo nunca aborta la instalacion.
 """
 
+import logging
 import pathlib
 import shutil
 import subprocess
@@ -15,6 +16,8 @@ try:  # Calamares provee libcalamares en el ISO live; ausente en CI/test.
     import libcalamares
 except ImportError:  # pragma: no cover - entorno sin Calamares
     libcalamares = None
+
+logger = logging.getLogger(__name__)
 
 CHECKS = []
 
@@ -176,18 +179,31 @@ def pretty_status_message():
     return "Verificando la instalación."
 
 
+def serializable_results(results):
+    """Convierte [(name, ok, message)] a {name: [ok, message]}.
+
+    ``dict(results)`` reventaria con tuplas de 3 elementos (ValueError);
+    este formato es seguro para globalstorage y serializable a JSON.
+    """
+    return {name: [ok, message] for name, ok, message in results}
+
+
 def run():
-    """Punto de entrada de Calamares: informa, nunca aborta."""
+    """Punto de entrada de Calamares: informa, nunca aborta.
+
+    Siempre devuelve None: en Calamares, devolver cualquier otro valor
+    marca el job como fallido. Los avisos se registran con utils.warning.
+    """
     results = run_all_checks()
-    failed = [name for name, ok, _ in results if not ok]
-    if libcalamares is not None:
-        storage = libcalamares.globalstorage
-        storage.insert("nimbusVerifyResults", dict(results))
-        for name, ok, message in results:
+    for name, ok, message in results:
+        if libcalamares is not None:
             if ok:
                 libcalamares.utils.debug(f"verify {name}: {message}")
             else:
                 libcalamares.utils.warning(f"verify {name}: {message}")
-    return None if not failed else (
-        "Avisos de verificación: " + ", ".join(failed)
-        + ". La instalación continúa.")
+        elif not ok:
+            logger.warning("verify %s: %s", name, message)
+    if libcalamares is not None:
+        libcalamares.globalstorage.insert(
+            "nimbusVerifyResults", serializable_results(results))
+    return None
