@@ -338,9 +338,13 @@ teardown() {
   gpg --homedir "$TESTDIR/out/gnupg" --batch --yes --detach-sign --local-user "$FPR" "$TESTDIR/datos.txt"
 
   # Un keyring limpio que solo tiene la clave pública, tal y como verá el usuario.
+  # nimbus.gpg es una exportacion armored: hay que IMPORTARLA antes de usarla
+  # como keyring; pasarle el fichero armored a --keyring no funciona.
   mkdir -p "$TESTDIR/verifyhome"
   chmod 700 "$TESTDIR/verifyhome"
-  run gpg --homedir "$TESTDIR/verifyhome" --no-default-keyring --keyring "$TESTDIR/out/nimbus.gpg" --verify "$TESTDIR/datos.txt.sig" "$TESTDIR/datos.txt"
+  run gpg --homedir "$TESTDIR/verifyhome" --quiet --import "$TESTDIR/out/nimbus.gpg"
+  [ "$status" -eq 0 ]
+  run gpg --homedir "$TESTDIR/verifyhome" --verify "$TESTDIR/datos.txt.sig" "$TESTDIR/datos.txt"
   [ "$status" -eq 0 ]
 }
 
