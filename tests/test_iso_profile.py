@@ -106,9 +106,12 @@ def test_live_service_starts_the_shell_and_is_required_by_the_marker():
 
 
 def test_live_units_are_enabled_at_boot():
-    wants = PROFILE / "airootfs" / "etc" / "systemd" / "system" / "graphical.target.wants"
-    assert (wants / "nimbus-live.service").is_symlink()
-    assert (wants / "nimbus-live-ready.service").is_symlink()
+    # live cuelga de graphical (su After=graphical.target lo exige) y ready
+    # de multi-user: si ready colgara tambien de graphical, systemd detecta
+    # un ciclo de orden (live→graphical→ready→live) y lo salta sin marcador.
+    wants = PROFILE / "airootfs" / "etc" / "systemd" / "system"
+    assert (wants / "graphical.target.wants" / "nimbus-live.service").is_symlink()
+    assert (wants / "multi-user.target.wants" / "nimbus-live-ready.service").is_symlink()
 
 
 def test_boot_configs_point_at_cachyos_kernel():
@@ -209,3 +212,11 @@ def test_live_mirrorlists_cover_profile_includes():
     text = (PROFILE / "airootfs" / "etc" / "pacman.conf").read_text(encoding="utf-8")
     for inc in re.findall(r"^Include\s*=\s*(\S+)", text, re.MULTILINE):
         assert (PROFILE / "airootfs" / inc.lstrip("/")).is_file(), inc
+
+
+def test_airootfs_has_localtime_symlink_so_firstboot_does_not_block():
+    """Sin /etc/localtime, systemd-firstboot pide la zona horaria por
+    consola y el arranque se queda esperando entrada: el marcador no sale."""
+    link = PROFILE / "airootfs" / "etc" / "localtime"
+    assert link.is_symlink()
+    assert "zoneinfo" in link.readlink().as_posix()
