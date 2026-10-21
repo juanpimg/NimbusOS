@@ -89,6 +89,7 @@ reunión explícita:
 | Gameready | **Toggle en el instalador**; el contenido lo define este documento | Decisión delegada al fundador |
 | Idiomas | **ES + EN de fábrica**, infraestructura gettext lista para traducción por comunidad | |
 | Nombre | **Nimbus** | Sin conflictos con otras distros; evoca la capa translúcida |
+| Repositorio | **`https://github.com/juanpimg/NimbusOS`** | Monorepo durante el bootstrap; se dividirá por subsistema cuando haya tracción |
 | Tienda | **Nimbus Store** | |
 | Horizonte | **Beta pública primero, v1.0 después** | Feedback real antes de prometer |
 | Mantenimiento | **Comunidad desde el día 1** | Repos públicos, issues abiertas, decisiones documentadas |
@@ -514,16 +515,26 @@ moviéndose al mismo tiempo.
 
 ### 4.10 Repos e infraestructura
 
-Repos públicos desde el día 1 (G6):
+Repos públicos desde el día 1 (G6). El repo real es
+**`https://github.com/juanpimg/NimbusOS`**.
 
-| Repo | Contenido |
-|------|-----------|
-| `nimbus/nimbus-shell` | El shell QML/Quickshell, Nimbus Store, Ajustes, Tour, tokens de diseño |
-| `nimbus/dots` | Configuración de Hyprland + defaults del sistema |
-| `nimbus/packages` | PKGBUILDs de nuestro repo, incluidos los reempaquetados de AUR (D7) |
-| `nimbus/archiso` | Constructor de la ISO (fork de `archlinux/archiso`) |
-| `nimbus/calamares` | Fork de `cachyos-calamares` con nuestros módulos |
-| `nimbus/docs` | Documentación y sitio web |
+**Decisión de bootstrap: monorepo primero.** La tabla de abajo describe la estructura
+*final* (un repo por subsistema, porque así se mantiene mejor a largo plazo), pero
+arrancamos con **un solo monorepo** que contiene todo. Motivo: antes de tener un shell que
+funcione, mantener siete repos, siete CI y siete anillos de keyring coordinados es
+ceremonia sin retorno. El mapeo del monorepo al repo final es 1:1 y mechanical:
+
+| Repo final (objetivo) | Directorio en el monorepo | Contenido |
+|-----------------------|---------------------------|-----------|
+| `nimbus-shell` | `shell/` | El shell QML/Quickshell, Nimbus Store, Ajustes, Tour, tokens de diseño |
+| `nimbus-dots` | `dots/` | Configuración de Hyprland + defaults del sistema |
+| `nimbus-packages` | `packages/` | PKGBUILDs de nuestro repo, incluidos los reempaquetados de AUR (D7) |
+| `nimbus-iso` | `iso/` | Constructor de la ISO (fork de `archlinux/archiso`) |
+| `nimbus-installer` | `installer/` | Fork de `cachyos-calamares` con nuestros módulos |
+| `nimbus-docs` | `docs/` | Documentación y sitio web |
+
+La división se hace cuando haya tracción community real, y se hace con `git filter-repo`
+para preservar el historial. No antes.
 | `nimbus/.github` | Workflows de CI (build de ISO, build de paquetes, tests) |
 
 - **Repo `nimbus`:** firmado con GPG, con keyring propio (`nimbus-keyring`).

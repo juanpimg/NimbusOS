@@ -388,7 +388,7 @@ pkgrel=1
 pkgdesc="Clave pública de firma de los paquetes de Nimbus"
 arch=('any')
 license=('GPL-3.0-or-later')
-url="https://github.com/nimbus-linux/nimbus"
+url="https://github.com/juanpimg/NimbusOS"
 install=install -Dm644
 source=("nimbus.gpg")
 sha256sums=('SKIP')
@@ -900,7 +900,7 @@ pkgdesc="Shell de escritorio Nimbus para Hyprland (Quickshell/QML)"
 arch=('any')
 license=('GPL-3.0-or-later')
 depends=('quickshell>=0.3.2' 'hyprland>=0.56.2' 'qt6-declarative' 'qt6-wayland' 'qt6-shadertools' 'inter-font')
-source=("shell::git+https://github.com/nimbus-linux/nimbus-shell.git")
+source=('shell::git+https://github.com/juanpimg/NimbusOS.git')
 sha256sums=('SKIP')
 package() {
   install -Dm644 shell/src/qmldir "$pkgdir/usr/lib/nimbus/shell/qmldir"
@@ -1169,7 +1169,7 @@ pkgdesc="Configuración de Hyprland y defaults del sistema para Nimbus"
 arch=('any')
 license=('GPL-3.0-or-later')
 depends=('hyprland>=0.56.2' 'nimbus-shell' 'kitty')
-source=("dots::git+https://github.com/nimbus-linux/nimbus-dots.git")
+source=('dots::git+https://github.com/juanpimg/NimbusOS.git')
 sha256sums=('SKIP')
 package() {
   install -Dm644 dots/hypr/hyprland.lua "$pkgdir/usr/lib/nimbus/dots/hypr/hyprland.lua"
@@ -1389,7 +1389,7 @@ PRETTY_NAME="Nimbus Linux"
 ID=nimbus
 ID_LIKE=arch cachyos
 ANSI_COLOR="38;2;0;122;255"
-HOME_URL="https://nimbus-linux.org"
+HOME_URL="https://github.com/juanpimg/NimbusOS"
 EOF
 
 # Mot de passe y configuración de la sesión live.
@@ -1664,10 +1664,10 @@ modules:
 
 [general]
 organizationName=Nimbus
-organizationDomain=nimbus-linux.org
+organizationDomain=github.com
 productName=Nimbus
 productVersion=0.1.0
-donationURL=https://nimbus-linux.org/donate
+donationURL=https://github.com/juanpimg/NimbusOS
 
 [locale]
 locale=es_ES.UTF-8
