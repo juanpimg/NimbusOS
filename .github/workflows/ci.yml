@@ -59,7 +59,7 @@ jobs:
         run: |
           pacman --config /etc/pacman.conf -Sy --noconfirm --needed \
             python-pytest bats qt6-declarative qt6-wayland \
-            qt6-shadertools lua actionlint
+            qt6-shadertools lua actionlint quickshell
       - name: Actionlint
         run: |
           actionlint -version
