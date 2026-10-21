@@ -16,12 +16,28 @@ Environment=XDG_SESSION_DESKTOP=Hyprland
 Environment=XDG_CURRENT_DESKTOP=Hyprland
 Environment=WAYLAND_DISPLAY=wayland-1
 Environment=HYPRLAND_INSTANCE_SIGNATURE=__AUTO__
+# libseat (wlroots) solo tiene tres backends: logind, seatd y noop. La sesion
+# live de la ISO no pasa por PAM --nadie hace login-- asi que no existe sesion
+# de logind, y el backend logind aborta al crear el backend de render:
+#   terminate called after throwing an instance of 'std::runtime_error'
+#     what():  CBackend::create() failed!
+# Con noop, wlroots abre el nodo DRM directamente. Para una sesion live de un
+# solo compositor es lo correcto: no hay que cambiar de VT ni pausar
+# dispositivos, y las getty de la consola siguen disponibles.
+# Verificado en la sesion live: con noop el compositor arranca y responde a
+# hyprctl; sin el, aborta con el error de arriba.
+Environment=LIBSEAT_BACKEND=noop
 # El runtime dir no lo crea logind (este unit no pasa por PAM): se asegura
 # aqui con privilegios (prefijo +) porque User=nimbus no podria hacer chown.
 # Sin el, Hyprland 0.56 no puede crear $XDG_RUNTIME_DIR/hypr/<firma> y el
 # socket del compositor nunca aparece.
 ExecStartPre=+/usr/bin/install -d --owner=nimbus --group=nimbus --mode=0700 /run/user/1000
 ExecStart=/usr/bin/Hyprland --config /home/nimbus/.config/hypr/hyprland.lua
+# La salida del compositor va tambien a la consola: el harness de QEMU lee el
+# log serie y, sin esto, un fallo de arranque del compositor solo aparecia en
+# el journal (donde nadie lo mira).
+StandardOutput=journal+console
+StandardError=journal+console
 Restart=on-failure
 RestartSec=2
 

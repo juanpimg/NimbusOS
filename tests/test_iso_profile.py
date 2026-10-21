@@ -124,12 +124,56 @@ def test_live_session_is_managed_by_hyprland_for_user_nimbus():
 
 
 def test_live_units_are_enabled_at_boot():
-    # live cuelga de graphical (su After=graphical.target lo exige) y ready
-    # de multi-user: si ready colgara tambien de graphical, systemd detecta
-    # un ciclo de orden (live->graphical->ready->live) y lo salta sin marcador.
+    # Las DOS unidades live cuelgan de graphical.target, y no de multi-user.
+    #
+    # Razon (la rationale anterior estaba invertida): Wants= implica After= en
+    # los targets, asi que la cadena real es
+    #   graphical.target --(After)--> multi-user.target --(After)--> ready
+    #     --(After)--> live --(Before)--> graphical.target
+    # es decir, un CICLO si ready vive en multi-user.target.wants: graphical
+    # espera a multi-user, multi-user espera a ready, ready espera a live, y
+    # live solo arranca con graphical. systemd rompe ese ciclo descartando un
+    # job, y el marcador de readiness se queda sin escribir.
+    #
+    # Con ready en graphical.target.wants la cadena es lineal
+    #   live --(Before)--> ready --(Before)--> graphical.target
+    # y ademas el [Install] del unit coincide con donde vive el symlink, de
+    # modo que un `systemctl enable` es idempotente y no recrea el ciclo.
     wants = PROFILE / "airootfs" / "etc" / "systemd" / "system"
     assert (wants / "graphical.target.wants" / "nimbus-live.service").is_symlink()
-    assert (wants / "multi-user.target.wants" / "nimbus-live-ready.service").is_symlink()
+    assert (wants / "graphical.target.wants" / "nimbus-live-ready.service").is_symlink()
+    assert not (wants / "multi-user.target.wants" / "nimbus-live-ready.service").exists()
+
+
+def test_live_ready_unit_install_section_matches_where_its_symlink_lives():
+    unit = PROFILE / "airootfs" / "etc" / "systemd" / "system" / "nimbus-live-ready.service"
+    text = unit.read_text(encoding="utf-8")
+    # El [Install] tiene que decir graphical.target: si dijera otra cosa, un
+    # `systemctl enable` pondria un symlink extra y reintroduciria el ciclo.
+    installs = [line.strip() for line in text.splitlines() if line.strip().startswith("WantedBy=")]
+    assert installs == ["WantedBy=graphical.target"], installs
+
+
+def test_live_user_can_open_the_drm_device():
+    # Sin los grupos video/render/input el usuario live no puede abrir
+    # /dev/dri/card0 (crw-rw---- root:video) y el compositor aborta con
+    # "CBackend::create() failed!". Verificado en la sesion live.
+    group = (PROFILE / "airootfs" / "etc" / "group").read_text(encoding="utf-8")
+    match = re.search(r"^nimbus:x:\d+:(.*)$", group, re.MULTILINE)
+    assert match is not None, group
+    supplementary = set(match.group(1).split(","))
+    assert {"video", "render", "input"} <= supplementary, supplementary
+
+
+def test_live_session_uses_the_noop_libseat_backend():
+    # Sin sesion de logind (en la ISO live nadie hace login), libseat aborta al
+    # crear el backend de render. Con noop, wlroots abre el DRM directamente.
+    live = PROFILE / "airootfs" / "etc" / "systemd" / "system" / "nimbus-live.service"
+    text = live.read_text(encoding="utf-8")
+    assert "Environment=LIBSEAT_BACKEND=noop" in text
+    # Y la salida del compositor llega a la consola: el harness de QEMU la lee.
+    assert "StandardOutput=journal+console" in text
+    assert "StandardError=journal+console" in text
 
 
 def test_boot_configs_point_at_cachyos_kernel():
