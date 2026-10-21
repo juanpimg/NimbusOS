@@ -33,8 +33,23 @@ Plan 4 (M3)  ──────► Plan 5
 | 1 | M0 — Cimientos | [`2026-10-21-nimbus-m0-fundamentos.md`](2026-10-21-nimbus-m0-fundamentos.md) | **En ejecución** (8 tareas) |
 | 2 | M1 — Shell v0 | [`2026-10-21-nimbus-m1-shell.md`](2026-10-21-nimbus-m1-shell.md) | **Escrito** (12 tareas, 3 olas) |
 | 3 | M2 — Instalador y greeter | [`2026-10-21-nimbus-m2-instalador.md`](2026-10-21-nimbus-m2-instalador.md) | **Escrito** (5 tareas) |
-| 4 | M3 — Gameready y energía | `2026-10-21-nimbus-m3-gameready.md` | Pendiente |
-| 5 | M4/M5 — Beta, Secure Boot, i18n | `2026-10-21-nimbus-m4-beta.md` | Pendiente |
+| 4 | M3 — Gameready y energía | [`2026-10-21-nimbus-m3-gameready.md`](2026-10-21-nimbus-m3-gameready.md) | **Escrito** (5 tareas, 2 olas) |
+| 5 | M4/M5/M6 — Beta, Secure Boot, i18n | [`2026-10-21-nimbus-m4-beta.md`](2026-10-21-nimbus-m4-beta.md) | **Escrito** (5 tareas, 2 olas) |
+
+### Remapeo de hitos respecto al spec
+
+El spec define seis hitos (M0…M6). Los planes los agrupan de otra manera porque **el M3 del
+spec (Nimbus Store, Ajustes, greeter y tour) se ha absorbido en el Plan 2**, ya que el shell
+es su precondición y no tiene sentido construirlos separados:
+
+| Hito del spec | Dónde vive ahora |
+|---------------|-------------------|
+| M0 Cimientos | Plan 1 |
+| M1 Shell v0 | Plan 2 (Task 1 = cimientos del shell; Tasks 2-12 = los 13 módulos) |
+| M2 Instalador | Plan 3 (incluye el greeter, que era M3) |
+| M3 Tienda, Ajustes, tour | **Plan 2**, Tasks 10, 11 y 12 |
+| M4 Gameready y energía | Plan 4 |
+| M5 Beta y M6 v1.0 | Plan 5 (Secure Boot, i18n, publicación y lista de verificación) |
 
 ## Ejecución en paralelo
 

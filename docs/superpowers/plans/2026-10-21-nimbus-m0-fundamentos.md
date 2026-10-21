@@ -1061,23 +1061,23 @@ CONFIG = ROOT / "dots" / "hypr" / "hyprland.lua"
 QUIRKS = ROOT / "dots" / "hypr" / "quirks.conf"
 
 REQUIRED_BINDS = {
-    ("SUPER", "Return"): "kitty",
-    ("SUPER", "D"): "dock",
-    ("SUPER", "Space"): "spotlight",
-    ("SUPER", "Tab"): "switcher",
-    ("SUPER", "Q"): "closewindow",
-    ("SUPER", "W"): "closewindow",
-    ("SUPER", "C"): "copy",
-    ("SUPER", "V"): "paste",
-    ("SUPER", "L"): "lock",
-    ("PRINT",): "screenshot",
+    "SUPER + Return": "kitty",
+    "SUPER + D": "dock",
+    "SUPER + Space": "spotlight",
+    "SUPER + Tab": "switcher",
+    "SUPER + Q": "window.close",
+    "SUPER + W": "window.close",
+    "SUPER + C": "send_shortcut",
+    "SUPER + V": "send_shortcut",
+    "SUPER + L": "lock",
+    "PRINT": "screenshot",
 }
 
-# La config usa la API Lua de Hyprland 0.55+: hl.bind("MOD", "KEY", accion).
-# El grupo de acción se captura hasta el fin de línea: contiene el texto que
-# se busca, y el resto de paréntesis no importa para la comprobación.
+# La config usa la API Lua de Hyprland 0.56: hl.bind("MOD + KEY", dispatcher).
+# El primer argumento es un unico string combinado; el segundo es la accion,
+# capturada hasta el fin de linea.
 BIND_RE = re.compile(
-    r'hl\.bind\(\s*(?P<keys>"[^"]+"(?:\s*,\s*"[^"]+")*)\s*,\s*(?P<action>[^\n]+)$',
+    r'hl\.bind\(\s*"(?P<keys>[^"]+)"\s*,\s*(?P<action>[^\n]+)$',
     re.M,
 )
 
@@ -1086,15 +1086,14 @@ def _binds():
     text = CONFIG.read_text(encoding="utf-8")
     out = []
     for match in BIND_RE.finditer(text):
-        keys = tuple(k.strip().strip('"') for k in match.group("keys").split(","))
-        out.append((keys, match.group("action")))
+        out.append((match.group("keys").strip(), match.group("action")))
     return out
 
 
 def _find(keys, action):
-    """Devuelve la acción del bind cuyas teclas coinciden, o None."""
+    """Devuelve la accion del bind cuya combinacion de teclas coincide, o None."""
     for bound_keys, bound_action in _binds():
-        if set(bound_keys) == set(keys) and action in bound_action:
+        if bound_keys == keys and action in bound_action:
             return bound_action
     return None
 
@@ -1104,6 +1103,9 @@ def test_config_file_exists():
 
 
 def test_config_is_valid_lua():
+    # OJO: luac -p valida SOLO la sintaxis. No comprueba que hl.bind o
+    # hl.dsp.* existan en Hyprland 0.56: una llamada a una API inexistente es
+    # Lua valido. La prueba real de carga es arrancar Hyprland con la config.
     if shutil.which("luac") is None:
         pytest.skip("luac no disponible")
     result = subprocess.run(["luac", "-p", str(CONFIG)], capture_output=True, text=True)
@@ -1120,21 +1122,30 @@ def test_required_bindings_are_present():
     missing = []
     for keys, action in REQUIRED_BINDS.items():
         if _find(keys, action) is None:
-            missing.append(f"{'+'.join(keys)} -> {action}")
+            missing.append(f"{keys} -> {action}")
     assert missing == [], "\n".join(missing)
 
 
 def test_workspace_bindings_one_through_nine():
     missing = [
-        str(n) for n in range(1, 10) if _find(("SUPER", str(n)), "workspace") is None
+        str(n) for n in range(1, 10) if _find(f"SUPER + {n}", "workspace") is None
     ]
     assert missing == [], f"faltan binds de workspace: {missing}"
 
 
-def test_emergency_session_is_declared():
+def test_emergency_session_is_declared_and_bound():
+    # El bind de emergencia debe existir de verdad, no solo la palabra en un
+    # comentario: se busca con el mismo regex que el resto.
+    assert _find("SUPER + SHIFT + E", "emergency") is not None
     text = CONFIG.read_text(encoding="utf-8")
-    assert "emergency" in text.lower()
     assert "kitty" in text
+
+
+def test_emergency_terminal_is_fullscreen():
+    # La emergencia sirve para recuperar el escritorio: sin regla de ventana a
+    # pantalla completa, el terminal sale flotante y no cumple su funcion.
+    quirks = QUIRKS.read_text(encoding="utf-8")
+    assert re.search(r"windowrule.*fullscreen.*emergency", quirks, re.I)
 ```
 
 - [ ] **Step 2: Ejecuta el test para verificar que falla**
@@ -1146,6 +1157,21 @@ Expected: FAIL — `CONFIG.is_file()` es False porque `dots/hypr/hyprland.lua` n
 
 Config Lua de Hyprland 0.55+. Usa la API `hl.bind` / `hl.dsp` / `hl.on` / `hl.exec_cmd`. Contenido obligatorio:
 
+**REGLA CRÍTICA DE Hyprland 0.56 EN MODO LUA.** Cuando la config principal es
+`hyprland.lua`, **los ficheros `.conf` sueltos que la acompañen NO se cargan**: la wiki lo
+dice — "Use `require()` to source other files into your config". Por eso **todo** (layout,
+window rules, animaciones) va **dentro de `hyprland.lua`** con la API nativa
+(`hl.config(...)`, `hl.window_rule(...)`). Un `quirks.conf` junto a la config Lua es un
+fichero muerto.
+
+**API REAL de Hyprland 0.56 (verificada contra `Hyprland/example/hyprland.lua` oficial;
+el plan original usaba una API inexistente):**
+`hl.bind` toma **dos** argumentos: el primero es un **único string con los modificadores
+y la tecla separados por `+`** (`"SUPER + SHIFT + E"`), el segundo es el dispatcher.
+Los dispatchers que existen son `hl.dsp.exec_cmd`, `hl.dsp.window.close`,
+`hl.dsp.focus({workspace = "..."})` y `hl.dsp.send_shortcut`. **No** existen
+`hl.dsp.closewindow`, `hl.dsp.copy`, `hl.dsp.paste` ni `hl.dsp.workspace(N)`.
+
 ```lua
 -- SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -1153,35 +1179,58 @@ local function shell(action)
     return hl.dsp.exec_cmd("nimbus-shell ipc call " .. action)
 end
 
-hl.bind("SUPER", "Return", hl.dsp.exec_cmd("kitty"))
-hl.bind("SUPER", "D", shell("dock toggle"))
-hl.bind("SUPER", "Space", shell("spotlight toggle"))
-hl.bind("SUPER", "Tab", shell("switcher next"))
-hl.bind("SUPER", "Q", hl.dsp.close_window())
-hl.bind("SUPER", "W", hl.dsp.close_window())
-hl.bind("SUPER", "C", hl.dsp.copy())
-hl.bind("SUPER", "V", hl.dsp.paste())
-hl.bind("SUPER", "L", hl.dsp.exec_cmd("hyprlock"))
+-- Layout flotante, de forma nativa (no con hyprctl, no en un .conf aparte).
+hl.config({
+    general = {
+        layout = "floating",
+    },
+    decoration = {
+        rounding = 12,
+        blur = {
+            enabled = true,
+            size = 3,
+            passes = 1,
+        },
+    },
+})
+
+-- La sesion de emergencia se abre a pantalla completa.
+hl.window_rule({
+    name = "nimbus-emergency-fullscreen",
+    match = { class = "emergency" },
+    fullscreen = true,
+})
+
+hl.bind("SUPER + Return", hl.dsp.exec_cmd("kitty"))
+hl.bind("SUPER + D", shell("dock toggle"))
+hl.bind("SUPER + Space", shell("spotlight toggle"))
+hl.bind("SUPER + Tab", shell("switcher next"))
+hl.bind("SUPER + Q", hl.dsp.window.close())
+hl.bind("SUPER + W", hl.dsp.window.close())
+hl.bind("SUPER + C", hl.dsp.send_shortcut("SUPER, C"))
+hl.bind("SUPER + V", hl.dsp.send_shortcut("SUPER, V"))
+hl.bind("SUPER + L", hl.dsp.exec_cmd("hyprlock"))
 hl.bind("PRINT", shell("screenshot region"))
 
 -- Los bindings de workspace se escriben de forma literal: el test los busca
 -- uno a uno y un bucle con tostring() no sería detectable.
-hl.bind("SUPER", "1", hl.dsp.workspace(1))
-hl.bind("SUPER", "2", hl.dsp.workspace(2))
-hl.bind("SUPER", "3", hl.dsp.workspace(3))
-hl.bind("SUPER", "4", hl.dsp.workspace(4))
-hl.bind("SUPER", "5", hl.dsp.workspace(5))
-hl.bind("SUPER", "6", hl.dsp.workspace(6))
-hl.bind("SUPER", "7", hl.dsp.workspace(7))
-hl.bind("SUPER", "8", hl.dsp.workspace(8))
-hl.bind("SUPER", "9", hl.dsp.workspace(9))
+hl.bind("SUPER + 1", hl.dsp.focus({workspace = 1}))
+hl.bind("SUPER + 2", hl.dsp.focus({workspace = 2}))
+hl.bind("SUPER + 3", hl.dsp.focus({workspace = 3}))
+hl.bind("SUPER + 4", hl.dsp.focus({workspace = 4}))
+hl.bind("SUPER + 5", hl.dsp.focus({workspace = 5}))
+hl.bind("SUPER + 6", hl.dsp.focus({workspace = 6}))
+hl.bind("SUPER + 7", hl.dsp.focus({workspace = 7}))
+hl.bind("SUPER + 8", hl.dsp.focus({workspace = 8}))
+hl.bind("SUPER + 9", hl.dsp.focus({workspace = 9}))
 
 -- Sesión de emergencia: si el shell de Nimbus falla, el usuario cae aquí con
--- un terminal a pantalla completa y puede matar el proceso o cambiar de sesión.
+-- un terminal a pantalla completa (la regla de ventana está en quirks.conf)
+-- y puede matar el proceso o cambiar de sesión.
 local function emergency()
-    hl.exec_cmd("kitty --class emergency")
+    hl.dsp.exec_cmd("kitty --class emergency")
 end
-hl.bind("SUPER", "Shift", "E", emergency)
+hl.bind("SUPER + SHIFT + E", emergency)
 
 hl.on("hyprland.start", function()
     hl.exec_cmd("sh /usr/lib/nimbus/dots/nimbus-start")

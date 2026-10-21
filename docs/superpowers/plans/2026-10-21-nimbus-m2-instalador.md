@@ -18,7 +18,7 @@
 - **Promesa central:** una persona que nunca ha usado Linux instala Nimbus en **menos de 10 minutos** y **no escribe un comando**.
 - **Arranque dual:** se ofrece, y su implementación es la parte más delicada del instalador: la fuente número uno de sistemas inarrancables y pérdida de datos. Todo lo que toque particiones **copia la tabla de particiones antes de escribir**, avisa de Fast Boot, y verifica al final que **ambos** sistemas arrancan.
 - **Snapshots:** Btrfs es el sistema de archivos por defecto y el **único con rollback completo**. En ext4/xfs el instalador lo dice de forma explícita y ofrece el kernel LTS como red.
-- **Secure Boot:** en M2 el arranque es con MOCK provisional. El shim firmado por Microsoft llega en M5/v1.0.
+- **Secure Boot:** en M2 el arranque es con MOCK provisional. El shim firmado por Microsoft llega en el **Plan 5 (M4/M5/M6)**, antes de v1.0.
 - **Licencias:** todo fichero de código fuente fuera de `third_party/` lleva SPDX `GPL-3.0-or-later`.
 - **Idiomas:** toda cadena visible al usuario existe en **español e inglés**.
 - **Compromisos de git:** mensajes en inglés con estilo convencional.

@@ -106,6 +106,7 @@ Ola C (3 en paralelo)   Task 10 (Ajustes) · Task 11 (Store) · Task 12 (Tour)
 - Create: `shell/src/Nimbus/ShellController.qml`
 - Create: `shell/src/Nimbus/Ipc.qml`
 - Create: `shell/src/Nimbus/Services.qml`
+- Create: `shell/src/Nimbus/PolkitAgent.qml`
 - Create: `shell/src/Nimbus/lib/Glass.qml`
 - Create: `shell/src/Nimbus/lib/Popup.qml`
 - Create: `shell/src/Nimbus/lib/Icon.qml`
@@ -162,6 +163,14 @@ function closeAll(): void
 signal surfaceRequested(string surface, string argument)
 ```
 **Regla de exclusividad:** solo una superficie puede estar abierta a la vez. `open(surface)` cierra la anterior. `toggle(surface)` alterna. Esto es lo que da la sensación de "un solo sistema" y no de cuatro ventanas sueltas.
+
+`Nimbus.PolkitAgent` (singleton): **el agente de polkit propio de Nimbus** (requisito D11
+del spec: sin KDE ni GNOME instalados, `polkit-gnome` sería una ventana ajena al diseño).
+Registra el agente en el bus de sistema y pide la contraseña con el **mismo aspecto que el
+resto del shell**: ventana de cristal, `Theme.accent`, y los textos por `Config.translated`.
+Nunca guarda la contraseña: la usa para la autenticación y la descarta. Debe ser
+**defensivo**: si el bus de polkit no está disponible, el shell arranca igual y las
+acciones privilegiadas aparecen deshabilitadas con un mensaje.
 
 `Nimbus.Services` (singleton): envuelve los servicios de Quickshell y expone estado **plano**, sin tipos de Quickshell en la API pública, para que los tests no dependan del framework:
 ```
@@ -323,6 +332,7 @@ singleton Translations 1.0 Translations.qml
 singleton ShellController 1.0 ShellController.qml
 singleton Ipc 1.0 Ipc.qml
 singleton Services 1.0 Services.qml
+singleton PolkitAgent 1.0 PolkitAgent.qml
 Glass 1.0 lib/Glass.qml
 Popup 1.0 lib/Popup.qml
 Icon 1.0 lib/Icon.qml
