@@ -16,12 +16,23 @@ IGNORED_DIRS = {
     ".pytest_cache",
     "build",
     "out",
-    "pkg",
-    "src",
     "work",
     "node_modules",
     ".venv",
 }
+
+# `pkg/` y `src/` son los directorios de trabajo de makepkg, pero SOLO dentro
+# de packages/: `shell/src/` es codigo fuente de verdad y tiene que comprobarse.
+MAKEDIR_SCRATCH = {"pkg", "src"}
+
+
+def is_ignored(path: pathlib.Path) -> bool:
+    parts = path.parts
+    if IGNORED_DIRS & set(parts):
+        return True
+    if "packages" in parts and MAKEDIR_SCRATCH & set(parts):
+        return True
+    return False
 
 
 def collect_sources(root: pathlib.Path):
@@ -29,7 +40,7 @@ def collect_sources(root: pathlib.Path):
     for path in root.rglob("*"):
         if not path.is_file() or path.suffix not in SOURCE_SUFFIXES:
             continue
-        if IGNORED_DIRS & set(path.parts):
+        if is_ignored(path):
             continue
         sources.append(path)
     return sorted(sources)

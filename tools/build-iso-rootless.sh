@@ -49,11 +49,11 @@ die() { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 # --- 1. Descargar y extraer las herramientas de build a un prefijo local ---
 mkdir -p "$PREFIX/pacman-cache" "$PREFIX/prefix" "$PREFIX/db"
 
-if [ ! -x "$PREFIX/prefix/usr/bin/mkarchiso" ]; then
+if [ ! -x "$PREFIX/prefix/usr/bin/mkarchiso" ] || [ ! -x "$PREFIX/prefix/usr/bin/xorriso" ]; then
   log "Extrayendo el perfil de base de datos de pacman"
   bsdtar -xf "$SYNC_DB" -C "$PREFIX/db" 2>/dev/null || true
 
-  for pkg in archiso squashfs-tools arch-install-scripts; do
+  for pkg in archiso squashfs-tools arch-install-scripts libburn libisofs libisoburn; do
     dir="$(ls -d "$PREFIX/db/${pkg}-"* 2>/dev/null | head -1)" \
       || die "el paquete $pkg no aparece en la base de datos"
     file="$(grep -A1 '^%FILENAME%$' "$dir/desc" | tail -1)"
