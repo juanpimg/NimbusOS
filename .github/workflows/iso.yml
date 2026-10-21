@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: iso
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-boot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar repos CachyOS
+        run: |
+          sudo tee -a /etc/pacman.d/mirrorlist >/dev/null <<'EOF'
+          Server = https://archlinux.cachyos.org/repo/$repo/os/$arch
+          EOF
+          sudo tee /etc/pacman.d/mirrorlist.cachyos >/dev/null <<'EOF'
+          Server = https://cdn77.cachyos.org/repo/$arch/$repo
+          EOF
+          sudo tee /etc/pacman.d/mirrorlist.cachyos-v3 >/dev/null <<'EOF'
+          Server = https://cdn77.cachyos.org/repo/$arch_v3/$repo
+          EOF
+          for r in cachyos cachyos-v3; do
+            echo "[$r]" | sudo tee -a /etc/pacman.conf
+            echo "Include = /etc/pacman.d/mirrorlist.$r" | sudo tee -a /etc/pacman.conf
+          done
+      - name: Instalar dependencias
+        run: sudo pacman -Sy --noconfirm archiso repo qemu-desktop
+      - name: Construir la ISO
+        run: bash iso/build.sh --outdir "$RUNNER_TEMP/iso" --local-repo
+      - name: Comprobar el arranque en QEMU
+        run: bash tests/integration/boot_live.sh --iso "$RUNNER_TEMP"/iso/nimbus-*.iso --timeout 900
+      - name: Subir la ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: nimbus-iso
+          path: ${{ runner.temp }}/iso/*.iso
