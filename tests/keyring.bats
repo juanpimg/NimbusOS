@@ -67,6 +67,24 @@ teardown() {
   [[ "$output" == *"nimbus@example.org"* ]]
 }
 
+@test "el ownertrust y el populate estan bien formados" {
+  bash "$REPO_ROOT/tools/genkeyring.sh" --outdir "$TESTDIR/out" --uid "Nimbus Signing <nimbus@example.org>" --email "nimbus@example.org"
+  FPR="$(gpg --homedir "$TESTDIR/out/gnupg" --list-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
+  # El ownertrust debe referenciar la clave con nivel 6 (ultimate). Sin esto,
+  # pacman-key importa la clave pero no le da confianza y toda firma del repo
+  # falla con "signature from unknown trust".
+  grep -q ":6:" "$TESTDIR/out/nimbus-keyring/nimbus-trusted"
+  grep -q "$FPR" "$TESTDIR/out/nimbus-keyring/nimbus-trusted"
+  # Y el .install debe ejecutar el populate, que es lo que aplica el ownertrust.
+  grep -q "pacman-key --populate nimbus" "$TESTDIR/out/nimbus-keyring/nimbus-keyring.install"
+  # La copia versionada, que es la que se instala en el sistema, debe llevar
+  # las tres rutas y el mismo post_install con el populate.
+  grep -q "usr/share/pacman/keyrings/nimbus.gpg" "$REPO_ROOT/packages/nimbus-keyring/nimbus-keyring.install"
+  grep -q "usr/share/pacman/keyrings/nimbus-trusted" "$REPO_ROOT/packages/nimbus-keyring/nimbus-keyring.install"
+  grep -q "usr/share/pacman/keyrings/nimbus-revoked" "$REPO_ROOT/packages/nimbus-keyring/nimbus-keyring.install"
+  grep -q "pacman-key --populate nimbus" "$REPO_ROOT/packages/nimbus-keyring/nimbus-keyring.install"
+}
+
 @test "sign_repo firma la base de datos y se niega a firmar dos veces" {
   bash "$REPO_ROOT/tools/genkeyring.sh" --outdir "$TESTDIR/out" --uid "Nimbus Signing <nimbus@example.org>" --email "nimbus@example.org"
   FPR="$(gpg --homedir "$TESTDIR/out/gnupg" --list-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')"
