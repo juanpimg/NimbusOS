@@ -26,7 +26,15 @@ FloatingWindow {
     id: root
 
     property string section: store.section
-    property var sections: store.sections
+    // La sección de juegos vive aquí (no en SettingsData): el resto de
+    // secciones salen del sidebar de `store`; `gaming` se añade como
+    // disponible siempre, con su clave de traducción e icono.
+    property var sections: store.sections.concat([{
+        "id": "gaming",
+        "titleKey": "settings.section.gaming",
+        "icon": "🎮",
+        "available": true
+    }])
 
     // NOTA: `signal sectionChanged(string id)` no se declara explícita:
     // QML ya genera `sectionChanged` como notificador de `property string
@@ -44,6 +52,11 @@ FloatingWindow {
     }
 
     function openSection(id) {
+        // `gaming` no está en SettingsData.sectionOrder: se navega directo.
+        if (id === "gaming") {
+            store.section = "gaming"
+            return
+        }
         store.setSection(id, store.bluetoothAvailable)
     }
 
@@ -67,6 +80,8 @@ FloatingWindow {
             return "SettingsUsers.qml"
         case "software":
             return "SettingsSoftware.qml"
+        case "gaming":
+            return "SettingsGaming.qml"
         case "about":
             return "SettingsAbout.qml"
         default:

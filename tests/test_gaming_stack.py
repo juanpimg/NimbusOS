@@ -290,10 +290,16 @@ def test_mangohud_has_no_exec():
 def test_gamescope_has_no_static_vrr():
     assert GAMESCOPE.is_file(), "falta files/gamescope.conf"
     text = GAMESCOPE.read_text(encoding="utf-8")
-    for token in ("vrr", "adaptive-sync", "adaptive_sync", "adaptivesync",
-                  "freesync", "free-sync", "gsync", "g-sync", "variable-refresh"):
-        assert token not in text.lower(), \
-            f"el VRR se activa por deteccion, no estaticamente ({token})"
+    effective = [
+        line for line in text.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    assert effective, "el preset debe definir ajustes efectivos"
+    for line in effective:
+        for token in ("vrr", "adaptive-sync", "adaptive_sync", "adaptivesync",
+                      "freesync", "free-sync", "gsync", "g-sync", "variable-refresh"):
+            assert token not in line.lower(), \
+                f"el VRR se activa por deteccion, no estaticamente ({line!r})"
 
 
 def test_gamescope_preset_is_valid():
@@ -535,14 +541,317 @@ def test_tune_passes_mangohud_preset_to_game(tmp_path, monkeypatch):
         f"MANGOHUD_CONFIGFILE debe apuntar al preset, fue: {logged[-1]}"
 
 
-def test_gamescope_preset_declares_manual_use():
-    """gamescope.conf: preset de referencia inactivo; nadie lo auto-aplica."""
+def test_gamescope_preset_is_consumed_by_session():
+    """gamescope.conf: preset ACTIVO; su consumidor es nimbus-gaming-session.
+
+    (M4 T2: la sesion lo lee como KEY=VALUE y lo traduce a flags de
+    gamescope. Ya no se distribuye inactivo.)
+    """
     assert GAMESCOPE.is_file(), "falta files/gamescope.conf"
     text = GAMESCOPE.read_text(encoding="utf-8")
     lowered = text.lower()
-    assert any(word in lowered for word in ("inactivo", "inactive", "referencia", "reference", "manual")), \
-        "debe documentar que se distribuye inactivo, sin auto-activacion"
-    for claim in ("se activa solo", "al detectar", "auto-activ", "automáticament se act"):
+    assert "nimbus-gaming-session" in text, \
+        "debe documentar que la sesion de juegos lo consume"
+    for claim in ("inactivo", "inactive", "sin auto-activacion"):
         assert claim not in lowered, \
-            f"afirmacion de activacion automatica sin consumidor: {claim!r}"
+            f"el preset ya tiene consumidor, no puede declararse inactivo: {claim!r}"
+
+
+# ---- M4 T2: sesion de juegos (greeter + gamescope + VRR por deteccion) ----
+
+SESSION = PKG / "files" / "nimbus-gaming-session"
+VRR_CHECK = PKG / "files" / "gamescope-vrr-check"
+DESKTOP = PKG / "files" / "nimbus-gaming.desktop"
+
+REAL_PRESET_DIR = "/usr/share/nimbus/gaming"
+REAL_SESSION_PATH = "/usr/lib/nimbus/nimbus-gaming-session"
+REAL_VRR_PATH = "/usr/bin/gamescope-vrr-check"
+
+
+def _write_executable(path, content):
+    path.write_text(content, encoding="utf-8")
+    path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def _symlink_coreutils(bin_dir):
+    """PATH minimo: coreutils reales + lo que el test inyecte como falso."""
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("bash", "basename", "cat", "dirname", "grep", "sed", "ls", "mkdir", "head", "tr"):
+        target = pathlib.Path("/usr/bin") / name
+        if target.exists():
+            link = bin_dir / name
+            if not link.exists():
+                link.symlink_to(target)
+
+
+def _fake_sysfs(root, connectors):
+    """Crea un sysfs DRM falso.
+
+    connectors: {nombre: {status, vrr_capable?, modes?, edid_bytes?}}.
+    """
+    base = root / "sys" / "class" / "drm"
+    for name, attrs in connectors.items():
+        d = base / f"card0-{name}"
+        d.mkdir(parents=True)
+        (d / "status").write_text(attrs.get("status", "disconnected") + "\n", encoding="utf-8")
+        if "vrr_capable" in attrs:
+            (d / "vrr_capable").write_text(attrs["vrr_capable"] + "\n", encoding="utf-8")
+        if "modes" in attrs:
+            (d / "modes").write_text(attrs["modes"], encoding="utf-8")
+        if "edid_bytes" in attrs:
+            (d / "edid").write_bytes(attrs["edid_bytes"])
+    return root
+
+
+def _session_base_env(tmp_path, monkeypatch):
+    """PATH sin gamescope/steam (los tests los anaden como falsos a elegir)."""
+    bin_dir = tmp_path / "session-bin"
+    _symlink_coreutils(bin_dir)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    preset = tmp_path / "presets"
+    preset.mkdir(exist_ok=True)
+    for name in ("gamescope.conf", "mangohud.conf"):
+        (preset / name).write_bytes((PKG / "files" / name).read_bytes())
+    return bin_dir, preset
+
+
+def _run_session(*args, env_extra=None):
+    assert SESSION.is_file(), "falta files/nimbus-gaming-session"
+    env = dict(os.environ)
+    env.update(env_extra or {})
+    return subprocess.run(
+        ["bash", str(SESSION), *args], capture_output=True, text=True, timeout=60, env=env,
+    )
+
+
+def _run_vrr(env_extra=None):
+    assert VRR_CHECK.is_file(), "falta files/gamescope-vrr-check"
+    env = dict(os.environ)
+    env.update(env_extra or {})
+    return subprocess.run(
+        ["bash", str(VRR_CHECK)], capture_output=True, text=True, timeout=60, env=env,
+    )
+
+
+def test_session_script_hygiene():
+    assert SESSION.is_file(), "falta files/nimbus-gaming-session"
+    assert os.access(SESSION, os.X_OK), "la sesion debe ser ejecutable"
+    lines = SESSION.read_text(encoding="utf-8").splitlines()
+    head = "\n".join(lines[:2])
+    assert "SPDX-License-Identifier: GPL-3.0-or-later" in head
+    assert lines[0].startswith("#!"), "ejecutable con shebang"
+    assert "set -euo pipefail" in SESSION.read_text(encoding="utf-8")
+    code = "\n".join(
+        line for line in lines if not line.strip().startswith("#")
+    )
+    assert not re.search(r"(^|[;\s&|])eval(\s|$|[;&])", code), "nada de eval"
+
+
+def test_vrr_check_hygiene():
+    assert VRR_CHECK.is_file(), "falta files/gamescope-vrr-check"
+    assert os.access(VRR_CHECK, os.X_OK), "el check debe ser ejecutable"
+    lines = VRR_CHECK.read_text(encoding="utf-8").splitlines()
+    head = "\n".join(lines[:2])
+    assert "SPDX-License-Identifier: GPL-3.0-or-later" in head
+    assert lines[0].startswith("#!"), "ejecutable con shebang"
+    assert "set -euo pipefail" in VRR_CHECK.read_text(encoding="utf-8")
+
+
+def test_desktop_entry_is_valid_and_points_at_session():
+    import configparser
+
+    assert DESKTOP.is_file(), "falta files/nimbus-gaming.desktop"
+    parser = configparser.ConfigParser(interpolation=None)
+    parser.read(DESKTOP, encoding="utf-8")
+    assert parser.has_section("Desktop Entry"), "seccion [Desktop Entry] obligatoria"
+    assert parser.get("Desktop Entry", "Name").strip(), "Name obligatorio"
+    assert parser.get("Desktop Entry", "Type").strip() == "Application"
+    assert parser.get("Desktop Entry", "Exec").strip() == REAL_SESSION_PATH, \
+        "Exec debe ser la ruta real de la sesion, no un nombre suelto"
+
+
+def test_pkgbuild_installs_session_files():
+    text = _pkgbuild_text()
+    assert "nimbus-gaming.desktop" in text, "package() debe instalar el .desktop"
+    assert "wayland-sessions" in text, "el .desktop va a /usr/share/wayland-sessions/"
+    assert "nimbus-gaming-session" in text, "package() debe instalar la sesion"
+    assert "/usr/lib/nimbus" in text, "la sesion vive en /usr/lib/nimbus/"
+    assert "gamescope-vrr-check" in text, "package() debe instalar el check de VRR"
+    assert "usr/bin" in text, "el check vive en /usr/bin/"
+
+
+def test_session_uses_real_preset_paths_by_default():
+    text = SESSION.read_text(encoding="utf-8")
+    assert REAL_PRESET_DIR in text, \
+        f"el preset por defecto es {REAL_PRESET_DIR}, no una ruta inventada"
+    assert "mangohud.conf" in text, "la sesion debe cablear el preset de MangoHud"
+    assert "MANGOHUD_CONFIGFILE" in text, "el preset llega via MANGOHUD_CONFIGFILE"
+    assert REAL_VRR_PATH in text, \
+        f"el VRR se consulta en {REAL_VRR_PATH} (NIMBUS_VRR_CHECK para tests)"
+
+
+def test_session_requires_gamescope_steam_and_gpu(tmp_path, monkeypatch):
+    _, preset = _session_base_env(tmp_path, monkeypatch)
+    dri = tmp_path / "dri"
+    dri.mkdir()
+    (dri / "card0").write_bytes(b"")
+    env = {
+        "NIMBUS_GAMING_PRESET_DIR": str(preset),
+        "NIMBUS_DRI_DIR": str(dri),
+    }
+    proc = _run_session(env_extra=env)
+    assert proc.returncode != 0, "sin gamescope/steam no puede arrancar la sesion"
+    assert "gamescope" in (proc.stdout + proc.stderr).lower()
+
+
+def test_session_requires_gpu(tmp_path, monkeypatch):
+    bin_dir, preset = _session_base_env(tmp_path, monkeypatch)
+    _write_executable(bin_dir / "gamescope", "#!/usr/bin/env bash\necho falso-gamescope\n")
+    _write_executable(bin_dir / "steam", "#!/usr/bin/env bash\necho falso-steam\n")
+    env = {
+        "NIMBUS_GAMING_PRESET_DIR": str(preset),
+        "NIMBUS_DRI_DIR": str(tmp_path / "dri-vacio"),
+    }
+    (tmp_path / "dri-vacio").mkdir()
+    proc = _run_session(env_extra=env)
+    assert proc.returncode != 0, "sin GPU no se arranca gamescope"
+    assert "gpu" in (proc.stdout + proc.stderr).lower()
+
+
+def test_session_applies_presets_in_dryrun(tmp_path, monkeypatch):
+    bin_dir, preset = _session_base_env(tmp_path, monkeypatch)
+    _write_executable(bin_dir / "gamescope", "#!/usr/bin/env bash\necho falso-gamescope\n")
+    _write_executable(bin_dir / "steam", "#!/usr/bin/env bash\necho falso-steam\n")
+    dri = tmp_path / "dri"
+    dri.mkdir()
+    (dri / "card0").write_bytes(b"")
+    sysroot = _fake_sysfs(tmp_path / "sysroot", {"HDMI-A-1": {"status": "disconnected"}})
+    env = {
+        "NIMBUS_GAMING_PRESET_DIR": str(preset),
+        "NIMBUS_DRI_DIR": str(dri),
+        "NIMBUS_DRM_SYSFS": str(sysroot),
+        "NIMBUS_VRR_CHECK": str(VRR_CHECK),
+        "NIMBUS_GAMING_DRYRUN": "1",
+    }
+    proc = _run_session(env_extra=env)
+    assert proc.returncode == 0, proc.stderr
+    cmd = proc.stdout.strip()
+    assert cmd.startswith("gamescope "), f"dryrun imprime el comando final: {cmd!r}"
+    for flag in ("-W 2560", "-H 1440", "-f", "-F fsr", "-e", "--mangoapp", "--", "steam"):
+        assert flag in cmd, f"el preset debe traducirse al flag {flag}: {cmd!r}"
+    assert "--adaptive-sync" not in cmd, "VRR a ciegas jamas: panel sin VRR"
+    assert "MANGOHUD_CONFIGFILE=" in proc.stderr or "MANGOHUD_CONFIGFILE=" in cmd \
+        or f"{preset}/mangohud.conf" in (proc.stdout + proc.stderr), \
+        "el preset de MangoHud debe llegar como MANGOHUD_CONFIGFILE"
+
+
+def test_vrr_check_reports_supported_panel(tmp_path, monkeypatch):
+    sysroot = _fake_sysfs(tmp_path / "sysroot", {
+        "HDMI-A-1": {"status": "connected", "vrr_capable": "1",
+                     "modes": "2560x1440\n1920x1080\n"},
+    })
+    bin_dir = tmp_path / "bin"
+    _symlink_coreutils(bin_dir)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    proc = _run_vrr(env_extra={"NIMBUS_DRM_SYSFS": str(sysroot)})
+    assert proc.returncode == 0, proc.stderr
+    assert "vrr: supported" in proc.stdout, proc.stdout
+    assert "connector: HDMI-A-1" in proc.stdout, proc.stdout
+
+
+def test_vrr_check_reports_unsupported_panel(tmp_path, monkeypatch):
+    sysroot = _fake_sysfs(tmp_path / "sysroot", {
+        "HDMI-A-1": {"status": "connected", "modes": "1920x1080\n"},
+    })
+    bin_dir = tmp_path / "bin"
+    _symlink_coreutils(bin_dir)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    proc = _run_vrr(env_extra={"NIMBUS_DRM_SYSFS": str(sysroot)})
+    assert proc.returncode == 0, proc.stderr
+    assert "vrr: unsupported" in proc.stdout, proc.stdout
+
+
+def test_vrr_check_fails_without_connected_outputs(tmp_path, monkeypatch):
+    sysroot = _fake_sysfs(tmp_path / "sysroot", {
+        "HDMI-A-1": {"status": "disconnected"},
+    })
+    bin_dir = tmp_path / "bin"
+    _symlink_coreutils(bin_dir)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    proc = _run_vrr(env_extra={"NIMBUS_DRM_SYSFS": str(sysroot)})
+    assert proc.returncode != 0, "sin salidas conectadas no hay nada que detectar"
+
+
+def test_vrr_check_detects_rate_from_edid(tmp_path, monkeypatch):
+    sysroot = _fake_sysfs(tmp_path / "sysroot", {
+        "DP-1": {"status": "connected", "edid_bytes": b"\x00\xff\x01\x02"},
+    })
+    bin_dir = tmp_path / "bin"
+    _symlink_coreutils(bin_dir)
+    _write_executable(bin_dir / "edid-decode", (
+        "#!/usr/bin/env bash\n"
+        "cat <<'EOF'\n"
+        "Display Range Limits:\n"
+        "  Monitor ranges (GTF): 48-144 Hz V, 30-160 kHz H\n"
+        "Adaptive Sync Data Block:\n"
+        "    VRRmin: 48 Hz\n"
+        "    VRRmax: 144 Hz\n"
+        "EOF\n"
+    ))
+    monkeypatch.setenv("PATH", str(bin_dir))
+    proc = _run_vrr(env_extra={"NIMBUS_DRM_SYSFS": str(sysroot)})
+    assert proc.returncode == 0, proc.stderr
+    assert "vrr: supported" in proc.stdout, proc.stdout
+    assert "rate: 144" in proc.stdout, proc.stdout
+
+
+def test_session_enables_vrr_only_on_positive_detection(tmp_path, monkeypatch):
+    bin_dir, preset = _session_base_env(tmp_path, monkeypatch)
+    _write_executable(bin_dir / "gamescope", "#!/usr/bin/env bash\necho falso-gamescope\n")
+    _write_executable(bin_dir / "steam", "#!/usr/bin/env bash\necho falso-steam\n")
+    dri = tmp_path / "dri"
+    dri.mkdir()
+    (dri / "card0").write_bytes(b"")
+
+    ok_root = _fake_sysfs(tmp_path / "ok", {
+        "HDMI-A-1": {"status": "connected", "vrr_capable": "1", "modes": "2560x1440\n"},
+    })
+    env = {
+        "NIMBUS_GAMING_PRESET_DIR": str(preset),
+        "NIMBUS_DRI_DIR": str(dri),
+        "NIMBUS_DRM_SYSFS": str(ok_root),
+        "NIMBUS_VRR_CHECK": str(VRR_CHECK),
+        "NIMBUS_GAMING_DRYRUN": "1",
+        "PATH": str(bin_dir) + os.pathsep + "/usr/bin:/bin",
+    }
+    proc = _run_session(env_extra=env)
+    assert proc.returncode == 0, proc.stderr
+    assert "--adaptive-sync" in proc.stdout, \
+        f"panel con VRR: la sesion lo activa: {proc.stdout!r}"
+
+
+def test_session_never_deprioritizes_anything():
+    text = SESSION.read_text(encoding="utf-8")
+    code = "\n".join(
+        line for line in text.splitlines() if not line.strip().startswith("#")
+    )
+    for tool in ("nice", "renice", "ionice", "chrt", "taskset", "schedtool"):
+        assert not re.search(r"(^|[;\s&|])%s(\s|$|[;&])" % tool, code), \
+            f"la sesion no toca prioridades ({tool})"
+
+
+def test_ananicy_rules_still_never_deprioritize_games_or_audio():
+    import json
+
+    never = ("steam", "gamescope", "proton", "wine",
+             "pipewire", "pulseaudio", "wireplumber", "jackd")
+    rules_path = ROOT / "packages" / "nimbus-energy" / "files" / "ananicy" / "ananicy.d" / "50-nimbus-gaming.rules"
+    rules = [json.loads(line) for line in rules_path.read_text(encoding="utf-8").splitlines()
+             if line.strip()]
+    assert rules, "el fichero de reglas no puede estar vacio"
+    for rule in rules:
+        name = str(rule.get("name", "")).lower()
+        for forbidden in never:
+            if forbidden in name:
+                assert rule.get("nice", 0) <= 0, f"la regla de '{name}' no puede bajar prioridad"
 

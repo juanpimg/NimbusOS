@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# nimbus-gaming-session — sesion de juegos de Nimbus (greeter -> gamescope).
+#
+# Arranca gamescope a pantalla completa con Steam en modo Big Picture,
+# aplicando los presets de /usr/share/nimbus/gaming:
+#   gamescope.conf  (KEY=VALUE) -> flags -W/-H/-r/-f/-F/-e/--hdr/--mangoapp
+#   mangohud.conf               -> MANGOHUD_CONFIGFILE + --mangoapp
+# El VRR (--adaptive-sync) se anade SOLO si `gamescope-vrr-check` informa
+# "vrr: supported": un flag estatico en un panel sin VRR deja la imagen en
+# negro. La frecuencia (-r) es la detectada cuando se conoce, o la del preset.
+#
+# Puertas de hardware (fail-fast, sin hardware no hay sesion):
+#   gamescope y steam instalados, y GPU presente (/dev/dri/card*).
+#
+# Nunca toca prioridades (nada de nice/renice/ionice/chrt/taskset): del
+# rendimiento en juego se encarga `nimbus-gaming-tune` + ananicy.
+#
+# Variables (pensadas para probar sin GPU/panel/Steam):
+#   NIMBUS_GAMING_PRESET_DIR  dir de presets (por defecto /usr/share/nimbus/gaming)
+#   NIMBUS_DRI_DIR            dir DRI (por defecto /dev/dri)
+#   NIMBUS_DRM_SYSFS          prefijo de sysfs DRM (se propaga al check)
+#   NIMBUS_VRR_CHECK          binario del check (por defecto /usr/bin/gamescope-vrr-check)
+#   NIMBUS_GAMING_DRYRUN=1    imprime el comando final en vez de ejecutarlo
+set -euo pipefail
+
+PRESET_DIR="${NIMBUS_GAMING_PRESET_DIR:-/usr/share/nimbus/gaming}"
+DRI_DIR="${NIMBUS_DRI_DIR:-/dev/dri}"
+VRR_CHECK="${NIMBUS_VRR_CHECK:-/usr/bin/gamescope-vrr-check}"
+DRYRUN="${NIMBUS_GAMING_DRYRUN:-0}"
+
+die() {
+  printf 'nimbus-gaming-session: %s\n' "$1" >&2
+  exit 1
+}
+
+# --- puertas de hardware -----------------------------------------------------
+
+command -v gamescope >/dev/null 2>&1 || die "gamescope no esta instalado; instale el paquete nimbus-gaming"
+command -v steam >/dev/null 2>&1 || die "steam no esta instalado; instale el paquete nimbus-gaming"
+
+shopt -s nullglob
+DRI_CARDS=("$DRI_DIR"/card*)
+shopt -u nullglob
+[[ "${#DRI_CARDS[@]}" -gt 0 ]] || die "sin GPU (nada en $DRI_DIR/card*): la sesion de juegos no puede arrancar"
+
+# --- presets -----------------------------------------------------------------
+
+GAMESCOPE_CONF="$PRESET_DIR/gamescope.conf"
+MANGOHUD_CONF="$PRESET_DIR/mangohud.conf"
+[[ -f "$GAMESCOPE_CONF" ]] || die "falta el preset $GAMESCOPE_CONF"
+[[ -f "$MANGOHUD_CONF" ]] || die "falta el preset $MANGOHUD_CONF"
+
+# Solo claves conocidas; resto de lineas (comentarios, vacias) se ignoran.
+WIDTH=""
+HEIGHT=""
+REFRESH=""
+FULLSCREEN=""
+UPSCALING=""
+HDR=""
+STEAM_INTEGRATION=""
+NESTED_REFRESH_AUTO=""
+while IFS='=' read -r key value; do
+  case "$key" in
+    NIMBUS_GAMESCOPE_WIDTH) WIDTH="$value" ;;
+    NIMBUS_GAMESCOPE_HEIGHT) HEIGHT="$value" ;;
+    NIMBUS_GAMESCOPE_REFRESH) REFRESH="$value" ;;
+    NIMBUS_GAMESCOPE_FULLSCREEN) FULLSCREEN="$value" ;;
+    NIMBUS_GAMESCOPE_UPSCALING) UPSCALING="$value" ;;
+    NIMBUS_GAMESCOPE_HDR) HDR="$value" ;;
+    NIMBUS_GAMESCOPE_STEAM_INTEGRATION) STEAM_INTEGRATION="$value" ;;
+    NIMBUS_GAMESCOPE_NESTED_REFRESH_AUTO) NESTED_REFRESH_AUTO="$value" ;;
+  esac
+done <"$GAMESCOPE_CONF"
+
+[[ "$WIDTH" =~ ^[0-9]+$ ]] || die "preset invalido: NIMBUS_GAMESCOPE_WIDTH='$WIDTH'"
+[[ "$HEIGHT" =~ ^[0-9]+$ ]] || die "preset invalido: NIMBUS_GAMESCOPE_HEIGHT='$HEIGHT'"
+[[ "$REFRESH" =~ ^[0-9]+$ ]] || die "preset invalido: NIMBUS_GAMESCOPE_REFRESH='$REFRESH'"
+[[ "$FULLSCREEN" == "0" || "$FULLSCREEN" == "1" ]] || die "preset invalido: NIMBUS_GAMESCOPE_FULLSCREEN='$FULLSCREEN'"
+case "$UPSCALING" in
+  linear|nearest|fsr|nis|pixel) ;;
+  *) die "preset invalido: NIMBUS_GAMESCOPE_UPSCALING='$UPSCALING'" ;;
+esac
+[[ "$HDR" == "0" || "$HDR" == "1" ]] || die "preset invalido: NIMBUS_GAMESCOPE_HDR='$HDR'"
+[[ "$STEAM_INTEGRATION" == "0" || "$STEAM_INTEGRATION" == "1" ]] || die "preset invalido: NIMBUS_GAMESCOPE_STEAM_INTEGRATION='$STEAM_INTEGRATION'"
+
+# --- VRR por deteccion, nunca estatico ----------------------------------------
+
+VRR="unsupported"
+DETECTED_RATE=""
+if VRR_OUT="$("$VRR_CHECK" 2>/dev/null)"; then
+  while IFS=':' read -r vkey vvalue; do
+    vvalue="$(printf '%s' "$vvalue" | tr -d ' ')"
+    case "$vkey" in
+      vrr) VRR="$vvalue" ;;
+      rate) DETECTED_RATE="$vvalue" ;;
+    esac
+  done <<<"$VRR_OUT"
+else
+  printf 'nimbus-gaming-session: aviso: no se pudo detectar VRR; se continua sin adaptive-sync\n' >&2
+fi
+
+RATE="$REFRESH"
+if [[ "$NESTED_REFRESH_AUTO" == "1" && "$DETECTED_RATE" =~ ^[0-9]+$ ]]; then
+  RATE="$DETECTED_RATE"
+fi
+
+# --- comando final ------------------------------------------------------------
+
+ARGS=(-W "$WIDTH" -H "$HEIGHT" -r "$RATE")
+[[ "$FULLSCREEN" == "1" ]] && ARGS+=(-f)
+ARGS+=(-F "$UPSCALING")
+[[ "$STEAM_INTEGRATION" == "1" ]] && ARGS+=(-e)
+[[ "$HDR" == "1" ]] && ARGS+=(--hdr-enabled)
+[[ "$VRR" == "supported" ]] && ARGS+=(--adaptive-sync)
+ARGS+=(--mangoapp)
+export MANGOHUD_CONFIGFILE="$MANGOHUD_CONF"
+
+if [[ "$STEAM_INTEGRATION" == "1" ]]; then
+  FINAL=(gamescope "${ARGS[@]}" -- steam -bigpicture)
+else
+  FINAL=(gamescope "${ARGS[@]}" -- steam)
+fi
+
+if [[ "$DRYRUN" == "1" ]]; then
+  printf 'MANGOHUD_CONFIGFILE=%s\n' "$MANGOHUD_CONFIGFILE" >&2
+  printf '%s\n' "${FINAL[*]}"
+  exit 0
+fi
+
+exec "${FINAL[@]}"
