@@ -5,7 +5,7 @@
 Un único sitio que dice la verdad: qué funciona, qué no, y qué puede coger un contribuidor.
 Si este documento y otro discrepan, manda este documento y abre un issue.
 
-Última actualización: 2026-10-22, rama `main` (`a158ac7`).
+Última actualización: 2026-10-22, rama `main` (`2d1a2b8`).
 Los números de tests se obtuvieron ejecutando las suites, no de memoria.
 
 ## Cómo leer este documento
