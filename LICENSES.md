@@ -33,3 +33,13 @@ en este repositorio:
 Los nombres, logotipos y demás assets visuales de Apple están excluidos de este
 repositorio por marca registrada. Nimbus no incluye ni distribuye ningún asset
 propietario de Apple; la estética estilo macOS es una implementación original.
+
+## Material de terceros incluido en el repositorio
+
+Esta lista es **exhaustiva**: si algo de terceros se distribuye aquí, esta abajo.
+(El proyecto solo distribuye codigo propio y este material; los fondos y los
+iconos los genera el repo.)
+
+| Que | De donde | Licencia | Donde vive |
+|---|---|---|---|
+| `security-audit` (skill de auditoria de seguridad) | [cloudflare/security-audit-skill](https://github.com/cloudflare/security-audit-skill) | MIT (Cloudflare, Inc.) | `.opencode/skills/security-audit/` (incluye su `LICENSE`) |
