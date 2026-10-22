@@ -48,7 +48,7 @@ Qué rueda y qué se pinea, en detalle: [../packages/README.md](../packages/READ
 2. El paquete `nimbus-keyring` instala esos tres ficheros en `/usr/share/pacman/keyrings/`.
 3. Su hook `post_install` ejecuta `pacman-key --populate nimbus`, que importa la clave pública y le aplica la confianza del ownertrust.
 4. `pacman` ya puede verificar las firmas de la DB (`nimbus.db.sig`) y de cada paquete del repo `nimbus`.
-5. Las actualizaciones (`nimbus-update`, pendiente: hito M3) aplican `pacman -Syu` + Flatpaks con snapshot previo automático.
+5. Las actualizaciones (`nimbus-update`, paquete `packages/nimbus-update/`) aplican `pacman -Syu` + Flatpaks con snapshot previo automático (y rollback); las units `nimbus-snapshots.timer` y `nimbus-auto-update.timer` lo programan. Probado con dobles de prueba, no sobre Btrfs real.
 
 Sobre el formato de `nimbus.gpg`: debe ser la **exportación armored de la clave pública** (empieza por `-----BEGIN PGP PUBLIC KEY BLOCK-----`), igual que `cachyos.gpg` y `archlinux.gpg`. No sirve un keybox: `pacman-key --populate` importa el fichero con `gpg --import`, y `gpg --import` solo acepta exportaciones de clave, no bases de datos de keyring. Con un keybox responde "no valid OpenPGP data found", la clave entra sin confianza y **todas** las firmas del repo fallan. Es el tipo de detalle que rompe todo en silencio; por eso hay un test dedicado (`keyring.bats`: "nimbus.gpg es importable con gpg --import").
 
@@ -71,7 +71,7 @@ Punto de entrada: `shell/src/shell.qml` (raíz `ShellRoot`; monta cada superfici
 | Zona | Contenido |
 |------|-----------|
 | Singletons | `Theme`, `Config`, `Translations`, `ShellController`, `Ipc`, `Services`, `PolkitAgent` (todos con `pragma Singleton`, registrados en el `qmldir` con su línea `singleton <Nombre> 1.0 <Fichero>.qml`). |
-| `lib/` | Biblioteca de componentes compartidos: `Button`, `Glass`, `Icon`, `ListRow`, `Popup`, `SearchField`, `SectionHeader`, `Slider`, `Toggle`, `Tooltip`. |
+| `lib/` | Biblioteca de componentes compartidos: `Button`, `Glass`, `Icon`, `ListRow`, `Popup`, `Process` (puente para ejecutar procesos: envuelve `Quickshell.Process` con `pkexec` cuando hacen falta privilegios; lo usan Ajustes→Energía, Ajustes→Juegos y el backend de la Store), `SearchField`, `SectionHeader`, `Slider`, `Toggle`, `Tooltip`. |
 | `modules/` | Superficies: `TopBar`, `TopBarMenu`, `Dock` (+ `DockItem`), `Spotlight`, `ControlCenter`, `Notifications`, `Switcher`, `Screenshot`, `QuickLook`, `Wallpaper`, `LockScreen`. |
 | `apps/` | Aplicaciones: Ajustes (`Settings/` con 11 páginas), Store (`Store/` con `Store`, `StoreHome`, `StoreDetail`, `StoreUpdates` más `store_backend.py` con backend Flatpak y fallback nativo) y tour (`Tour/` con `Tour` y `TourStep`). |
 
@@ -82,7 +82,7 @@ Qué hace cada singleton:
 - **`Translations`** (`shell/src/Nimbus/Translations.qml`) — tabla ES/EN con fallback: idioma activo → inglés → la propia clave.
 - **`ShellController`** (`shell/src/Nimbus/ShellController.qml`) — propietario de qué superficie está abierta (ver "Una sola superficie abierta" abajo).
 - **`Ipc`** (`shell/src/Nimbus/Ipc.qml`) — bus IPC (ver "Contrato IPC" abajo).
-- **`Services`** (`shell/src/Nimbus/Services.qml`) — adaptador de servicios con estado plano (bool, string, number, list), sin tipos de Quickshell en la API pública para que los tests no dependan del framework. Sin D-Bus todo vale `false`/`"unknown"` y el shell arranca igual; el cableado a los servicios reales entra detrás de los mismos flags `...Available`.
+- **`Services`** (`shell/src/Nimbus/Services.qml`) — adaptador de servicios con estado plano (bool, string, number, list), sin tipos de Quickshell en la API pública para que los tests no dependan del framework. Sin D-Bus todo vale `false`/`"unknown"` y el shell arranca igual; el cableado a los servicios reales entra detrás de los mismos flags `...Available`. `probeServices()` intenta conectar de verdad con cada servicio y marca `ready` / `unavailable` / `missing-module`; solo toma la foto inicial, las actualizaciones en vivo (Mpris, volumen, UPower) están pendientes.
 - **`PolkitAgent`** (`shell/src/Nimbus/PolkitAgent.qml`) — agente de polkit propio (sin KDE ni GNOME instalados, `polkit-gnome` sería una ventana ajena al diseño). Defensivo: si el bus no está disponible el shell arranca igual y las acciones privilegiadas aparecen deshabilitadas con un mensaje. Nunca guarda la contraseña.
 
 ### La regla de oro
@@ -91,7 +91,7 @@ Todo componente visible lee sus colores, radios y métricas de **`Theme`**, y to
 
 ### Contrato IPC
 
-El bus es `nimbus-shell ipc call <target> <función>`: `shell.qml` expone un `IpcHandler` con target `nimbus` que delega en `Ipc.call(target, fn)`, y los binds de Hyprland (`dots/hypr/hyprland.lua`) lo invocan desde el teclado. La tabla de targets y funciones válidas vive en `Ipc.validCalls`; ante un target o una función desconocidos **no lanza**: avisa por `console.warn` y no cambia `lastTarget`/`lastFunction`. Un fallo nunca tumba el shell.
+El bus es `nimbus-shell ipc call <target> <función>`: `shell.qml` expone un `IpcHandler` con target `nimbus` que delega en `Ipc.call(target, fn)`, y además uno por superficie (el primer argumento del `qs ipc call` selecciona el handler). Los binds de Hyprland (`dots/hypr/hyprland.lua`) lo invocan desde el teclado. La tabla de targets y funciones válidas vive en `Ipc.validCalls`; ante un target o una función desconocidos **no lanza**: avisa por `console.warn` y no cambia `lastTarget`/`lastFunction`. Un fallo nunca tumba el shell.
 
 | Target | Funciones | Efecto |
 |--------|-----------|--------|
@@ -140,3 +140,19 @@ La secuencia vive en `installer/calamares/settings.conf`:
 ### i18n del instalador
 
 `installer/calamares/nimbus_i18n.py` sigue el mismo patrón que `Translations.qml`: tabla ES/EN (`TRANSLATIONS`) y función de búsqueda `translated(clave, locale)` con fallback al inglés. `locale` puede ser `"es"`, `"en"` o un locale completo (`"es_ES.UTF-8"`, solo se usa la parte del idioma); si es `None` se detecta con `active_locale()` (`LC_ALL`/`LANG`/`LANGUAGE`, o inglés). Una clave inexistente en ambos idiomas devuelve la propia clave. No depende de `libcalamares`, para que los módulos sigan siendo importables en CI/test. Cada módulo registra sus claves (`appearance.*`, `software.*`, `verify.*`, `postinstall.*`, más las de arranque dual y bootloader) en la misma tabla.
+
+### Empaquetado del instalador
+
+Los seis módulos, el tema del greeter y la configuración de SDDM viajan en el paquete `nimbus-installer` (`packages/nimbus-installer/`, depende de `cachyos-calamares-next` y `sddm`); Calamares llega a la ISO por esa dependencia. El perfil de la ISO (`iso/profiles/nimbus/packages.x86_64`) lista `nimbus-installer`. Cubierto por `tests/test_installer_packaging.py`.
+
+## Sesión live
+
+La ISO no usa ninguna unit `nimbus-live.service` (hay un test que prohíbe que exista): la sesión la arranca **SDDM con autologin**. `iso/profiles/nimbus/airootfs/etc/sddm.conf.d/nimbus.conf` fija tema propio (`Current=nimbus`), usuario `nimbus` y sesión `nimbus.desktop` (lanzada por `nimbus-session` vía `start-hyprland` con la config de Nimbus); SDDM se habilita como `display-manager.service`. La puerta de readiness es `nimbus-live-ready.service` (cuelga de `graphical.target`, con `After=display-manager.service`): ejecuta `nimbus-live-ready`, que escribe `NIMBUS_LIVE_READY` en `/dev/console` solo cuando Hyprland responde y el shell lleva vivo de forma estable con el mismo PID. El harness QEMU (`tests/integration/boot_live.sh`) espera ese marcador. Cubierto por `tests/test_iso_profile.py` (sesión lanzada por SDDM, display-manager habilitado, live unit eliminada, readiness tras el display-manager).
+
+## Sesión de juegos y energía
+
+Los paquetes `nimbus-gaming` y `nimbus-energy` (`packages/nimbus-gaming/`, `packages/nimbus-energy/`) traen la sesión `nimbus-gaming-session`, la detección de VRR (`gamescope-vrr-check`: sysinfo del conector con respaldo por EDID; si el VRR no se confirma, la sesión no activa `--adaptive-sync`), `nimbus-gaming-tune`, los presets (`gamescope.conf`, `mangohud.conf`, `50-nimbus-gaming.rules`) y las herramientas `nimbus-energy` / `nimbus-anonicy` / `nimbus-scheduler`. Las páginas de Ajustes (`SettingsGaming.qml`, `SettingsPower.qml`) los invocan de verdad a través del puente `lib/Process.qml`, no con `console.info`. Implementado y con tests (`tests/test_gaming_stack.py`, `tests/test_energy.py`, `tests/test_settings_gaming.py`); **sin verificar en hardware real** (dGPU, batería, VRR).
+
+## Memoria entre sesiones (desarrollo)
+
+El proyecto usa el plugin `opencode-mem` (`opencode.json` en la raíz, ajustes en `.opencode/opencode-mem.jsonc`): base de datos local fuera del repo, nada sale de la máquina. Documentado en `docs/CONTINUAR.md` (§ "5-bis. Memoria persistente"). No afecta al sistema instalado; es infraestructura de desarrollo, como la CI.
