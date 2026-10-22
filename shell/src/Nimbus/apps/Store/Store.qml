@@ -32,6 +32,43 @@ Item {
     signal uninstallRequested(string appId)
     signal updateAllRequested()
 
+    // El backend se asigna tras crear (shell.qml lo monta con StoreBackend;
+    // en tests se inyecta un doble). Si ofrece el camino asincrono
+    // (`dataChanged`/`actionFinished`), se cablea una sola vez.
+    onBackendChanged: {
+        if (backend !== null && backend !== undefined
+                && backend.dataChanged !== undefined
+                && backend.actionFinished !== undefined) {
+            backend.dataChanged.connect(function () { root.refresh() })
+            backend.actionFinished.connect(function (appId, ok, message) {
+                root._onActionFinished(appId, ok, message)
+            })
+        }
+    }
+
+    // Resultado de installNow/uninstallNow: muestra el error o limpia y
+    // recarga desde la cache (igual que el camino sincrono).
+    function _onActionFinished(appId, ok, message) {
+        if (ok) {
+            lastError = ""
+        } else if (typeof message === "string" && message !== "") {
+            lastError = message
+        } else {
+            lastError = String(appId)
+        }
+        refresh()
+        if (currentApp !== null && currentApp !== undefined && currentApp.id !== undefined) {
+            var fresh = null
+            try {
+                fresh = backend.getApp(currentApp.id)
+            } catch (e) {
+                fresh = null
+            }
+            if (fresh !== null && fresh !== undefined && fresh.id !== undefined)
+                currentApp = fresh
+        }
+    }
+
     readonly property var categoryIds: ["games", "productivity", "communication", "creative", "media", "development", "utilities"]
 
     Component.onCompleted: {
@@ -174,6 +211,17 @@ Item {
             lastError = Config.translated("store.flatpak.unavailable")
             return false
         }
+        if (backend.installNow !== undefined) {
+            // Backend asincrono real (StoreBackend): ejecuta y avisa con
+            // `actionFinished`; el resultado llega en _onActionFinished.
+            try {
+                backend.installNow(appId)
+            } catch (e) {
+                lastError = String(e)
+                return false
+            }
+            return true
+        }
         try {
             var result = backend.install(appId)
             if (result === null || result === undefined || result.ok !== true) {
@@ -196,6 +244,16 @@ Item {
         if (!_hasBackend()) {
             lastError = Config.translated("store.flatpak.unavailable")
             return false
+        }
+        if (backend.uninstallNow !== undefined) {
+            // Backend asincrono real (StoreBackend): ver installApp.
+            try {
+                backend.uninstallNow(appId)
+            } catch (e) {
+                lastError = String(e)
+                return false
+            }
+            return true
         }
         try {
             var result = backend.uninstall(appId)

@@ -454,3 +454,223 @@ def test_lock_screen_starts_closed():
         f"la ventana de bloqueo debe usar {flag} en su `visible`: si no, "
         "aparece bloqueada en cada arranque"
     )
+
+
+# --- T2: `nimbus-shell ipc call` despacha al shell en marcha ---
+#
+# Los atajos de Hyprland (`dots/hypr/hyprland.lua`, pista ajena) invocan
+# `nimbus-shell ipc call <target> <fn>` (p. ej. `dock toggle`). El launcher
+# debe traducirlo a `qs ipc call nimbus call <target> <fn>` (socket IPC de
+# Quickshell 0.3.2 contra el `IpcHandler` con `target: "nimbus"` de
+# shell.qml), no a arrancar otra instancia con `qs -c`.
+import os
+import stat
+import subprocess
+
+
+def _run_launcher_with_fake_qs(args):
+    """Ejecuta el launcher con un `qs` falso que registra sus argumentos.
+
+    Devuelve (rc, argv_recibidos, stderr). argv_recibidos es None si el
+    `qs` falso nunca fue invocado.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        qs_path = os.path.join(tmp, "qs")
+        log_path = os.path.join(tmp, "argv.log")
+        with open(qs_path, "w", encoding="utf-8") as handle:
+            handle.write(
+                "#!/usr/bin/env bash\n"
+                'printf \'%%s\\n\' "$@" > "%s"\n'
+                "exit 0\n" % log_path
+            )
+        os.chmod(qs_path, os.stat(qs_path).st_mode | stat.S_IXUSR)
+        env = dict(os.environ)
+        env["PATH"] = tmp + os.pathsep + env.get("PATH", "")
+        proc = subprocess.run(
+            [str(LAUNCHER)] + list(args),
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=30,
+        )
+        argv = None
+        if os.path.exists(log_path):
+            with open(log_path, encoding="utf-8") as handle:
+                argv = [line.rstrip("\n") for line in handle.readlines()]
+        return proc.returncode, argv, proc.stderr
+
+
+def test_launcher_ipc_call_dispatches_to_running_shell():
+    # Lo que invocan los atajos: `nimbus-shell ipc call dock toggle`.
+    rc, argv, _ = _run_launcher_with_fake_qs(["ipc", "call", "dock", "toggle"])
+    assert rc == 0, "el despacho IPC debe salir con 0"
+    assert argv == ["ipc", "call", "nimbus", "call", "dock", "toggle"], (
+        "el launcher debe despachar por el socket IPC de Quickshell, no "
+        "arrancar otra instancia: %r" % (argv,)
+    )
+    # Contrapueba: el formato viejo (pasar todo a `qs -c`) es el defecto.
+    assert argv is None or argv[:2] != ["-c", "/usr/lib/nimbus/shell/src"], (
+        "ipc call no puede terminar en `qs -c`"
+    )
+
+
+def test_launcher_ipc_call_accepts_redundant_nimbus_prefix():
+    # Forma redundante `ipc call nimbus call <target> <fn>`: mismo destino.
+    rc, argv, _ = _run_launcher_with_fake_qs(
+        ["ipc", "call", "nimbus", "call", "spotlight", "toggle"]
+    )
+    assert rc == 0
+    assert argv == ["ipc", "call", "nimbus", "call", "spotlight", "toggle"]
+
+
+def test_launcher_ipc_call_rejects_malformed_calls():
+    # Sin funcion o sin subcomando: error, sin invocar a `qs`.
+    for args in (["ipc", "call", "dock"], ["ipc"], ["ipc", "llamar"]):
+        rc, argv, stderr = _run_launcher_with_fake_qs(args)
+        assert rc != 0, "la llamada malformada %r debe fallar" % (args,)
+        assert argv is None, "la llamada malformada no debe invocar a qs"
+        assert stderr.strip() != "", "debe explicar el uso en stderr"
+
+
+def test_launcher_plain_launch_still_boots_shell():
+    # Sin `ipc`: arranque normal via `qs -c <dir>` (contrato existente).
+    rc, argv, _ = _run_launcher_with_fake_qs([])
+    assert rc == 0
+    assert argv == ["-c", "/usr/lib/nimbus/shell/src"], (
+        "el arranque normal debe seguir siendo `qs -c <dir>`: %r" % (argv,)
+    )
+
+
+# --- T5: el bloqueo tiene salida (verificacion contra el sistema) ---
+#
+# `LockScreen.qml` emite `unlockRequested(password)` y `attemptUnlock()` la
+# descarta sin retenerla. Sin receptor, bloquear es un callejon sin salida.
+# El receptor vive en shell.qml (`attemptUnlock`): verifica contra el
+# sistema via `PamContext` (Quickshell.Services.Pam, creacion dinamica) y
+# solo desbloquea con `reportAuthResult(true)` tras exito real; sin backend
+# la pantalla SIGUE bloqueada con error traducido. Nunca hay comparacion
+# en memoria contra una contrasena guardada.
+
+
+def _shell_text():
+    return SHELL_QML.read_text(encoding="utf-8")
+
+
+def test_shell_connects_lock_unlock_requested():
+    shell = _strip_line_comments(_shell_text())
+    assert "nlockRequested" in shell, (
+        "shell.qml debe escuchar unlockRequested del LockScreen"
+    )
+    assert "attemptUnlock" in shell, (
+        "shell.qml debe tener attemptUnlock como receptor del desbloqueo"
+    )
+
+
+def test_unlock_verifies_against_system_pam():
+    shell = _strip_line_comments(_shell_text())
+    assert "Quickshell.Services.Pam" in shell, (
+        "la verificacion debe usar Quickshell.Services.Pam (sistema), "
+        "no una comparacion en memoria"
+    )
+    assert "PamContext" in shell, "falta el PamContext de verificacion"
+
+
+def test_unlock_without_backend_keeps_screen_locked():
+    shell = _strip_line_comments(_shell_text())
+    # Sin backend: reporta fallo con mensaje traducido, no desbloquea.
+    assert "reportAuthResult(false" in shell, (
+        "sin backend PAM debe llamar reportAuthResult(false, ...)"
+    )
+    assert re.search(r"reportAuthResult\(false,[^)]*translated\(", shell), (
+        "el fallo de desbloqueo debe mostrar un mensaje traducido"
+    )
+
+
+def test_successful_unlock_releases_the_lock_flag():
+    shell = _strip_line_comments(_shell_text())
+    assert "reportAuthResult(true" in shell, (
+        "el exito PAM debe llamar reportAuthResult(true, ...)"
+    )
+    # La ventana de bloqueo depende de `lockRequested`: hay que soltarlo.
+    assert re.search(r"lockRequested\s*=\s*false", shell), (
+        "tras el desbloqueo hay que soltar el flag lockRequested"
+    )
+
+
+def test_unlock_never_compares_passwords_in_memory():
+    shell = _strip_line_comments(_shell_text())
+    match = re.search(r"function\s+attemptUnlock\s*\(([^)]*)\)", shell)
+    assert match, "shell.qml debe declarar attemptUnlock"
+    params = [p.strip().split(":")[0].strip() for p in match.group(1).split(",")]
+    body_start = shell.index(match.group(0)) + len(match.group(0))
+    # Extrae el cuerpo contando llaves desde la firma.
+    depth = 0
+    end = body_start
+    started = False
+    for i in range(body_start, len(shell)):
+        if shell[i] == "{":
+            depth += 1
+            started = True
+        elif shell[i] == "}":
+            depth -= 1
+            if started and depth == 0:
+                end = i
+                break
+    body = shell[body_start:end]
+    # Solo cuentan comparaciones contra literales NO vacios (el chequeo de
+    # cadena vacia es validacion de entrada, no verificacion de secreto).
+    for param in params:
+        assert not re.search(
+            r"""['"][^'"\s][^'"]*['"]\s*==+\s*%s|%s\s*==+\s*['"][^'"\s]""" % (param, param),
+            body,
+        ), "la contrasena no debe compararse contra literales en memoria"
+    # Contrapueba: el patron caza una comparacion tramposa si se introduce.
+    evil = 'function attemptUnlock(password) { if (password == "secreto") {} }'
+    assert re.search(
+        r"""['"][^'"\s][^'"]*['"]\s*==+\s*password|password\s*==+\s*['"][^'"\s]""",
+        evil,
+    )
+
+
+# --- T6a: la Store se monta CON su backend ---
+#
+# `shell.qml` montaba la Store sin `backend` (modo "sin backend" siempre,
+# aunque el sistema tuviera backend). Ahora instancia `StoreBackend` (puente
+# real a `store_backend.py` por CLI JSON) y se lo asigna al cargar; la Store
+# prefiere el camino asincrono (`installNow`/`actionFinished`) cuando el
+# backend lo ofrece y conserva el sincrono para los dobles de test.
+
+
+def test_store_is_mounted_with_backend_in_shell():
+    shell = _strip_line_comments(_shell_text())
+    assert "StoreBackend" in shell, (
+        "shell.qml debe instanciar el puente StoreBackend"
+    )
+    assert re.search(r"\.backend\s*=\s*storeBackend", shell), (
+        "shell.qml debe asignar el backend a la Store al cargarla"
+    )
+    assert "refreshNow" in shell, (
+        "al montar con backend hay que lanzar la primera recarga"
+    )
+
+
+def test_store_prefers_async_backend_when_available():
+    store = (ROOT / "shell" / "src" / "Nimbus" / "apps" / "Store" / "Store.qml").read_text(
+        encoding="utf-8"
+    )
+    store = _strip_line_comments(store)
+    assert "installNow" in store and "uninstallNow" in store, (
+        "Store.qml debe preferir installNow/uninstallNow si el backend los ofrece"
+    )
+    assert "actionFinished" in store, (
+        "Store.qml debe escuchar actionFinished del backend asincrono"
+    )
+    # El camino sincrono se conserva para los dobles de test.
+    assert "backend.install(appId)" in store, (
+        "Store.qml debe conservar el camino sincrono"
+    )
+    assert "backend.uninstall(appId)" in store, (
+        "Store.qml debe conservar el camino sincrono"
+    )

@@ -1,4 +1,49 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
+# Lanzador del shell Nimbus (`/usr/bin/nimbus-shell` en la ISO).
+#
+# Dos modos:
+#
+#   nimbus-shell
+#       Arranca el shell (pasa el directorio del shell a qs).
+#
+#   nimbus-shell ipc call <target> <fn>
+#       Lo que invocan TODOS los atajos de Hyprland
+#       (`dots/hypr/hyprland.lua`: `hl.dsp.exec_cmd("nimbus-shell ipc call "
+#       .. action)`, p. ej. `nimbus-shell ipc call dock toggle`). Despacha
+#       al shell que YA esta en marcha por el socket IPC de Quickshell
+#       0.3.2 (`qs ipc call <target> <fn> [args...]`) contra el `IpcHandler`
+#       con `target: "nimbus"` de `shell.qml`
+#       (`function call(target: string, fn: string)`, firmada para IPC).
+#       Tambien se acepta la forma redundante
+#       `nimbus-shell ipc call nimbus call <target> <fn>` (mismo destino).
+#       Una llamada malformada sale con 2 y explica el uso, sin invocar a
+#       `qs` (nunca se arranca una segunda instancia por error).
 export QML2_IMPORT_PATH="/usr/lib/nimbus/shell/src:${QML2_IMPORT_PATH}"
+
+usage() {
+  cat <<'EOF' >&2
+Uso:
+  nimbus-shell                       arranca el shell
+  nimbus-shell ipc call <target> <fn>  despacha al shell en marcha
+                                       (p. ej. nimbus-shell ipc call dock toggle)
+EOF
+}
+
+if [ "${1:-}" = "ipc" ]; then
+  if [ "${2:-}" != "call" ]; then
+    usage
+    exit 2
+  fi
+  shift 2
+  if [ "${1:-}" = "nimbus" ] && [ "${2:-}" = "call" ]; then
+    shift 2
+  fi
+  if [ "$#" -ne 2 ]; then
+    usage
+    exit 2
+  fi
+  exec qs ipc call nimbus call "$1" "$2"
+fi
+
 exec qs -c /usr/lib/nimbus/shell/src "$@"
