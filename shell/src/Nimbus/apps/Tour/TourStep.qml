@@ -28,6 +28,10 @@ Glass {
     // implicito a la ventana flotante (si no, el texto natural del cuerpo
     // hace crecer la ventana hasta el ancho de la pantalla).
     implicitWidth: 0
+    // El ancho sale de Theme, NO del padre: si la tarjeta tomase su ancho del
+    // padre, el padre (la ventana flotante) se dimensionaria a partir de la
+    // tarjeta y la ventana creceria hasta el ancho de la pantalla.
+    width: Theme.tourCardWidth
 
     Column {
         id: cardBody
