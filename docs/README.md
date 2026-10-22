@@ -7,9 +7,10 @@ Orden de lectura recomendado. Los enlaces son relativos y funcionan en GitHub.
 ## Puerta de entrada
 
 1. [README.md](../README.md) — qué es Nimbus, estado honesto del proyecto, estructura del repo e inicio rápido.
-2. [STATUS.md](STATUS.md) — estado verificable: qué funciona, qué no y qué puedes coger. **Si llegas nuevo, este es tu punto de entrada.**
-3. Este índice — mapa de lo que hay y en qué orden leerlo.
-4. [CONTRIBUTING.md](../CONTRIBUTING.md) — cómo contribuir, tests, commits, licencias y flujo de PRs.
+2. [CONTINUAR.md](CONTINUAR.md) — **si vas a retomar el proyecto**: dónde está cada cosa, los comandos, las trampas reales y por dónde seguir.
+3. [STATUS.md](STATUS.md) — estado verificable: qué funciona, qué no y qué puedes coger.
+4. Este índice — mapa de lo que hay y en qué orden leerlo.
+5. [CONTRIBUTING.md](../CONTRIBUTING.md) — cómo contribuir, tests, commits, licencias y flujo de PRs.
 
 ## Comprender el sistema
 
@@ -27,7 +28,13 @@ Orden de lectura recomendado. Los enlaces son relativos y funcionan en GitHub.
 ## Referencia operativa
 
 12. [STATUS.md](STATUS.md) — qué funciona, qué no y qué coger, con evidencias.
-13. [../packages/README.md](../packages/README.md) — modelo de pins `testing`/`stable`, contratos de `promote.sh` y `verify_repo.sh`, y rotación de clave.
+13. [RELEASE-NOTES.md](RELEASE-NOTES.md) — lo que dice la beta: qué puedes hacer con la ISO, cómo probarla y qué no hace todavía.
+14. [../packages/README.md](../packages/README.md) — modelo de pins `testing`/`stable`, contratos de `promote.sh` y `verify_repo.sh`, y rotación de clave.
+
+## Comprobaciones
+
+- `python tools/check_links.py` — **todos los enlaces entre documentos resuelven** y
+  ninguna ruta documentada apunta a algo que no exista. Se ejecuta en la CI.
 14. [../LICENSES.md](../LICENSES.md) — licencias: GPL-3.0-or-later, sin código de terceros distribuido.
 15. [../LICENSE](../LICENSE) — texto completo de la GPL-3.0.
 16. [../CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) — Contributor Covenant v2.1.

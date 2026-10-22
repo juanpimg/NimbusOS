@@ -109,7 +109,7 @@ def test_no_test_files_live_outside_tests_dir():
     `pytest.ini` fija `testpaths = tests`, asi que un `test_*.py` fuera de
     `tests/` pytest no lo ve: ni en local ni en la CI pasa, y nadie se
     entera. Ya mordio una vez con el backend de la Store
-    (`shell/src/Nimbus/apps/Store/test_store_backend.py`, 7 tests sin
+    (`tests/test_store_backend.py`, 7 tests sin
     ejecutarse). Si este test falla, mueve el fichero listado a `tests/`
     en vez de ignorarlo.
     """

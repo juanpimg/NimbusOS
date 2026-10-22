@@ -158,5 +158,5 @@ Estas no están en ningún sitio más y ya han costado horas:
 | [`RELEASE-NOTES.md`](RELEASE-NOTES.md) | Lo que dice la beta de la release |
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Cómo aportar un PR |
 | [`SECURITY.md`](../SECURITY.md) | Cómo reportar un fallo |
-| [`superpowers/specs/`](../superpowers/specs/) | El spec (la autoridad) |
-| [`superpowers/plans/`](../superpowers/plans/) | Los planes por hito |
+| [`superpowers/specs/`](superpowers/specs/) | El spec (la autoridad) |
+| [`superpowers/plans/`](superpowers/plans/) | Los planes por hito |

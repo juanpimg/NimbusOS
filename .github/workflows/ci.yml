@@ -78,6 +78,8 @@ jobs:
           # encuentra .github/workflows. Pasarle los ficheros por `git ls-files`
           # lo hace independiente del directorio de trabajo.
           git ls-files '.github/workflows/*.yml' | xargs -r actionlint
+      - name: Enlaces y rutas de la documentacion
+        run: python tools/check_links.py
       - name: Tests Python
         run: python -m pytest tests -v
       - name: Tests Bats
