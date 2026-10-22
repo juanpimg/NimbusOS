@@ -462,14 +462,16 @@ ShellRoot {
     // `completed`/`finished` (restaurados desde `Config.tourCompleted`).
     FloatingWindow {
         id: tourWindow
-        // Tarjeta pequena y centrada: el tour explica el escritorio, no lo
-        // tapa. Antes ocupaba casi toda la pantalla.
-        width: Theme.tourCardWidth
-        height: Theme.tourCardHeight
+        // SIN width/height explicitos: la ventana toma el tamano del
+        // contenido, que es fijo (Tour.qml declara width/height). Poner el
+        // tamano aqui Y anclar el contenido crea una circularidad que
+        // resolvia con el tamano de la pantalla entera: el cartel del tour
+        // tapaba el escritorio.
+        // La tarjeta es pequena y centrada: el tour explica el escritorio,
+        // no lo tapa.
         visible: !root.tourDisabled && !Config.tourCompleted && tourLoader.status === Loader.Ready && tourLoader.item && tourLoader.item.shouldShow()
         Loader {
             id: tourLoader
-            anchors.fill: parent
             source: "Nimbus/apps/Tour/Tour.qml"
             onStatusChanged: {
                 if (status === Loader.Error)

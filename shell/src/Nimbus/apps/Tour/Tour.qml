@@ -28,11 +28,13 @@ import Nimbus
 // duplicated-name). Se mantiene la propiedad `finished` y la señal de
 // finalizacion se llama `tourFinished()`; `skipped()` conserva su nombre.
 Item {
-    // La ventana flotante crece hasta el tamano implicito de su contenido si
-    // este no lo fija: con el texto del cuerpo sin limite, la tarjeta se
-    //idia hasta casi el tamano de la pantalla. El tamano lo manda shell.qml.
-    implicitWidth: 0
-    implicitHeight: 0
+    // Tamano FIJO: la ventana flotante toma el del contenido, y el contenido
+    // no se ancla a la ventana (si se anclara, la circularidad haria que la
+    // ventana creciera hasta el tamano de la pantalla).
+    width: Theme.tourCardWidth
+    height: Theme.tourCardHeight
+    implicitWidth: Theme.tourCardWidth
+    implicitHeight: Theme.tourCardHeight
 
     id: root
 
