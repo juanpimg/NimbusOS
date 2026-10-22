@@ -105,3 +105,27 @@ package() {
   install -Dm644 "$startdir/files/sddm-nimbus.conf" \
     "$pkgdir/etc/sddm.conf.d/nimbus.conf"
 }
+
+  # --- Configuracion del modulo partition (de Calamares, no nuestro) ---
+  # Btrfs por defecto: sin esto no hay rollback (§9.7 del spec).
+  install -Dm644 "$startdir/../../installer/calamares/modules/partition.conf" \
+    "$pkgdir/etc/calamares/modules/partition.conf"
+
+  # --- Branding de Calamares ---
+  # Sin esto Calamares aborta al arrancar:
+  #   FATAL: none of the expected branding descriptor file paths exist.
+  # Busca /etc/calamares/branding/<branding>/branding.desc y
+  # /usr/share/calamares/branding/<branding>/branding.desc, con <branding> =
+  # el valor de "branding:" del settings.conf (nimbus).
+  install -Dm644 "$startdir/../../installer/calamares/branding/nimbus/branding.desc" \
+    "$pkgdir/etc/calamares/branding/nimbus/branding.desc"
+  # La diapositiva que se ve durante la ejecucion. Sin ella:
+  #   Image file .../icon.png does not exist.
+  install -Dm644 "$startdir/../../installer/calamares/branding/nimbus/show.qml" \
+    "$pkgdir/etc/calamares/branding/nimbus/show.qml"
+  install -Dm644 "$startdir/../../installer/calamares/branding/nimbus/icon.png" \
+    "$pkgdir/etc/calamares/branding/nimbus/icon.png"
+  install -Dm644 "$startdir/../../installer/calamares/branding/nimbus/logo.png" \
+    "$pkgdir/etc/calamares/branding/nimbus/logo.png"
+  install -Dm644 "$startdir/../../installer/calamares/branding/nimbus/welcome.png" \
+    "$pkgdir/etc/calamares/branding/nimbus/welcome.png"

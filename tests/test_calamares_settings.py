@@ -26,15 +26,15 @@ vv = _load_verify()
 EXPECTED_SEQUENCE = [
     "welcome",
     "locale",
+    "keyboard",
     # nimbus-dualboot copia la tabla de particiones y detecta Fast Boot:
     # tiene que ejecutarse ANTES de que Calamares toque el disco.
     "nimbus-dualboot",
     "partition",
-    "lukspass",
     "users",
     "nimbus-appearance",
     "nimbus-software",
-    "hardware",
+    "summary",
     "bootloader",
     # nimbus-bootloader anade las entradas de rollback al menu de arranque.
     "nimbus-bootloader",
@@ -52,7 +52,13 @@ def _settings():
 
 
 def _sequence():
-    return [step["module"] for step in _settings()["sequence"]]
+    """La secuencia de Calamares 3 es una lista de GRUPOS: '- show:' (los
+    pasos que ve el usuario) y '- exec:' (las acciones). Los pasos que ve el
+    usuario estan en el grupo 'show'."""
+    for group in _settings()["sequence"]:
+        if "show" in group:
+            return list(group["show"])
+    return []
 
 
 def test_settings_conf_exists():
@@ -65,10 +71,14 @@ def test_settings_conf_is_valid_yaml_for_calamares():
     # faltaba cuando el fichero estaba en formato INI.
     data = yaml.safe_load(SETTINGS.read_text(encoding="utf-8"))
     assert isinstance(data, dict)
-    for key in ("sequence", "general", "locale", "partition", "users"):
+    # Calamares 3: modules-search + instances + sequence. Los grupos de la
+    # secuencia son '- show:' y '- exec:'.
+    for key in ("modules-search", "instances", "sequence"):
         assert key in data, f"falta la seccion {key}"
     assert isinstance(data["sequence"], list)
-    for step in data["sequence"]:
+    for group in data["sequence"]:
+        assert "show" in group or "exec" in group, group
+    for step in data["instances"]:
         assert "module" in step, step
 
 
@@ -144,7 +154,12 @@ def test_installer_requires_connectivity_step():
 
 
 def _partition_section():
-    return _settings()["partition"]
+    # En Calamares 3 la config de cada modulo va en su propio fichero
+    # (/etc/calamares/modules/<modulo>.conf), no en el settings.conf.
+    import yaml as _yaml
+    return _yaml.safe_load(
+        (CALAMARES / "modules" / "partition.conf").read_text(encoding="utf-8")
+    )
 
 
 def test_default_filesystem_is_btrfs():
@@ -163,7 +178,7 @@ def test_btrfs_is_offered_first():
 def test_partition_section_documents_subvolume_layout():
     """D2: el layout @ / @home / @snapshots queda escrito en settings.conf
     (contrato con nimbus-bootloader y nimbus-snapshots)."""
-    text = SETTINGS.read_text(encoding="utf-8")
+    text = (CALAMARES / "modules" / "partition.conf").read_text(encoding="utf-8")
     for subvol in ("@", "@home", "@snapshots"):
         assert subvol in text, f"falta el subvolumen {subvol}"
 

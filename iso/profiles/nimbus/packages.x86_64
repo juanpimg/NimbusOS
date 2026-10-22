@@ -16,6 +16,10 @@ iwd
 networkmanager
 bluez
 bluez-utils
+# Calamares (cachyos-calamares-next) enlaza contra libboost_python: sin
+# boost-libs, '/usr/bin/calamares' no arranca con "error while loading shared
+# libraries: libboost_python314.so".
+boost-libs
 linux-cachyos
 linux-firmware
 linux-firmware-amdgpu
