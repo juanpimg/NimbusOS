@@ -24,17 +24,20 @@ Tres suites, todas verificadas (salidas resumidas bajo cada comando):
 
 ```bash
 python -m pytest tests -v
-# 189 passed: cabeceras SPDX, config de Hyprland, perfil de la ISO, Calamares
+# 390 passed: cabeceras SPDX, config de Hyprland, perfil de la ISO, Calamares
 # (settings, comportamiento, arranque dual, bootloader, post-instalación,
-# tema del greeter) y punto de entrada del shell
+# tema del greeter), punto de entrada del shell, backend de la Store,
+# traducciones de Ajustes, energía, stack de gaming, ajustes de gaming,
+# actualizaciones y empaquetado del instalador
 # (en este contenedor: /tmp/opencode/nimbus-venv/bin/python -m pytest tests -v)
 
 PATH="$HOME/.local/bin:$PATH" bats tests/*.bats
 # 13 passed: keyring, firma, promoción testing -> stable y verificación
 
 QT_QPA_PLATFORM=offscreen QML2_IMPORT_PATH="$PWD/shell/src" /usr/lib/qt6/bin/qmltestrunner -input shell/tests
-# 249 passed: singletons (Theme, Config, Translations, ShellController, Ipc,
-# Services, PolkitAgent), lib, superficies, Ajustes, Store, tour y fondos
+# 301 passed: singletons (Theme, Config, Translations, ShellController, Ipc,
+# Services, PolkitAgent), lib (incluido el puente de procesos), superficies,
+# Ajustes (incluidas las páginas de energía y juegos), Store, tour y fondos
 # (Qt 6.12.0)
 ```
 
@@ -42,7 +45,7 @@ Y el validador SPDX suelto:
 
 ```bash
 python tools/check_spdx.py --root .
-# SPDX OK: 34 ficheros
+# SPDX OK: 123 ficheros
 # (en este contenedor: /tmp/opencode/nimbus-venv/bin/python tools/check_spdx.py --root .)
 ```
 
@@ -53,7 +56,12 @@ El perfil sigue el formato declarativo de **archiso 91** y vive en `iso/profiles
 - `profiledef.sh`: metadatos (`nimbus`, etiqueta `NIMBUS_<AAAAMM>`, modos `bios.syslinux` + `uefi.grub`), imagen airootfs en squashfs y parámetros de kernel con consola serie (`console=tty0 console=ttyS0,115200`) para que el harness de QEMU capture el marcador por el log serie.
 - `pacman.conf`: repos y niveles de firma que `mkarchiso` usa en el host (vía `-C`) y que quedan en la imagen. Solo repos x86-64 genéricos (nada de `-v3`/`-v4`): la ISO debe arrancar bajo QEMU+TCG, cuya CPU `qemu64` no tiene AVX y moriría con SIGILL ante binarios x86-64-v3.
 - `packages.x86_64` y `bootstrap_packages`: netinstall pura (< 3 GB, verificado por test): lo mínimo para arrancar la sesión live (Hyprland + shell); el resto se descarga durante la instalación.
-- `airootfs/`: `etc/os-release` de Nimbus, usuario `nimbus`, unidades `nimbus-live.service` (arranca el shell) y `nimbus-live-ready.service` (escribe `NIMBUS_LIVE_READY` en `/dev/console` solo si el shell arrancó), keyring de bootstrap y configs de arranque (`grub/`, `syslinux/`).
+- `airootfs/`: `etc/os-release` de Nimbus, usuario `nimbus`, sesión live lanzada por
+  SDDM con autologin (`etc/sddm.conf.d/nimbus.conf`: tema propio, usuario `nimbus`,
+  sesión `nimbus.desktop`) y unidad `nimbus-live-ready.service` (escribe
+  `NIMBUS_LIVE_READY` en `/dev/console` solo si Hyprland y el shell responden).
+  No hay `nimbus-live.service`: se eliminó a propósito, el único lanzador del
+  compositor es SDDM. Keyring de bootstrap y configs de arranque (`grub/`, `syslinux/`).
 - `iso/build.sh`: constructor. Invocación nueva de mkarchiso (`mkarchiso -m iso -o "$OUTDIR" -w "$WORK" "$WORK/profile"`), comprueba que `mkarchiso` y `mksquashfs` existen y falla de forma ruidosa si no se construyó ningún paquete.
 
 ```bash
@@ -150,7 +158,7 @@ El harness (`tests/integration/boot_live.sh`, con `tests/integration/lib.sh` y `
 
 Diferencia `-accel kvm` / `-accel tcg`: con KVM la VM usa virtualización por hardware (rápida); sin `/dev/kvm` QEMU cae a `tcg`, emulación pura por software (lenta: 5–10 minutos solo el arranque). El harness elige solo: `kvm` si `/dev/kvm` existe y es escribible, `tcg` si no. En este equipo `/dev/kvm` **existe** (verificado); en los runners alojados de GitHub **no** existe, así que la CI usará `tcg`. Además la VM usa `-cpu max`: el modelo por defecto (`qemu64`) no expone AVX2 y los binarios x86-64-v3 abortarían con SIGILL dentro de la VM.
 
-Nota honesta: el harness verifica que la sesión live arranca (marcador `NIMBUS_LIVE_READY`, que solo se escribe cuando Hyprland y el shell responden de verdad). El escritorio de verdad —las superficies del M1 en pantalla— solo se verá cuando la integración del M1 termine; no hay capturas porque nadie lo ha visto aún.
+Nota honesta: el harness verifica que la sesión live arranca (marcador `NIMBUS_LIVE_READY`, que solo se escribe cuando Hyprland y el shell responden de verdad). El escritorio —las superficies del M1 en pantalla— se verificó además con capturas del guest (`screendump` del monitor de QEMU): fondo propio, barra con la marca y Dock con iconos dibujados.
 
 No toques tu instalación para probar: el desarrollo ocurre en el repo, las pruebas de integración en VM y las de hardware real en disco externo USB, nunca sobre la instalación CachyOS principal.
 
@@ -158,7 +166,7 @@ No toques tu instalación para probar: el desarrollo ocurre en el repo, las prue
 
 El instalador existe como configuración de Calamares más seis módulos propios (`installer/calamares/modules/`: `nimbus-dualboot`, `nimbus-appearance`, `nimbus-software`, `nimbus-bootloader`, `nimbus-postinstall`, `nimbus-verify`, con su secuencia en `installer/calamares/settings.conf` y su tabla i18n ES/EN en `installer/calamares/nimbus_i18n.py`), herramientas (`installer/tools/`: `nimbus-postinstall`, `nimbus-partitionsafe`, `nimbus-snapshots`) y tema de SDDM (`installer/greeter/nimbus-greeter/`). Cubierto por `tests/test_calamares_settings.py`, `tests/test_calamares_behavior.py`, `tests/test_dualboot_safety.py`, `tests/test_bootloader_rollback.py`, `tests/test_postinstall.py` y `tests/test_greeter_theme.py`. El orden de los módulos y por qué importa se explica en [ARCHITECTURE.md](ARCHITECTURE.md) (§ "Instalador Calamares").
 
-Lo que sigue sin existir: el perfil gameready completo (el instalador ya ofrece el perfil de software `gaming`, pero la sesión gaming con VRR/HDR, energía e híbridos es M3), Secure Boot (llega en M6; las betas usan MOK provisional) y la publicación del repo de paquetes.
+Lo que sigue sin existir: el perfil gameready completo (el instalador ya ofrece el perfil de software `gaming`; la sesión de juegos con VRR existe pero no se ha probado en hardware real, ver [ROADMAP.md](ROADMAP.md) fila M3), Secure Boot (llega en M5/v1.0) y la publicación del repo de paquetes.
 
 Reglas vigentes desde ya (documento de diseño §4.11): nunca pruebes sobre tu instalación principal; en VM para integración, en USB externo para hardware real (drivers NVIDIA, suspensión, batería). El dual-boot con Windows llevará salvaguardas (copia de la tabla de particiones, aviso de Fast Boot, verificación post-instalación) y se marcará como beta en v1.
 
@@ -179,5 +187,5 @@ Reglas vigentes desde ya (documento de diseño §4.11): nunca pruebes sobre tu i
 - **La API real de Hyprland 0.56 no es la de los `.conf`.** Síntoma: la config no carga o un bind no hace nada, sin error claro. Causa: los nombres clásicos no existen en modo Lua. Lo que usa el repo (verificado en `dots/hypr/hyprland.lua`, fijado por `tests/test_hyprland_config.py`): `hl.bind` toma dos argumentos, el primero un único string combinado (`"SUPER + SHIFT + E"`); los dispatchers son `hl.dsp.exec_cmd(...)`, `hl.dsp.window.close()`, `hl.dsp.focus({ workspace = N })` (con **número**, no string) y `hl.dsp.send_shortcut({ mods = ..., key = ... })`. No existen `hl.dsp.closewindow`, `hl.dsp.copy`, `hl.dsp.paste` ni `hl.dsp.workspace(N)`. La sesión de emergencia usa el dispatcher directo como el resto de binds: envolverla en una llamada intermedia rompe la carga de toda la config.
 - **La API real de Quickshell: `ShellRoot`, no `Item`.** Síntoma: `qs -c` muere al instante y no hay proceso de shell. Causa: la raíz de una config no es un `Item` de QtQuick. Lo que usa el repo (verificado en `shell/src/shell.qml`, fijado por `tests/test_shell_entrypoint.py`): la raíz es **`ShellRoot`** (módulo `Quickshell`); las superficies son **`PanelWindow`/`FloatingWindow`/`PopupWindow`** (módulo `Quickshell.Wayland`, no `Window` de QtQuick ni `Loader` cargando otro fichero); y los servicios disponibles están en **`Quickshell.Services`**: `Greetd`, `Mpris`, `Notifications`, `Pam`, `Pipewire`, `Polkit`, `SystemTray`, `UPower` (verificado leyendo los `.qmltypes` del paquete quickshell 0.3.2 durante M0). Si `shell.qml` falta o su raíz no es un tipo de Quickshell, no hay shell.
 - **Qt5 frente a Qt6 `qmltestrunner`.** Síntoma: con `/usr/bin/qmltestrunner` la suite termina sin salida (muere en silencio) o falla con errores de importación o de API. Causa: `/usr/bin/qmltestrunner` es Qt5 (verificado: enlaza `libQt5QuickTest.so.5`); los tests exigen Qt6. Remedio: usar siempre `/usr/lib/qt6/bin/qmltestrunner` (verificado: enlaza `libQt6QuickTest.so.6`) con `QT_QPA_PLATFORM=offscreen` para correr sin sesión gráfica.
-- **`QML2_IMPORT_PATH` mal apuntado y `qmldir` en el sitio equivocado.** Síntoma: `module "Nimbus" is not installed` o `Cannot find module "Nimbus"`. Causa: QML resuelve un módulo buscando un *directorio* con ese nombre en el `QML2_IMPORT_PATH`; con un `qmldir` plano en `shell/src/` el import no resuelve. Remedio: el `qmldir` va en `shell/src/Nimbus/`, y el import path debe ser su padre, `shell/src` (no `shell/src/Nimbus/`). Verificado: con `QML2_IMPORT_PATH="$PWD/shell/src"` los 17 tests pasan. Fijado por `tests/test_shell_entrypoint.py::test_qmldir_registers_the_three_singletons` y `test_launcher_import_path_contains_nimbus_module`.
+- **`QML2_IMPORT_PATH` mal apuntado y `qmldir` en el sitio equivocado.** Síntoma: `module "Nimbus" is not installed` o `Cannot find module "Nimbus"`. Causa: QML resuelve un módulo buscando un *directorio* con ese nombre en el `QML2_IMPORT_PATH`; con un `qmldir` plano en `shell/src/` el import no resuelve. Remedio: el `qmldir` va en `shell/src/Nimbus/`, y el import path debe ser su padre, `shell/src` (no `shell/src/Nimbus/`). Verificado: con `QML2_IMPORT_PATH="$PWD/shell/src"` la suite QML pasa (301 tests). Fijado por `tests/test_shell_entrypoint.py::test_qmldir_registers_the_three_singletons` y `test_launcher_import_path_contains_nimbus_module`.
 - **El test de SPDX no debe reimplementar el recorrido del checker.** Síntoma: el test pasa en verde pero comprueba otra cosa que la herramienta (por ejemplo, no sabe qué directorios ignora) y se desincroniza de ella. Causa: el test tiene su propia copia de la lógica de recorrido. Remedio: el test **usa** la herramienta (`tests/test_spdx_headers.py` invoca `tools/check_spdx.py` por subprocess en vez de duplicar su recorrido) y además comprueba que la herramienta **falla** cuando falta una cabecera (`test_check_spdx_detects_a_missing_header`): un chequeo que siempre pasa no comprueba nada.
