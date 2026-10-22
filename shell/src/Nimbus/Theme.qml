@@ -9,6 +9,10 @@ QtObject {
     readonly property bool dark: _dark
 
     readonly property color background: dark ? "#1C1C1E" : "#F5F5F7"
+    // Ventana de fondo del escritorio: transparente, para que se vea el
+    // wallpaper que pinta swaybg con el arte de Nimbus. Con un color opaco,
+    // el escritorio se veia como un rectangulo gris plano.
+    readonly property color backgroundTransparent: "transparent"
     readonly property color surface: dark ? "#2C2C2E" : "#FFFFFF"
     readonly property color surfaceAlt: dark ? "#3A3A3C" : "#ECECEE"
     readonly property color text: dark ? "#F5F5F7" : "#1D1D1F"

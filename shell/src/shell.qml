@@ -252,7 +252,7 @@ ShellRoot {
         // Nimbus (ver dots/nimbus/nimbus-start). Con un color opaco, esta
         // ventana tapaba el fondo y el escritorio se veía como un rectangulo
         // gris plano en vez de como un escritorio.
-        color: "transparent"
+        color: Theme.backgroundTransparent
     }
 
     // Dock: PanelWindow inferior con zona exclusiva, SIEMPRE visible (macOS:
