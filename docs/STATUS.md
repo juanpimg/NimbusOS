@@ -27,6 +27,7 @@ Los números de tests se obtuvieron ejecutando las suites, no de memoria.
 | Cadena de firma bootstrap | `tools/genkeyring.sh`, `tools/sign_repo.sh`, `tools/promote.sh`, `tools/verify_repo.sh`, cubiertos por los 13 tests bats |
 | CI en cada push/PR | `.github/workflows/ci.yml`: lint (SPDX, yamllint, shellcheck, actionlint) + las tres suites. **Verde en `main`** |
 | El shell **carga** y se ve | La config de Quickshell arrancaba con `IpcHandler is not a type` (faltaba `import Quickshell.Io`) y con `PanelWindow is not a type` (faltaba `import Quickshell`). Corregido: se ven la barra con la marca Nimbus, el reloj y el Dock |
+| El escritorio **se parece a macOS** | Captura del guest (`out/nimbus-*.iso` en QEMU, `screendump` del monitor): fondo degradado propio de Nimbus (swaybg), barra superior con la marca, la fecha/hora y los indicadores, y Dock inferior con iconos dibujados |
 | El instalador está **empaquetado** | `packages/nimbus-installer/` mete los 6 módulos de Calamares, el tema del greeter y la config de SDDM; `iso/profiles/nimbus/packages.x86_64` lo lista |
 | `settings.conf` lo entiende Calamares | Estaba en INI y Calamares lo lee con YAML: el instalador no arrancaba. Ahora es YAML válido (`yaml.safe_load` OK) |
 | Hay **actualizaciones y rollback** | `packages/nimbus-update/`: `nimbus-update check\|apply\|history\|rollback\|auto`, con snapshot antes de cada transacción y dos units de timer |
@@ -46,15 +47,19 @@ Nada de lo siguiente está escrito en ningún otro sitio. Todo verificado contra
   `exec qs -c … "$@"`, sin subcomando `ipc` propio; los atajos de `dots/hypr/hyprland.lua:26`
   lo invocan (`"nimbus-shell ipc call " .. action`) y el manejo vive dentro del shell en marcha
   (`shell/src/Nimbus/Ipc.qml`), nunca probado de extremo a extremo.
-- **Servicios reales a `false`.** `shell/src/Nimbus/Services.qml:13-19`: `notificationsAvailable`,
-  `statusNotifierAvailable`, `mprisAvailable`, `upowerAvailable` y `batteryPresent` valen `false`;
-  sin D-Bus todo es `"unknown"`.
-- **`PolkitAgent.available` es `false`.** `shell/src/Nimbus/PolkitAgent.qml:16`, con mensaje
-  `auth.unavailable` (`:18`). Sin diálogo real de autenticación.
-- **La Store usa un catálogo simulado.** `shell/src/Nimbus/apps/Store/store_backend.py`:
-  `install()` solo hace `_installed_ids.add(app_id)`; el fichero no invoca `flatpak`,
-  `PackageKit` ni `subprocess` (único import externo: `shutil`). El botón Actualizar de
-  `SettingsSoftware.qml:30-35` hace `console.info`, no actualiza.
+- **Los servicios se sondean, pero el estado real llega tarde.** `Services.qml` ahora tiene
+  `probeServices()` que distingue `ready` / `unavailable` / `missing-module` por servicio, y el
+  Shell arranca igualmente. Lo que **no** hay: actualizaciones en vivo de Mpris, del volumen de
+  Pipewire o del estado de UPower (solo la foto inicial).
+- **El agente de polkit sigue sin registrarse en `polkitd`.** `shell/src/Nimbus/PolkitAgent.qml`:
+  el diálogo de autenticación es propio y no está conectado al bus de polkit, así que una acción
+  privilegiada desde la interfaz pide la clave por otro camino (el `pkexec` del puente de
+  procesos).
+- **La Store se invoca de verdad, pero no instala de verdad.** La Store ya se monta **con su
+  backend** (que llama a `store_backend.py` por CLI con `--json`), pero la transaccion de
+  `install()` sigue siendo simulada: no hay `libflatpak` ni `PackageKit` en la ISO, asi que no se
+  instala nada de verdad. Los botones de "Actualizar" de `SettingsSoftware.qml` siguen haciendo
+  `console.info`.
 - **`nimbus-update` existe pero solo se ha probado con dobles de prueba.** El paquete
   `packages/nimbus-update/` trae la CLI y las dos units (`nimbus-snapshots.timer`,
   `nimbus-auto-update.timer`), pero el snapshot y el rollback **no se han probado sobre un disco
