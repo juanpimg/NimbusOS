@@ -25,13 +25,6 @@ fi
 
 # Sin exec: el proceso que Hyprland lanzo sigue supervisando; el shell va en
 # segundo plano y queda su PID registrado.
-# La sesion live de la ISO no muestra el tour: es efimera y se repetiria en
-# cada arranque. En un sistema instalado, el tour si se muestra (como el
-# primer arranque de un Mac). El flag lo decide la sesion live (NIMBUS_LIVE).
-NIMBUS_SHELL_ARGS=()
-if [ "${NIMBUS_LIVE:-0}" = "1" ]; then
-    NIMBUS_SHELL_ARGS+=(--no-tour)
-fi
-/usr/bin/nimbus-shell "${NIMBUS_SHELL_ARGS[@]}" &
+/usr/bin/nimbus-shell &
 echo "nimbus-start: shell lanzado con PID $!"
 wait "$!"

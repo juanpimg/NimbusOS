@@ -15,9 +15,4 @@ if [ ! -f "$CFG" ]; then
     CFG="/usr/lib/nimbus/dots/hypr/hyprland.lua"
 fi
 
-# Marca de sesion live (efimera): con ella el shell no muestra el tour de
-# bienvenida, que en una live se repetiria en cada arranque y taparia el
-# escritorio. En un sistema INSTALADO el tour si se muestra.
-export NIMBUS_LIVE=1
-
 exec /usr/bin/start-hyprland -- --config "$CFG"
