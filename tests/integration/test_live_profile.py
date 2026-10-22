@@ -88,7 +88,9 @@ def test_nimbus_start_has_emergency_fallback_without_exec():
     text = (ROOT / "dots" / "nimbus" / "nimbus-start").read_text(encoding="utf-8")
     assert "kitty" in text
     assert re.search(r"^\s*exec\s+/usr/bin/nimbus-shell", text, re.MULTILINE) is None
-    assert re.search(r"/usr/bin/nimbus-shell\s+&", text) is not None
+    # El shell NO se exec: sigue siendo hijo para que el supervisor lo vea.
+    # Puede llevar argumentos (--no-tour en la sesion live).
+    assert re.search(r"/usr/bin/nimbus-shell[^\n]*&", text) is not None
     assert "$!" in text
 
 

@@ -538,9 +538,12 @@ def test_launcher_plain_launch_still_boots_shell():
     # Sin `ipc`: arranque normal via `qs -c <dir>` (contrato existente).
     rc, argv, _ = _run_launcher_with_fake_qs([])
     assert rc == 0
-    assert argv == ["-c", "/usr/lib/nimbus/shell/src"], (
+    # `qs -c <dir> -- <args>`: el `--` es lo que hace que los argumentos
+    # lleguen a la app (por ejemplo `--no-tour`) y no se los coma el qs.
+    assert argv[:2] == ["-c", "/usr/lib/nimbus/shell/src"], (
         "el arranque normal debe seguir siendo `qs -c <dir>`: %r" % (argv,)
     )
+    assert argv[2] == "--", argv
 
 
 # --- T5: el bloqueo tiene salida (verificacion contra el sistema) ---

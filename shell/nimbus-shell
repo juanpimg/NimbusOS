@@ -46,4 +46,4 @@ if [ "${1:-}" = "ipc" ]; then
   exec qs ipc call nimbus call "$1" "$2"
 fi
 
-exec qs -c /usr/lib/nimbus/shell/src "$@"
+exec qs -c /usr/lib/nimbus/shell/src -- "$@"

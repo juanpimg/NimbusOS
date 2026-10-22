@@ -36,6 +36,12 @@ ShellRoot {
     // el shell sigue arrancando, nunca muere por el.
     property int moduleFailures: 0
 
+    // El tour de bienvenida se puede desactivar con `--no-tour` (lo usa la
+    // sesion live de la ISO: en una live efimera el tutorial se repite en
+    // cada arranque y tapa el escritorio; en un sistema INSTALADO se
+    // muestra, como el primer arranque de un Mac).
+    readonly property bool tourDisabled: Qt.application.arguments.indexOf("--no-tour") !== -1
+
     // Ventanas montadas de forma imperativa (no pueden ir en un Loader).
     property var topBarWindow: null
     property var settingsWindow: null
@@ -460,7 +466,7 @@ ShellRoot {
         // tapa. Antes ocupaba casi toda la pantalla.
         width: Theme.tourCardWidth
         height: Theme.tourCardHeight
-        visible: !Config.tourCompleted && tourLoader.status === Loader.Ready && tourLoader.item && tourLoader.item.shouldShow()
+        visible: !root.tourDisabled && !Config.tourCompleted && tourLoader.status === Loader.Ready && tourLoader.item && tourLoader.item.shouldShow()
         Loader {
             id: tourLoader
             anchors.fill: parent
