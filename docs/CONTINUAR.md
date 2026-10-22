@@ -112,6 +112,41 @@ Estas no están en ningún sitio más y ya han costado horas:
    responde). Si ves `NIMBUS_LIVE_TIMEOUT`, el shell **no** arrancó: mira
    `journalctl -u nimbus-live.service` y el log de Quickshell. Antes mentía.
 
+## 5-bis. Memoria persistente (opencode-mem)
+
+Este proyecto tiene **memoria entre sesiones** con el plugin
+[`tickernelz/opencode-mem`](https://github.com/tickernelz/opencode-mem) (MIT),
+instalado **solo aqui**:
+
+| Pieza | Donde | Que hace |
+|---|---|---|
+| Registro del plugin | `opencode.json` (raiz del repo) | Carga el plugin **solo en este proyecto** (OpenCode fusiona la config del proyecto con la global) |
+| Ajustes del plugin | `.opencode/opencode-mem.jsonc` | Override **por proyecto**: base de datos, modelo de embeddings, provider, cifrado |
+| Base de datos | `/home/jp/.opencode-mem/nimbus` (fuera del repo) | Turso/libSQL local con vectores; **nada sale de la maquina** |
+| Clave de cifrado | `~/.config/opencode/opencode-mem-db.key` (0600) | AES-256-GCM en reposo: las memorias no se guardan en claro |
+
+**Como se usa**: la herramienta `memory` aparece en el catalogo del agente:
+`memory({ mode: "add" | "search" | "list" | "profile" | "forget" | ... })`.
+La busqueda es **por palabras clave** (las etiquetas pesan mas); el vector
+semantico se usa internamente para deduplicar y para el perfil de
+preferencias.
+
+**Lo que ya esta guardado** (5 memorias del proyecto + el perfil del
+propietario): las trampas del build (`/tmp` lleno, cache de pacman
+compartida), las del shell (el `Loader` y las ventanas flotantes), las de la
+sesion live (grupos de video, `LIBSEAT_BACKEND`), el gate de readiness
+honesto y como ver el guest (`screendump` del monitor).
+
+**Para usarlo en otro proyecto de OpenCode** (no esta instalado globalmente a
+proposito):
+1. Anade `"opencode-mem@latest"` al array `plugins` de su `opencode.json`.
+2. Copia `.opencode/opencode-mem.jsonc` a `<proyecto>/.opencode/` y cambia
+   `storagePath` por una ruta propia: si comparten `storagePath`, las memorias
+   de un proyecto se mezclan con las de otro.
+3. Recuerda que el modelo de embeddings se descarga la primera vez (0,5-2 GB de
+   RAM mientras esta cargado) y que la UI web escucha en `127.0.0.1:4747`.
+
+
 ## 6. Por dónde seguir (por impacto)
 
 1. **Test de instalación end-to-end** en QEMU: arrancar la ISO, ejecutar Calamares,

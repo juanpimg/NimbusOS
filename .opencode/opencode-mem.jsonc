@@ -1,0 +1,78 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Configuracion de opencode-mem PARA ESTE PROYECTO (Nimbus).
+//
+// El plugin se registra en `opencode.json` (raiz del repo), asi que solo se
+// carga al trabajar aqui. Para usarlo en otro proyecto basta con:
+//
+//   1. anadir "opencode-mem@latest" al array "plugins" de su opencode.json, y
+//   2. copiar este fichero a <proyecto>/.opencode/opencode-mem.jsonc con un
+//      "storagePath" propio (si se comparte, las memorias de un proyecto se
+//      mezclan con las de otro).
+//
+// Referencia completa de todas las opciones:
+// https://github.com/tickernelz/opencode-mem/blob/main/opencode-mem.example.jsonc
+
+{
+  // Base de datos vectorial (Turso/libSQL) en local, FUERA del repo: es un
+  // artefacto local, versionable con .gitignore pero pesado.
+  "storagePath": "/home/jp/.opencode-mem/nimbus",
+
+  // El motor de embeddings corre en local (ONNX sobre CPU, sin GPU): la
+  // primera vez descarga el modelo de HuggingFace y despues es offline.
+  // Xenova/nomic-embed-text-v1: 768 dimensiones, multilingue.
+  //
+  // OJO con `embeddingUseTaskPrefixes`: se deja en false (el valor por
+  // defecto) a proposito. Los vectores ya guardados se calcularon SIN
+  // prefijos; activarlos despues desalinea el espacio vectorial y habria que
+  // re-indexar todas las memorias (el propio plugin avisa de eso).
+  "embeddingModel": "Xenova/nomic-embed-text-v1",
+
+  // El auto-captura usa el provider de OpenCode (sin API key propia): el
+  // plugin llama a la API de sesion de OpenCode, que ya sabe autenticarse.
+  // Para el resumen de MEMORIA (capturar y resumir) se usa un modelo
+  // pequeno y rapido; la sesion principal sigue con el modelo que elija el
+  // usuario.
+  "opencodeProvider": "opencode-go",
+  "opencodeModel": "muse-spark-1.3-contributor",
+
+  // Auto-captura: el agente guarda solo lo que aprende de la sesion.
+  "autoCaptureEnabled": true,
+  // Los resúmenes y el perfil de preferencias, en el idioma del proyecto.
+  "autoCaptureLanguage": "es",
+
+  // El alcance por defecto es el del proyecto: las memoria de Nimbus no se
+  // mezclan con las de otro proyecto.
+  "memory": {
+    "defaultScope": "project"
+  },
+
+  // Inyección de contexto: tras compactar la sesion y al primer mensaje.
+  "compaction": {
+    "enabled": true,
+    "memoryLimit": 10
+  },
+  "chatMessage": {
+    "enabled": true,
+    "maxMemories": 3,
+    "injectOn": "first"
+  },
+
+  // UI web para revisar y borrar memorias: solo en localhost.
+  "webServerEnabled": true,
+  "webServerPort": 4747,
+  "webServerHost": "127.0.0.1",
+
+  // Cifrado en reposo (AES-256-GCM). Las memorias pueden acabar conteniendo
+  // fragmentos del repo (nombres de paquetes, rutas, hashes de firma), asi que
+  // no se guardan en claro. La clave se crea sola en
+  // ~/.config/opencode/opencode-mem-db.key con permisos 600.
+  "databaseEncryptionEnabled": true,
+  "databaseEncryptionCipher": "aes256gcm",
+
+  // Limpieza: 30 días de memoria, 7 días de historial de sesiones de IA.
+  "autoCleanupEnabled": true,
+  "autoCleanupRetentionDays": 30,
+  "aiSessionRetentionDays": 7,
+  "deduplicationEnabled": true
+}
