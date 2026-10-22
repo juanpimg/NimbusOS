@@ -248,7 +248,11 @@ ShellRoot {
             left: true
             right: true
         }
-        color: Theme.background
+        // TRANSPARENTE a proposito: el fondo lo pone swaybg con el arte de
+        // Nimbus (ver dots/nimbus/nimbus-start). Con un color opaco, esta
+        // ventana tapaba el fondo y el escritorio se veía como un rectangulo
+        // gris plano en vez de como un escritorio.
+        color: "transparent"
     }
 
     // Dock: PanelWindow inferior con zona exclusiva, SIEMPRE visible (macOS:
