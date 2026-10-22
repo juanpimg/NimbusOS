@@ -26,8 +26,6 @@ linux-firmware-realtek
 mkinitcpio
 mkinitcpio-archiso
 nimbus-dots
-nimbus-energy
-nimbus-gaming
 nimbus-installer
 nimbus-shell
 pacman
