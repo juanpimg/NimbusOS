@@ -28,6 +28,9 @@ Los números de tests se obtuvieron ejecutando las suites, no de memoria.
 | CI en cada push/PR | `.github/workflows/ci.yml`: lint (SPDX, yamllint, shellcheck, actionlint) + las tres suites. **Verde en `main`** |
 | El shell **carga** y se ve | La config de Quickshell arrancaba con `IpcHandler is not a type` (faltaba `import Quickshell.Io`) y con `PanelWindow is not a type` (faltaba `import Quickshell`). Corregido: se ven la barra con la marca Nimbus, el reloj y el Dock |
 | El escritorio **se parece a macOS** | Captura del guest (`out/nimbus-*.iso` en QEMU, `screendump` del monitor): fondo degradado propio de Nimbus (swaybg), barra superior con la marca, la fecha/hora y los indicadores, y Dock inferior con iconos dibujados |
+| La **ISO lleva el instalador** | `packages/nimbus-installer/` (43 ficheros: los 6 modulos de Calamares, el tema del greeter, la config de SDDM) y la ISO live lo lista. **La instalacion de verdad todavia no se ha probado end-to-end** |
+| **Sesion de juegos** con deteccion de VRR | `nimbus-gaming-session` + `gamescope-vrr-check`: el VRR se **detecta** (sysfs del conector, con respaldo por EDID) y si no se puede confirmar, la sesion **no** activa `--adaptive-sync` (un flag estatico en un panel que no lo soporta deja gamescope en negro) |
+| **Ajustes de energia y juegos** | `SettingsGaming.qml`: llama a `nimbus-energy` y `nimbus-anonicy` de verdad (no `console.info`) y muestra el resultado |
 | El instalador está **empaquetado** | `packages/nimbus-installer/` mete los 6 módulos de Calamares, el tema del greeter y la config de SDDM; `iso/profiles/nimbus/packages.x86_64` lo lista |
 | `settings.conf` lo entiende Calamares | Estaba en INI y Calamares lo lee con YAML: el instalador no arrancaba. Ahora es YAML válido (`yaml.safe_load` OK) |
 | Hay **actualizaciones y rollback** | `packages/nimbus-update/`: `nimbus-update check\|apply\|history\|rollback\|auto`, con snapshot antes de cada transacción y dos units de timer |
