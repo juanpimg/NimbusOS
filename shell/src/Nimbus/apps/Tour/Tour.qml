@@ -28,6 +28,12 @@ import Nimbus
 // duplicated-name). Se mantiene la propiedad `finished` y la señal de
 // finalizacion se llama `tourFinished()`; `skipped()` conserva su nombre.
 Item {
+    // La ventana flotante crece hasta el tamano implicito de su contenido si
+    // este no lo fija: con el texto del cuerpo sin limite, la tarjeta se
+    //idia hasta casi el tamano de la pantalla. El tamano lo manda shell.qml.
+    implicitWidth: 0
+    implicitHeight: 0
+
     id: root
 
     // Ocho pasos: dock, Spotlight, menu superior, Centro de Control,

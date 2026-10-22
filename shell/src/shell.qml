@@ -456,8 +456,10 @@ ShellRoot {
     // `completed`/`finished` (restaurados desde `Config.tourCompleted`).
     FloatingWindow {
         id: tourWindow
-        width: Theme.spacing * 60
-        height: Theme.spacing * 40
+        // Tarjeta pequena y centrada: el tour explica el escritorio, no lo
+        // tapa. Antes ocupaba casi toda la pantalla.
+        width: Theme.tourCardWidth
+        height: Theme.tourCardHeight
         visible: !Config.tourCompleted && tourLoader.status === Loader.Ready && tourLoader.item && tourLoader.item.shouldShow()
         Loader {
             id: tourLoader

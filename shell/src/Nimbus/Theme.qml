@@ -76,6 +76,10 @@ QtObject {
     readonly property int switcherWidth: 800
     readonly property int switcherHeight: 300
     readonly property int notificationWidth: 360
+    // El tour de bienvenida es una TARJETA, no un cartel a pantalla
+    // completa: el escritorio se tiene que ver mientras se explica.
+    readonly property int tourCardWidth: 360
+    readonly property int tourCardHeight: 460
     readonly property int notificationMaxVisible: 3
 
     readonly property color _accentLight: "#007AFF"
