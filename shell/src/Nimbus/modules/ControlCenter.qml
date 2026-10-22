@@ -38,6 +38,10 @@ import Nimbus
 //   cc.network.wifi, cc.network.airplane, cc.audio.volume,
 //   cc.audio.microphone, cc.brightness.level.
 Item {
+    // implicitWidth 0 a proposito: el contenido NO debe imponer su tamano
+    // implicito a la ventana flotante (si no, el texto natural del
+    // cuerpo hacia crecer la ventana hasta el ancho de la pantalla).
+    implicitWidth: 0
     id: root
 
     // Posicion contratada: esquina superior derecha, margen fijo de 24 px.

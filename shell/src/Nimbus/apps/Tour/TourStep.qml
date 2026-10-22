@@ -24,6 +24,10 @@ Glass {
     signal skipRequested()
 
     implicitHeight: cardBody.implicitHeight + Theme.spacing * 2
+    // implicitWidth 0 a proposito: la tarjeta NO debe imponer su tamano
+    // implicito a la ventana flotante (si no, el texto natural del cuerpo
+    // hace crecer la ventana hasta el ancho de la pantalla).
+    implicitWidth: 0
 
     Column {
         id: cardBody

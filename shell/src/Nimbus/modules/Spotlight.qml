@@ -23,6 +23,10 @@ import Nimbus
 // seleccion. El campo de busqueda reenvia su `accepted` a
 // `activateSelected()` por la misma razon.
 Item {
+    // implicitWidth 0 a proposito: el contenido NO debe imponer su tamano
+    // implicito a la ventana flotante (si no, el texto natural del
+    // cuerpo hacia crecer la ventana hasta el ancho de la pantalla).
+    implicitWidth: 0
     id: root
 
     property string query: ""

@@ -16,6 +16,10 @@ import Nimbus
 // imagen y PDF muestran previsualizacion, texto muestra las primeras
 // lineas, `unknown` muestra un mensaje con el nombre del archivo.
 Item {
+    // implicitWidth 0 a proposito: el contenido NO debe imponer su tamano
+    // implicito a la ventana flotante (si no, el texto natural del
+    // cuerpo hacia crecer la ventana hasta el ancho de la pantalla).
+    implicitWidth: 0
     id: root
 
     visible: false
