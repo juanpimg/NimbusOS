@@ -37,7 +37,7 @@ El detalle de qué funciona y qué no, con la evidencia, está en
 - **Actualizaciones con snapshot y rollback**: el paquete `nimbus-update` crea un
   snapshot antes de cada transacción, y las unidades de timer están.
 - **Suite completa en verde**: 390 pytest + 301 QML + 13 bats, SPDX correcto
-  (122 ficheros) y **CI en verde** en cada push.
+  (123 ficheros) y **CI en verde** en cada push.
 
 ### Lo que no existe todavía (sin adornos)
 
@@ -63,11 +63,11 @@ El detalle de qué funciona y qué no, con la evidencia, está en
 |------------|-----------|
 | `tools/` | Scripts de la cadena de firma y promoción (bash + Python). |
 | `packages/` | PKGBUILDs del repo `nimbus` y el documento del modelo de pins. |
-| `shell/` | Shell Quickshell/QML: singletons (`Theme`, `Config`, `Translations`, `ShellController`, `Ipc`, `Services`, `PolkitAgent`), biblioteca (`lib/`), superficies (`modules/`) y aplicaciones (`apps/`: Ajustes, Store, tour); punto de entrada `shell.qml` y tests en `shell/tests/` (16 ficheros). |
+| `shell/` | Shell Quickshell/QML: singletons (`Theme`, `Config`, `Translations`, `ShellController`, `Ipc`, `Services`, `PolkitAgent`), biblioteca (`lib/`, con el puente de procesos), superficies (`modules/`) y aplicaciones (`apps/`: Ajustes, Store, tour); punto de entrada `shell.qml` y tests en `shell/tests/` (21 ficheros). |
 | `dots/` | Configuración de Hyprland (layout flotante, atajos estilo macOS, sesión de emergencia) y defaults del sistema. |
 | `iso/` | Perfil archiso 91 y constructor de la ISO (`build.sh --local-repo`). |
 | `installer/` | Configuración de Calamares (`settings.conf`), seis módulos propios (`nimbus-dualboot`, `nimbus-appearance`, `nimbus-software`, `nimbus-bootloader`, `nimbus-postinstall`, `nimbus-verify`), tabla i18n (`nimbus_i18n.py`), herramientas (`tools/`) y tema de SDDM (`greeter/nimbus-greeter/`). |
-| `tests/` | Tests pytest (251) y bats (13); `tests/integration/` con el harness QEMU (`boot_live.sh`, espera `NIMBUS_LIVE_READY`). |
+| `tests/` | Tests pytest (390) y bats (13); `tests/integration/` con el harness QEMU (`boot_live.sh`, espera `NIMBUS_LIVE_READY`). |
 | `docs/` | Índice, arquitectura, guía de construcción, roadmap y documentos de diseño. |
 | `third_party/` | Reservado para futuro código vendorizado de terceros (MIT); el directorio no existe aún en el árbol y hoy no se distribuye código de terceros. |
 | `.github/` | Workflows de CI (`ci.yml`: lint + tests; `iso.yml`: construye la ISO y la arranca en QEMU). |
