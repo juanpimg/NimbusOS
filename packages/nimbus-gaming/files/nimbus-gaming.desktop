@@ -5,4 +5,3 @@ Comment=Nimbus gaming session (gamescope + Steam Big Picture, VRR on detection)
 Exec=/usr/lib/nimbus/nimbus-gaming-session
 TryExec=/usr/lib/nimbus/nimbus-gaming-session
 Type=Application
-DesktopNames=Gamescope
