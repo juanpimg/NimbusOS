@@ -12,7 +12,13 @@ QtObject {
     property string accent: "007aff"
     property string locale: "es"
     // El tour de bienvenida se marca aqui para no volver a mostrarse.
-    property bool tourCompleted: false
+    //
+    // Por defecto esta MARCADO: el tour se abre a peticion (Ipc "tour start")
+    // y no solo al arrancar. Motivo: en la sesion live de la ISO (efimera, se
+    // reinicia en cada arranque) se repetiria en cada boot y su cartel tapa
+    // el escritorio. En un sistema instalado tampoco tiene sentido que
+    // aparezca solo: se ofrece desde el menu de la Manzana.
+    property bool tourCompleted: true
 
     function setMode(value) {
         if (value === "light" || value === "dark" || value === "auto")

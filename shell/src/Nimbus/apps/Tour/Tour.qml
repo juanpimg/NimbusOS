@@ -284,6 +284,13 @@ Item {
         index = 0
         finished = false
         completed = false
+        // Abrir el tour a peticion lo desmarca en Config: asi la ventana
+        // (que solo se muestra con tourCompleted == false) aparece.
+        try {
+            if (typeof Config !== "undefined")
+                Config.tourCompleted = false
+        } catch (e) {
+        }
         _finishedEmitted = false
         _skippedEmitted = false
         visible = true
