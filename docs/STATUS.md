@@ -18,10 +18,10 @@ Los números de tests se obtuvieron ejecutando las suites, no de memoria.
 
 | Qué | Cómo se verifica (comando y salida real) |
 |-----|------------------------------------------|
-| Suite Python: 251 tests | `/tmp/opencode/nimbus-venv/bin/python -m pytest tests -q` → `251 passed` (canónico: `python -m pytest tests -v`) |
+| Suite Python: 390 tests | `/tmp/opencode/nimbus-venv/bin/python -m pytest tests -q` → `390 passed` (canónico: `python -m pytest tests -v`) |
 | Suite bats: 13 tests | `PATH="$HOME/.local/bin:$PATH" bats tests/*.bats` → 13 `ok` (7 en `tests/keyring.bats`, 6 en `tests/promote.bats`) |
-| Suite QML: 249 tests | `QT_QPA_PLATFORM=offscreen QML2_IMPORT_PATH="$PWD/shell/src" /usr/lib/qt6/bin/qmltestrunner -input shell/tests` → `Totals: 249 passed, 0 failed` (16 ficheros `tst_*.qml`) |
-| Cabeceras SPDX: 105 ficheros | `python tools/check_spdx.py --root .` → `SPDX OK: 105 ficheros` |
+| Suite QML: 301 tests | `QT_QPA_PLATFORM=offscreen QML2_IMPORT_PATH="$PWD/shell/src" /usr/lib/qt6/bin/qmltestrunner -input shell/tests` → `Totals: 301 passed, 0 failed` (21 ficheros `tst_*.qml`) |
+| Cabeceras SPDX: 123 ficheros | `python tools/check_spdx.py --root .` → `SPDX OK: 123 ficheros` |
 | La ISO arranca a sesión live | `bash tests/integration/boot_live.sh --iso out/nimbus-*.iso --timeout 600` → `OK: la sesión live de Nimbus está lista` (el marcador `NIMBUS_LIVE_READY` solo se escribe si Hyprland y el shell responden) |
 | ISO netinstall < 3 GB | `out/nimbus-2026.10.22-x86_64.iso` existe en el árbol (perfil en `iso/profiles/nimbus/`, constructor `iso/build.sh --local-repo`) |
 | Cadena de firma bootstrap | `tools/genkeyring.sh`, `tools/sign_repo.sh`, `tools/promote.sh`, `tools/verify_repo.sh`, cubiertos por los 13 tests bats |
@@ -44,12 +44,18 @@ Nada de lo siguiente está escrito en ningún otro sitio. Todo verificado contra
   `nimbus-installer` existe y la ISO lo lista, pero **nadie ha instalado Nimbus de verdad**: no
   hay un test que arranque la ISO, ejecute Calamares y llegue a un escritorio instalado
   (`tests/integration/` solo arranca la sesión live). Es el hueco más grande que queda.
-- **El shell no puede ejecutar procesos.** Cero usos de `Quickshell.Process` en `shell/src/`;
-  la única mención es un comentario en `shell/src/Nimbus/modules/Screenshot.qml:10`.
-- **`nimbus-shell ipc call` no está implementado como subcomando.** `shell/nimbus-shell` es
-  `exec qs -c … "$@"`, sin subcomando `ipc` propio; los atajos de `dots/hypr/hyprland.lua:26`
-  lo invocan (`"nimbus-shell ipc call " .. action`) y el manejo vive dentro del shell en marcha
-  (`shell/src/Nimbus/Ipc.qml`), nunca probado de extremo a extremo.
+- **El shell ejecuta procesos a través de un puente dedicado.** `shell/src/Nimbus/lib/Process.qml`
+  envuelve `Quickshell.Process` (módulo `Quickshell.Io`) y antepone `pkexec` cuando la
+  acción necesita privilegios; lo usan Ajustes→Energía, Ajustes→Juegos y el backend
+  de la Store. Lo que sigue sin existir es la prueba de extremo a extremo: lanzar
+  `nimbus-shell ipc call <target> <fn>` desde Hyprland y ver el efecto en el shell
+  en marcha dentro de la sesión live.
+- **`nimbus-shell ipc call` despacha de verdad.** `shell/nimbus-shell` acepta el
+  subcomando `ipc call <target> <fn>` y lo reenvía por el socket IPC de Quickshell
+  (`qs ipc call …`) al `IpcHandler` correspondiente de `shell/src/shell.qml` (uno con
+  `target: "nimbus"` que delega en `Ipc.call(target, fn)`, más uno por superficie).
+  La tabla válida vive en `shell/src/Nimbus/Ipc.qml` (`validCalls`, 12 targets);
+  ante target o función desconocidos avisa por `console.warn` sin tumbar el shell.
 - **Los servicios se sondean, pero el estado real llega tarde.** `Services.qml` ahora tiene
   `probeServices()` que distingue `ready` / `unavailable` / `missing-module` por servicio, y el
   Shell arranca igualmente. Lo que **no** hay: actualizaciones en vivo de Mpris, del volumen de
@@ -72,35 +78,41 @@ Nada de lo siguiente está escrito en ningún otro sitio. Todo verificado contra
   (`file:///var/lib/nimbus/repo`) y declara con honestidad que el repo público está pendiente.
   Mientras tanto, **un sistema instalado no puede actualizarse** hasta que se aloje el repo.
   (`iso/build.sh --local-repo`).
-- **Ajustes muestra claves crudas.** 66 claves distintas `settings.*` usadas vía
-  `Config.translated("settings.…")` en `shell/src/Nimbus/apps/Settings/`, cero definidas en la
-  tabla de `shell/src/Nimbus/Translations.qml`; `Translations.lookup()` devuelve la propia clave
-  cuando falta (`Translations.qml:257-264`). Lo que se ve es `settings.about.title`, no el texto.
-- **Sistema de ficheros por defecto `ext4`.** `installer/calamares/settings.conf:39`
-  (`defaultFileSystemType=ext4`); el diseño pide Btrfs como único con rollback.
+- **Ajustes está traducido.** Las 88 claves distintas `settings.*` usadas vía
+  `Config.translated("settings.…")` en `shell/src/` existen en la tabla ES/EN de
+  `shell/src/Nimbus/Translations.qml` (comprobado por script: cero claves sin definir;
+  `Translations.lookup` sigue devolviendo la propia clave como último recurso).
 
 ## Qué puede coger un contribuidor
 
 Tareas concretas y pequeñas. Cada una cabe en un PR y dice el fichero y el primer paso.
 
-1. **Traducir Ajustes (66 claves).** Fichero: `shell/src/Nimbus/Translations.qml`.
-   Primer paso: listar las claves con
-   `grep -rhoE 'Config\.translated\("settings\.[a-zA-Z0-9_.]+"\)' shell/src | sort -u`
-   y añadirlas en ES/EN. Verificación: el runner QML de arriba.
-2. **Añadir Calamares al perfil de la ISO.** Fichero: `iso/profiles/nimbus/packages.x86_64`.
-   Primer paso: añadir el paquete y extender `tests/test_iso_profile.py`.
+1. **Conectar "Actualizar" de Ajustes→Software a `nimbus-update`.** Fichero:
+   `shell/src/Nimbus/apps/Settings/SettingsSoftware.qml` (los botones aún hacen
+   `console.info`). Primer paso: llamar a `nimbus-update` vía el puente
+   `lib/Process.qml` siguiendo el patrón de `SettingsPower.qml`.
+   Verificación: el runner QML de arriba.
+2. **Llevar `nimbus-gaming` y `nimbus-energy` a la ISO.** Fichero:
+   `iso/profiles/nimbus/packages.x86_64` (hoy no lista ninguno de los dos; la
+   sesión de juegos y los perfiles de energía existen pero no viajan en la live).
+   Primer paso: añadir los paquetes y extender `tests/test_iso_profile.py`.
    Verificación: `python -m pytest tests/test_iso_profile.py -v`.
-3. **Crear las units que `nimbus-postinstall` ya nombra.** Ficheros nuevos junto a
-   `installer/tools/nimbus-snapshots`. Primer paso: leer `nimbus-postinstall:273-274` y escribir
-   `nimbus-snapshots.timer` (+ `nimbus-auto-update.timer` cuando exista `nimbus-update`).
+3. **Suscribir Mpris, volumen y UPower en vivo en `Services`.** Fichero:
+   `shell/src/Nimbus/Services.qml` (`probeServices()` solo toma la foto inicial;
+   el estado real llega tarde). Primer paso: leer `probeServices()` y los flags
+   `...Available`, y suscribir los cambios detrás de ellos.
+   Verificación: el runner QML de arriba.
 4. **Añadir el check `secureboot` a `nimbus-verify`.** Fichero: `installer/calamares/`
-   (módulo `nimbus-verify`, hoy 14 checks, ninguno de Secure Boot). Estado honesto con MOK
-   provisional, no shim completo.
-5. **Empaquetar el tema SDDM y fondos propios en la ISO.** La ISO instala los temas `elarun`,
-   `maldives` y `maya`, no `installer/greeter/nimbus-greeter/`. Primer paso: comprobar qué temas
-   declara `tests/test_greeter_theme.py` y llevar el nuestro al perfil.
-6. **Corregir `defaultFileSystemType` a Btrfs.** Fichero: `installer/calamares/settings.conf:39`.
-   Pequeño pero con consecuencias: verificar con la suite de Calamares.
+   (módulo `nimbus-verify`, hoy 14 checks, ninguno de Secure Boot). Estado honesto:
+   detectar e informar, sin shim completo (Secure Boot se entrega en M5/v1.0).
+5. **Probar la instalación de extremo a extremo en VM.** Hoy `tests/integration/`
+   solo arranca la sesión live; nadie ha instalado Nimbus de verdad (es el hueco
+   nº 1). Primer paso: leer `tests/integration/boot_live.sh` y añadir un modo que
+   ejecute Calamares desatendido y compruebe que hay un escritorio instalado.
+6. **Hacer que la Store instale de verdad.** La Store se monta con su backend pero
+   `install()` está simulada y la ISO no trae `flatpak` ni `PackageKit`. Primer paso:
+   añadir `flatpak` a `iso/profiles/nimbus/packages.x86_64` y cablear `install()`
+   al backend real. Verificación: `tests/test_store_backend.py` y la suite del perfil.
 7. **Documentar decisiones pendientes.** Si algo no está decidido, se escribe "pendiente de decidir",
    no se inventa. Ver `CONTRIBUTING.md` (§ "Documentación").
 
@@ -114,21 +126,9 @@ Cada línea necesita un tester del programa beta con ese hardware, con el parte 
 - Batería: suspensión `s2idle`, límite de carga, descarga real con tapa cerrada.
 - Arranque dual con Windows en disco de prueba (ambos sistemas arrancan).
 - GPUs AMD (GCN3+/RADV), Intel Arc, WiFi por chip, Bluetooth, audio real, impresoras.
-- Juego real en Steam con Proton-GE + gamescope (sesión "Nimbus Gaming", hoy inexistente: ver
-  "Qué NO funciona").
+- Juego real en Steam con Proton-GE + gamescope: la sesión "Nimbus Gaming" existe
+  (`nimbus-gaming-session` con detección de VRR) y hay página de Ajustes de juegos,
+  pero nada se ha probado en hardware real (ver "Qué funciona").
 
 Regla dura del proyecto: las pruebas de hardware se hacen en disco USB externo,
 **nunca sobre la instalación CachyOS del fundador**.
-
-## Contradicciones conocidas pendientes (fuera del alcance de esta pista)
-
-Documentadas aquí para que nadie las redescubra; las corrige quien toque esos ficheros:
-
-- `docs/BUILDING.md:27` dice "189 passed" (son 251); `:45` dice "SPDX OK: 34 ficheros" (son 105);
-  `:161` sitúa Secure Boot en "M6" (el resto del repo dice M5/v1.0).
-- `docs/ROADMAP.md:13` dice "189 pytest" en la fila M2.
-- `docs/ARCHITECTURE.md:51` sitúa `nimbus-update` en el "hito M3"; `README.md:30` y el roadmap lo
-  sitúan en M5/v1.0.
-- `docs/superpowers/plans/2026-10-21-nimbus-roadmap.md:36-37` dice 5 tareas en M3 y M4-beta
-  (ambos planes tienen 6: `grep -c '^### Task'`) y declara M0 "En ejecución" con "8 de sus 9
-  tareas" cuando el plan tiene 8 tasks y está fusionado.
