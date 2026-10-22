@@ -290,10 +290,16 @@ def test_mangohud_has_no_exec():
 def test_gamescope_has_no_static_vrr():
     assert GAMESCOPE.is_file(), "falta files/gamescope.conf"
     text = GAMESCOPE.read_text(encoding="utf-8")
-    for token in ("vrr", "adaptive-sync", "adaptive_sync", "adaptivesync",
-                  "freesync", "free-sync", "gsync", "g-sync", "variable-refresh"):
-        assert token not in text.lower(), \
-            f"el VRR se activa por deteccion, no estaticamente ({token})"
+    effective = [
+        line for line in text.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    assert effective, "el preset debe definir ajustes efectivos"
+    for line in effective:
+        for token in ("vrr", "adaptive-sync", "adaptive_sync", "adaptivesync",
+                      "freesync", "free-sync", "gsync", "g-sync", "variable-refresh"):
+            assert token not in line.lower(), \
+                f"el VRR se activa por deteccion, no estaticamente ({line!r})"
 
 
 def test_gamescope_preset_is_valid():
@@ -570,7 +576,7 @@ def _write_executable(path, content):
 def _symlink_coreutils(bin_dir):
     """PATH minimo: coreutils reales + lo que el test inyecte como falso."""
     bin_dir.mkdir(parents=True, exist_ok=True)
-    for name in ("bash", "cat", "grep", "sed", "ls", "mkdir", "head", "tr"):
+    for name in ("bash", "basename", "cat", "dirname", "grep", "sed", "ls", "mkdir", "head", "tr"):
         target = pathlib.Path("/usr/bin") / name
         if target.exists():
             link = bin_dir / name
@@ -631,8 +637,9 @@ def test_session_script_hygiene():
     assert SESSION.is_file(), "falta files/nimbus-gaming-session"
     assert os.access(SESSION, os.X_OK), "la sesion debe ser ejecutable"
     lines = SESSION.read_text(encoding="utf-8").splitlines()
-    assert "SPDX-License-Identifier: GPL-3.0-or-later" in lines[0]
-    assert lines[1].startswith("#!"), "ejecutable con shebang"
+    head = "\n".join(lines[:2])
+    assert "SPDX-License-Identifier: GPL-3.0-or-later" in head
+    assert lines[0].startswith("#!"), "ejecutable con shebang"
     assert "set -euo pipefail" in SESSION.read_text(encoding="utf-8")
     code = "\n".join(
         line for line in lines if not line.strip().startswith("#")
@@ -644,8 +651,9 @@ def test_vrr_check_hygiene():
     assert VRR_CHECK.is_file(), "falta files/gamescope-vrr-check"
     assert os.access(VRR_CHECK, os.X_OK), "el check debe ser ejecutable"
     lines = VRR_CHECK.read_text(encoding="utf-8").splitlines()
-    assert "SPDX-License-Identifier: GPL-3.0-or-later" in lines[0]
-    assert lines[1].startswith("#!"), "ejecutable con shebang"
+    head = "\n".join(lines[:2])
+    assert "SPDX-License-Identifier: GPL-3.0-or-later" in head
+    assert lines[0].startswith("#!"), "ejecutable con shebang"
     assert "set -euo pipefail" in VRR_CHECK.read_text(encoding="utf-8")
 
 

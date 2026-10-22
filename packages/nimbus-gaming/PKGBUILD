@@ -14,4 +14,7 @@ package() {
   install -Dm644 "$startdir/../../packages/nimbus-gaming/files/mangohud.conf" "$pkgdir/usr/share/nimbus/gaming/mangohud.conf"
   install -Dm644 "$startdir/../../packages/nimbus-gaming/files/gamescope.conf" "$pkgdir/usr/share/nimbus/gaming/gamescope.conf"
   install -Dm755 "$startdir/../../packages/nimbus-gaming/files/nimbus-gaming-tune" "$pkgdir/usr/bin/nimbus-gaming-tune"
+  install -Dm755 "$startdir/../../packages/nimbus-gaming/files/nimbus-gaming-session" "$pkgdir/usr/lib/nimbus/nimbus-gaming-session"
+  install -Dm755 "$startdir/../../packages/nimbus-gaming/files/gamescope-vrr-check" "$pkgdir/usr/bin/gamescope-vrr-check"
+  install -Dm644 "$startdir/../../packages/nimbus-gaming/files/nimbus-gaming.desktop" "$pkgdir/usr/share/wayland-sessions/nimbus-gaming.desktop"
 }

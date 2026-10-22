@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# gamescope-vrr-check — dice si el panel soporta VRR (y a que frecuencia).
+#
+# Un flag de VRR en un panel que no lo soporta deja a gamescope en negro:
+# por eso el VRR se ACTIVA POR DETECCION, nunca estatico (ver
+# nimbus-gaming-session, que solo pasa --adaptive-sync con "vrr: supported").
+# Sin deteccion positiva, la respuesta es `unsupported` (fail-safe).
+#
+# Deteccion, por conector conectado de $SYS/sys/class/drm/card*-*:
+#   1. `vrr_capable == 1` en sysfs (senyal autorizada del kernel), o
+#   2. EDID con bloque de refresco variable (heuristica via `edid-decode`:
+#      "Adaptive Sync Data Block", "Dynamic Video Timing Range Limits",
+#      VRRmin/VRRmax, FreeSync / refresco variable / adaptive-sync).
+# La frecuencia es el maximo vertical del EDID ("Monitor ranges: MIN-MAX Hz V"
+# o "VRRmax: N Hz"); si no se puede determinar, `rate: unknown`.
+#
+# Salida (parsable, KEY: VALUE):
+#   connector: HDMI-A-1
+#   vrr: supported|unsupported
+#   rate: 144|unknown
+# Codigo 0 = deteccion completada (soportado o no); 1 = imposible detectar
+# (sin sysfs DRM o sin salidas conectadas).
+#
+# Para probar sin hardware: NIMBUS_DRM_SYSFS apunta a un sysfs falso
+# ($PRE/sys/class/drm/card0-HDMI-A-1/{status,vrr_capable,modes,edid}).
+set -euo pipefail
+
+SYS="${NIMBUS_DRM_SYSFS:-}"
+
+VRR_MARKERS="adaptive sync data block|dynamic video timing range limits|vrrmin|vrrmax|freesync|free-sync|variable refresh|adaptive-sync|adaptive sync"
+
+die() {
+  printf 'gamescope-vrr-check: %s\n' "$1" >&2
+  exit "${2:-1}"
+}
+
+edid_rate() {
+  local decoded="$1" rate=""
+  rate="$(printf '%s\n' "$decoded" | sed -n 's/.* [0-9][0-9]*-\([0-9][0-9]*\) Hz V.*/\1/p' | head -n 1)"
+  if [[ -z "$rate" ]]; then
+    rate="$(printf '%s\n' "$decoded" | grep -i 'VRRmax' | sed -n 's/[^0-9]*\([0-9][0-9]*\).*/\1/p' | head -n 1)"
+  fi
+  printf '%s' "$rate"
+}
+
+edid_supports_vrr() {
+  printf '%s\n' "$1" | grep -Eqi "$VRR_MARKERS"
+}
+
+CONNECTOR="unknown"
+VRR="unsupported"
+RATE="unknown"
+EXAMINED=0
+
+shopt -s nullglob
+STATUS_FILES=("$SYS"/sys/class/drm/card*-*/status)
+shopt -u nullglob
+
+if [[ "${#STATUS_FILES[@]}" -eq 0 ]]; then
+  die "sin sysfs DRM en '${SYS:-/}sys/class/drm': no se puede detectar VRR"
+fi
+
+for status_file in "${STATUS_FILES[@]}"; do
+  dir="$(dirname "$status_file")"
+  state="$(tr -d ' \n' <"$status_file" 2>/dev/null || true)"
+  [[ "$state" == "connected" ]] || continue
+  EXAMINED=$((EXAMINED + 1))
+  base="$(basename "$dir")"
+  CONNECTOR="${base#*-}"
+  capable=""
+  if [[ -f "$dir/vrr_capable" ]]; then
+    capable="$(tr -d ' \n' <"$dir/vrr_capable" 2>/dev/null || true)"
+  fi
+  if [[ "$capable" == "1" ]]; then
+    VRR="supported"
+  elif [[ -s "$dir/edid" ]] && command -v edid-decode >/dev/null 2>&1; then
+    decoded="$(edid-decode "$dir/edid" 2>/dev/null || true)"
+    if [[ -n "$decoded" ]] && edid_supports_vrr "$decoded"; then
+      VRR="supported"
+      found_rate="$(edid_rate "$decoded")"
+      [[ -n "$found_rate" ]] && RATE="$found_rate"
+    fi
+  fi
+  # El primer conector conectado manda: es el panel de la sesion.
+  break
+done
+
+if [[ "$EXAMINED" -eq 0 ]]; then
+  die "sin salidas conectadas: no hay panel que examinar" 1
+fi
+
+printf 'connector: %s\nvrr: %s\nrate: %s\n' "$CONNECTOR" "$VRR" "$RATE"
