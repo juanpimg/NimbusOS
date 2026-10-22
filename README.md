@@ -11,30 +11,51 @@ Está pensada para personas que nunca van a abrir una terminal. El objetivo: un 
 
 ## Estado
 
-Si llegas nuevo, empieza por [docs/STATUS.md](docs/STATUS.md): un único sitio que dice qué
-funciona (y cómo se verifica), qué no funciona todavía y qué puedes coger.
+**Si llegas nuevo, empieza por [docs/CONTINUAR.md](docs/CONTINUAR.md)**: tiene el
+estado, los comandos, las trampas reales del build y por dónde seguir. Y si solo
+quieres **probarlo**, hay una release con la ISO lista:
+[⬇ Nimbus 0.1.0 beta](https://github.com/juanpimg/NimbusOS/releases/tag/v0.1.0-beta).
 
-El proyecto ha completado los hitos **M0 ("cimientos")**, **M1 (shell)** y **M2 (instalador)**: el código de los tres está en el repo con tests. El escritorio visual (barra, Dock, Spotlight, Centro de Control, notificaciones, switcher, capturas, QuickLook, fondos, bloqueo, Ajustes, Store, tour de bienvenida) y el instalador completo (seis módulos de Calamares, herramientas de post-instalación y tema de SDDM) existen como código verificado por tests, no como maquetas.
+El detalle de qué funciona y qué no, con la evidencia, está en
+[docs/STATUS.md](docs/STATUS.md).
 
-**Sé honesto con lo verificado aquí:** el arranque de la sesión live en la ISO se verifica con QEMU (el harness espera el marcador `NIMBUS_LIVE_READY`, que solo se escribe cuando Hyprland y el shell responden de verdad). **El escritorio de verdad solo se verá cuando la integración del M1 termine**: nadie ha visto aún estas pantallas en una sesión real, y no se promete ninguna captura que no exista.
+### Lo que funciona hoy
 
-**Lo que funciona hoy** (verificado con los tres suites de tests: 251 pytest + 13 bats + 249 QML, ver salidas en [docs/BUILDING.md](docs/BUILDING.md)):
+- **El escritorio live levanta y se parece a macOS**: barra superior con la marca
+  de Nimbus, el reloj por idioma y los indicadores; Dock inferior con iconos
+  dibujados en QML; fondo propio; greeter de SDDM con el tema de Nimbus y
+  autologin del usuario `nimbus`. **Verificado con capturas del guest** (la ISO
+  arrancada en QEMU, capturada con `screendump` del monitor).
+- **La ISO lleva el instalador**: el paquete `nimbus-installer` mete los seis
+  módulos de Calamares, el tema del greeter y la configuración de SDDM.
+- **La puerta de readiness es honesta**: `NIMBUS_LIVE_READY` solo se escribe si
+  Hyprland **y** el shell responden; si el shell no arranca, la ISO **no** está
+  lista (y el harness lo dice).
+- **El shell hace cosas**: `nimbus-shell ipc call <target> <función>` despacha de
+  verdad (un handler por target), hay un puente para ejecutar procesos (con
+  polkit cuando hace falta) y Ajustes→Energía llama a `nimbus-energy` de verdad.
+- **Actualizaciones con snapshot y rollback**: el paquete `nimbus-update` crea un
+  snapshot antes de cada transacción, y las unidades de timer están.
+- **Suite completa en verde**: 390 pytest + 301 QML + 13 bats, SPDX correcto
+  (122 ficheros) y **CI en verde** en cada push.
 
-- Andamiaje del monorepo, control de licencias SPDX (`tools/check_spdx.py`, verificado con `python tools/check_spdx.py --root .`) y CI (`ci.yml` con lint + tests, `iso.yml` que construye la ISO y la arranca en QEMU).
-- Cadena de confianza: generación del keyring (`tools/genkeyring.sh`), firma offline (`tools/sign_repo.sh`) y promoción `testing` → `stable` con verificación (`tools/promote.sh`, `tools/verify_repo.sh`).
-- Paquetes `nimbus-keyring`, `nimbus-shell`, `nimbus-dots`, `nimbus-gaming` y `nimbus-energy` con sus PKGBUILDs.
-- Shell completo (M1): singletons `Theme`, `Config`, `Translations`, `ShellController`, `Ipc`, `Services` y `PolkitAgent`; biblioteca de componentes (`shell/src/Nimbus/lib/`); superficies (`shell/src/Nimbus/modules/`: TopBar, Dock, Spotlight, Centro de Control, notificaciones, switcher, capturas, QuickLook, fondos, bloqueo); aplicaciones (`shell/src/Nimbus/apps/`: Ajustes, Store, tour). Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (§ "Arquitectura del shell").
-- Configuración de Hyprland (`dots/hypr/hyprland.lua`, API Lua nativa): layout flotante, atajos estilo macOS y sesión de emergencia con terminal (`SUPER + MAYÚS + E`).
-- Perfil de ISO para **archiso 91** (`iso/profiles/nimbus/`) y constructor (`iso/build.sh --local-repo`), con banco de pruebas rootless (`tools/build-iso-rootless.sh`).
-- Instalador Calamares (M2) con los seis módulos propios (`nimbus-dualboot`, `nimbus-appearance`, `nimbus-software`, `nimbus-bootloader`, `nimbus-postinstall`, `nimbus-verify`), tabla i18n ES/EN (`installer/calamares/nimbus_i18n.py`), herramientas (`installer/tools/`: `nimbus-postinstall`, `nimbus-partitionsafe`, `nimbus-snapshots`) y tema de SDDM (`installer/greeter/nimbus-greeter/`). Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (§ "Instalador Calamares").
-- Harness de integración en QEMU (`tests/integration/boot_live.sh`) que arranca la ISO y espera el marcador `NIMBUS_LIVE_READY`.
-- Documentación: arquitectura, guía de build, guía de contribución, roadmap (este fichero y `docs/`).
+### Lo que no existe todavía (sin adornos)
 
-**Lo que no existe todavía** (sin adornos):
-
-- El perfil gameready (M3) está parcial y sin verificar en hardware real: en el árbol están el metapaquete `nimbus-gaming` (T1), `nimbus-energy` (T3), `nimbus-scheduler` con las reglas de ananicy (T4) y `nimbus-gaming-tune` con los presets (T5), en `packages/nimbus-gaming` y `packages/nimbus-energy`. Faltan la sesión `nimbus-gaming-session` con `gamescope-vrr-check` y `nimbus-gaming.desktop` (T2) y la pantalla de Ajustes `SettingsGaming.qml` (T6). Sin T6, el único camino para energía y gaming es la terminal: lo que hay es fontanería para la futura pantalla de Ajustes, no una característica disponible. Los presets (`gamescope.conf`, `mangohud.conf`, `90-nimbus-gaming.conf`) se distribuyen, todavía no los aplica nadie. El instalador ya ofrece un perfil de software `gaming` (lista de paquetes en `installer/calamares/modules/nimbus-software/nimbus-software.conf`), pero eso no es el perfil de un clic.
-- Secure Boot con shim firmado (M5; las betas usan MOK provisional), el sistema de actualizaciones maduro (`nimbus-update`, M5) y la publicación del repo de paquetes (el repo `nimbus` aún no está alojado; la ISO se construye contra un repo local de bootstrap, ver [docs/BUILDING.md](docs/BUILDING.md)).
-- La verificación visual del escritorio en una sesión real (ver nota sobre QEMU arriba).
+- **La instalación no se ha probado de extremo a extremo**: el instalador está
+  empaquetado y sus módulos pasan sus tests, pero no hay una prueba
+  automatizada que arranque la ISO, ejecute Calamares y llegue a un escritorio
+  instalado. Es el hueco nº 1.
+- **La Store no instala de verdad**: invoca su backend, pero la imagen no trae
+  `flatpak` ni `PackageKit`.
+- **El repo público de paquetes no existe**: el sistema instalado apunta al repo
+  local de bootstrap, así que `pacman -Syu` todavía no trae nada.
+- **Secure Boot** (requisito de v1.0) y **rotación de la clave de firma** (sigue
+  la de bootstrap; el procedimiento está en `packages/README.md`).
+- **Nada está verificado en hardware real**: no hay GPU de escritorio, ni portátil
+  híbrido, ni pruebas de batería, VRR o dual-boot con Windows.
+- La **sesión de juegos** y la **pantalla de Ajustes de energía/juegos** están
+  implementadas (`nimbus-gaming-session` con detección de VRR y
+  `SettingsGaming.qml`), pero **sin verificar en hardware**.
 
 ## Estructura del repositorio
 
@@ -106,10 +127,13 @@ Sobre `cachyos-v3`: la ISO en vivo usa siempre los repos genéricos, porque tien
 
 ## Documentación
 
+- [docs/CONTINUAR.md](docs/CONTINUAR.md) — **punto de entrada para retomar el proyecto**: estado, comandos, trampas y siguiente paso.
 - [docs/STATUS.md](docs/STATUS.md) — estado verificable: qué funciona, qué no y qué coger.
 - [docs/README.md](docs/README.md) — índice y orden de lectura.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — cómo encaja el sistema.
 - [docs/BUILDING.md](docs/BUILDING.md) — guía de construcción y pruebas.
+- [docs/QUICKSHELL-API.md](docs/QUICKSHELL-API.md) — la API real de Quickshell 0.3.2 y Hyprland 0.56.
+- [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md) — lo que dice la beta de la release.
 - [docs/ROADMAP.md](docs/ROADMAP.md) — hitos M0…M5.
 - [docs/superpowers/specs/2026-10-21-nimbus-design.md](docs/superpowers/specs/2026-10-21-nimbus-design.md) — documento de diseño (fuente de verdad).
 - [CONTRIBUTING.md](CONTRIBUTING.md) — cómo contribuir.
