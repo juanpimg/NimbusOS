@@ -19,6 +19,11 @@ Orden de lectura recomendado. Los enlaces son relativos y funcionan en GitHub.
 7. [ROADMAP.md](ROADMAP.md) — hitos M0…M5, qué entrega cada uno y su criterio de salida.
 8. [QUICKSHELL-API.md](QUICKSHELL-API.md) — referencia de la API real de Quickshell 0.3.2 e Hyprland 0.56 verificada contra los paquetes instalados.
 
+## Decisiones
+
+- [DECISIONES.md](DECISIONES.md) — que se decidio, por que y que se rompe si
+  la decision fue mala (la parte que no se deduce del codigo).
+
 ## Fuente de verdad
 
 9. [superpowers/specs/2026-10-21-nimbus-design.md](superpowers/specs/2026-10-21-nimbus-design.md) — documento de diseño. Si esta documentación y el diseño discrepan, **manda el diseño** y abre un issue.

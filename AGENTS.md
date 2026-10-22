@@ -96,6 +96,7 @@ bash tests/integration/boot_live.sh --iso out/nimbus-*.iso --timeout 600
 | Construir la ISO | [`docs/BUILDING.md`](docs/BUILDING.md) |
 | API real de Quickshell/Hyprland | [`docs/QUICKSHELL-API.md`](docs/QUICKSHELL-API.md) |
 | Spec (la autoridad) | `docs/superpowers/specs/2026-10-21-nimbus-design.md` |
+| Decisiones y su porque | [`docs/DECISIONES.md`](docs/DECISIONES.md) |
 | Planes por hito | `docs/superpowers/plans/` |
 | Memoria entre sesiones | plugin `opencode-mem` (ver `docs/CONTINUAR.md` §5-bis) |
 
