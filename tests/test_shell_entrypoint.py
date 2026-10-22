@@ -677,3 +677,21 @@ def test_store_prefers_async_backend_when_available():
     assert "backend.uninstall(appId)" in store, (
         "Store.qml debe conservar el camino sincrono"
     )
+
+
+def test_every_ipc_target_has_a_handler():
+    """Cada target de la tabla de Ipc.qml necesita su IpcHandler.
+
+    Sin esto, un atajo como `nimbus-shell ipc call dock toggle` no llega a
+    nadie: el unico handler registrado era "nimbus" y la llamada se perdia
+    ("Target not found."). Este test ata las dos partes del contrato.
+    """
+    ipc = (ROOT / "shell" / "src" / "Nimbus" / "Ipc.qml").read_text(encoding="utf-8")
+    shell = SHELL_QML.read_text(encoding="utf-8")
+    targets = set(re.findall(r'^\s{8}"([a-z]+)":\s*\[', ipc, re.MULTILINE))
+    assert targets, "no se ha leido la tabla de targets del IPC"
+    handlers = set(re.findall(r'target:\s*"([a-z]+)"', shell))
+    missing = sorted(targets - handlers)
+    assert not missing, (
+        "targets del IPC sin handler en shell.qml: %r" % (missing,)
+    )
