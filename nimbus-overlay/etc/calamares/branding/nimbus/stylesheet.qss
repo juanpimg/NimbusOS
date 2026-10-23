@@ -1,0 +1,57 @@
+/* NimbusOS Calamares — estilo Setup Assistant.
+ * Paleta: fondo #F5F5F7, texto #1D1D1F, acento #007AFF, fuente Inter.
+ * Ventanas y botones con radio 12px.
+ */
+
+QWidget {
+    background-color: #F5F5F7;
+    color: #1D1D1F;
+    font-family: "Inter";
+}
+
+QLabel {
+    color: #1D1D1F;
+}
+
+QPushButton {
+    background-color: #007AFF;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 12px;
+    padding: 8px 20px;
+}
+
+QPushButton:hover {
+    background-color: #0A84FF;
+}
+
+QPushButton:pressed {
+    background-color: #0066D6;
+}
+
+QPushButton:disabled {
+    background-color: #AEAEB2;
+    color: #FFFFFF;
+}
+
+QLineEdit, QComboBox, QSpinBox {
+    background-color: #FFFFFF;
+    color: #1D1D1F;
+    border: 1px solid #D1D1D6;
+    border-radius: 12px;
+    padding: 6px 10px;
+    selection-background-color: #007AFF;
+}
+
+QProgressBar {
+    background-color: #E5E5EA;
+    color: #1D1D1F;
+    border: none;
+    border-radius: 12px;
+    text-align: center;
+}
+
+QProgressBar::chunk {
+    background-color: #007AFF;
+    border-radius: 12px;
+}
