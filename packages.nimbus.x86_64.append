@@ -75,18 +75,18 @@ libva-nvidia-driver
 # Excluidos por decision de auditoria (NO anadir): power-profiles-daemon
 # tuned-ppd tlp bumblebee optimus-manager xf86-video-intel.
 
-# --- Task3 store+USB (2026-10-23): tienda unica pamac + Flathub + plug&play ---
-# Decision vinculante (no reabrir): pamac-gtk + libpamac-flatpak-plugin +
-# appstream + archlinux-appstream-data + flatpak + xdg-desktop-portal-hyprland
-# + base-devel git polkit-gnome. Descartados: vinifmor/bauh (abandonado 0.10.7
+# --- Task3 store+USB (2026-10-23): tienda unica pamac-aur + Flathub + plug&play ---
+# Decision vinculante actualizada (Task5 fba8f28): pamac-gtk y
+# libpamac-flatpak-plugin NO existen en AUR; el paquete real es pamac-aur
+# (trae libpamac-aur como dep). appstream + archlinux-appstream-data +
+# flatpak + xdg-desktop-portal-hyprland + base-devel git polkit-gnome.
+# Descartados: vinifmor/bauh (abandonado 0.10.7
 # Ene-2024, foro CachyOS pide removerlo), Discover (sin AUR por diseno,
 # PackageKit lock, desaconsejado ArchWiki). Nota: Seafoam-Labs/Shelly-ALPM
 # reevaluar en 6 meses. Upstream tienda: https://github.com/manjaro/pamac.
 # Post-install (Task5/calamares): flatpak remote-add --if-not-exists flathub
 # https://dl.flathub.org/repo/flathub.flatpakrepo
 # --- extra ---
-pamac-gtk
-libpamac-flatpak-plugin
 appstream
 archlinux-appstream-data
 flatpak
@@ -174,4 +174,4 @@ gtk4-layer-shell
 libadwaita
 libhandy
 desktop-file-utils
-cargo
+rust  # provee cargo (evita prompt rust vs rustup)
