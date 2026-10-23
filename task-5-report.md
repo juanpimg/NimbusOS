@@ -60,3 +60,24 @@ en cachyos/oficial y queda en pacstrap.
 
 **Verificacion:** `bash -n` OK (build_iso, verify, live-setup),
 `--check-only` PASS, `verify-build.sh` → PASS=91 FAIL=0.
+
+## Fix pacstrap nvidia + prompts (2026-10-23)
+
+**Root cause:** append duplicaba `nvidia-dkms` + `nvidia-utils` que el pin
+upstream ya trae (`linux-cachyos-*-nvidia-open`, `nvidia-utils`); `nvidia-dkms`
+ya no existe como paquete (provides → `nvidia-open-dkms`) y enredaba al solver
+en la desincronización cachyos 615.71 vs extra 615.78. Además 3 prompts
+colgaban pacstrap: `libxtables.so` (iptables), `qt6-multimedia-backend`
+(ffmpeg), `tessdata` (eng).
+
+**Fix mínimo en `packages.nimbus.x86_64.append`:** quitar `nvidia-dkms` y
+`nvidia-utils` (upstream los aporta; se mantiene `lib32-nvidia-utils`,
+`nvidia-prime`, `libva-nvidia-driver`, resto inocente); añadir explícitos
+`iptables`, `qt6-multimedia-ffmpeg`, `tesseract-data-eng` (todos en extra)
+para fijar defaults. `verify-build.sh`: 2 checks sin-duplicado + 3 checks
+defaults presentes. Plan B si el solver sigue fallando por el pin
+`linux-cachyos-nvidia-open→open-dkms`: mover también `lib32-nvidia-utils` y
+`libva-nvidia-driver` al manifest AUR/live-setup.
+
+**Verificación:** `bash -n` OK, `--check-only` PASS,
+`verify-build.sh` → PASS=96 FAIL=0. Commit `nimbusos`.
