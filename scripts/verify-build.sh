@@ -165,6 +165,7 @@ if [ -f "$ROOT/packages.nimbus-aur.txt" ]; then
         if grep -qx "$_b" "$APP" 2>/dev/null; then ok "append build-deps AUR: $_b"; else bad "append build-deps AUR: $_b"; fi
     done
     if grep -qE '^rust( |$)' "$APP" 2>/dev/null; then ok "append build-deps AUR: rust (provee cargo, evita prompt)"; else bad "append build-deps AUR: rust (provee cargo)"; fi
+    if grep -qE '^[a-z0-9_.+-]+ +#' "$APP" 2>/dev/null; then bad "append sin comentarios en linea (rompen el nombre del paquete)"; else ok "append sin comentarios en linea"; fi
     chkg "build filtra AUR a skipped-aur.txt" "$ROOT/build_iso.sh" 'skipped-aur'
     chkg "build excluye AUR de pacstrap (aur-skip)" "$ROOT/build_iso.sh" 'aur-skip'
 fi

@@ -174,4 +174,6 @@ gtk4-layer-shell
 libadwaita
 libhandy
 desktop-file-utils
-rust  # provee cargo (evita prompt rust vs rustup)
+# rust provee cargo (paquete `cargo` pide elegir proveedor rust vs rustup;
+# fijar `rust` evita el prompt interactivo que cuelga pacstrap).
+rust
