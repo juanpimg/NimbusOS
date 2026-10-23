@@ -46,8 +46,8 @@ whitesur-icon-theme
 auto-cpufreq
 thermald
 zram-generator
-nvidia-dkms
-nvidia-utils
+# Upstream ya aporta nvidia-dkms/nvidia-utils (pin cachyos 615.71 vs extra
+# 615.78; nvidia-dkms resuelve por provides y enreda al solver): NO duplicar.
 lib32-nvidia-utils
 nvidia-prime
 switcheroo-control
@@ -142,3 +142,9 @@ hyprshell
 # hyprshell — ver seccion Task1/Task3 arriba.)
 # --- Helper AUR en pacstrap (oficial cachyos, verificado pacman -Si) ---------
 paru
+# --- Defaults no-interactivos pacstrap (2026-10-23): fijan prompts que cuelgan
+# --- el build (todos en extra): libxtables.so->iptables,
+# --- qt6-multimedia-backend->qt6-multimedia-ffmpeg, tessdata->tesseract-data-eng
+iptables
+qt6-multimedia-ffmpeg
+tesseract-data-eng

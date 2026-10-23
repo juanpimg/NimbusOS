@@ -100,6 +100,11 @@ if [ -f "$APP" ]; then
     chkg "append nota base-devel/Task5" "$APP" 'base-devel'
     chkg "append hyprshell AUR" "$APP" 'hyprshell'
     chkg "append auto-cpufreq no-AUR" "$APP" 'auto-cpufreq'
+    if grep -qx 'nvidia-dkms' "$APP" 2>/dev/null; then bad "append sin nvidia-dkms duplicado (lo aporta upstream)"; else ok "append sin nvidia-dkms duplicado (lo aporta upstream)"; fi
+    if grep -qx 'nvidia-utils' "$APP" 2>/dev/null; then bad "append sin nvidia-utils duplicado (lo aporta upstream)"; else ok "append sin nvidia-utils duplicado (lo aporta upstream)"; fi
+    for _d in iptables qt6-multimedia-ffmpeg tesseract-data-eng; do
+        if grep -qx "$_d" "$APP" 2>/dev/null; then ok "append default no-interactivo: $_d"; else bad "append default no-interactivo: $_d"; fi
+    done
 fi
 
 # --- Manifest: pins -------------------------------------------------------------
