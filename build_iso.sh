@@ -222,10 +222,13 @@ for _cf in etc/calamares/modules/displaymanager.conf etc/calamares/modules/parti
     fi
 done
 # customize_airootfs.sh corre post-pacstrap como root y si puede sobrescribir:
-# mkarchiso lo detecta solo en la raiz del perfil.
-cp "$REPO_ROOT/nimbus-profile/customize_airootfs.sh" "$PROFILE_DIR/customize_airootfs.sh"
-chmod +x "$PROFILE_DIR/customize_airootfs.sh"
-[ -x "$PROFILE_DIR/customize_airootfs.sh" ] || fail "customize_airootfs.sh no instalado en perfil"
+# mkarchiso (>= este) lo busca en airootfs/root/customize_airootfs.sh
+# (la raiz del perfil ya no se usa). El overlay ya lo trae en
+# nimbus-overlay/root/ y cp -a lo deja en $AIROOTFS/root/; solo verificar:
+[ -x "$AIROOTFS/root/customize_airootfs.sh" ] || fail "falta customize_airootfs.sh en airootfs/root"
+# Higiene: la ubicacion antigua (raiz del perfil) ya no se usa; si quedo de
+# un build previo, eliminarla para no confundir:
+rm -f "$PROFILE_DIR/customize_airootfs.sh"
 # 5b. Concatenar paquetes Nimbus al perfil desktop, deduplicando contra el
 # perfil upstream (el append es append-only Task1-4; el solape conocido
 # dosfstools exfatprogs mesa mtools noto-fonts ntfs-3g nvidia-utils se filtra
