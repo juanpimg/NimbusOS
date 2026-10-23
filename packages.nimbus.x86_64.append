@@ -131,3 +131,14 @@ hyprshell
 # ntfs-3g nvidia-utils YA estan en el perfil CachyOS. build_iso.sh paso
 # apply_overlay los filtra al concatenar (grep -vxFf) y registra los
 # omitidos en build.log: el append NO se toca (Task1-4 intactos).
+
+# --- Task5 AUR defer (2026-10-23): 5 AUR fuera de pacstrap -------------------
+# mkarchiso/pacstrap solo resuelve repos oficiales (pacman.conf sin repos
+# propios); estos 5 NO estan en repos (audit pacman -Si 2026-10-23) y se
+# instalan en primer arranque live via paru (ver nimbus-live-setup +
+# packages.nimbus-aur.txt). Se mantienen aqui como declaracion canonica;
+# build_iso.sh apply_overlay los filtra a out/skipped-aur.txt.
+# (whitesur-gtk-theme whitesur-icon-theme pamac-gtk libpamac-flatpak-plugin
+# hyprshell — ver seccion Task1/Task3 arriba.)
+# --- Helper AUR en pacstrap (oficial cachyos, verificado pacman -Si) ---------
+paru

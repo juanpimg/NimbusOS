@@ -7,15 +7,21 @@
 #   3. mask power-profiles-daemon (Task 2: auto-cpufreq es el gestor canonico;
 #      PPD y auto-cpufreq en conflicto romperian el escalado en laptop)
 #   4. enable auto-cpufreq + thermald (si estan instalados y hay systemd)
+#   5. AUR defer (Task5): instala las 5 AUR fuera de pacstrap via paru
+#      (manifest usr/share/nimbus/packages.nimbus-aur.txt; best-effort con
+#      red, sin reinstalar si ya presentes, exit 0 siempre).
 # Uso: como root en %post de calamares, o via nimbus-live-setup.service.
-# Idempotente: seguro re-ejecutar. Devuelve 0 aunque flatpak/systemd falten
-# (entorno live minimo); solo falla (1) si no es root o falta /etc/pamac.conf.
+# Idempotente: seguro re-ejecutar. Devuelve 0 aunque flatpak/systemd/red
+# falten (entorno live minimo); solo falla (1) si no es root o falta
+# /etc/pamac.conf.
 set -u
 
 PAMAC_CONF="${PAMAC_CONF:-/etc/pamac.conf}"
+AUR_MANIFEST="${AUR_MANIFEST:-/usr/share/nimbus/packages.nimbus-aur.txt}"
+LIVE_LOG="${LIVE_LOG:-/var/log/nimbus-live-setup.log}"
 FLATHUB_URL="https://dl.flathub.org/repo/flathub.flatpakrepo"
 
-log() { echo "nimbus-live-setup: $1"; }
+log() { echo "nimbus-live-setup: $1"; echo "$(date -u +%FT%TZ) $1" >> "$LIVE_LOG" 2>/dev/null || true; }
 die() { echo "nimbus-live-setup: ERROR: $1" >&2; exit 1; }
 
 [ "$(id -u)" = "0" ] || die "requiere root"
@@ -59,6 +65,41 @@ if command -v systemctl >/dev/null 2>&1; then
     done
 else
     log "AVISO: sin systemctl (chroot sin systemd?), salto servicios"
+fi
+
+# --- 5. AUR defer via paru (best-effort, nunca bloquea boot) ------------------
+# mkarchiso/pacstrap solo resuelve repos oficiales; las 5 AUR del manifest se
+# instalan aqui en el live. Guards: solo si hay red, no reinstalar si ya
+# presente (`paru -Q`), log a $LIVE_LOG, exit 0 siempre.
+if command -v paru >/dev/null 2>&1; then
+    if [ -f "$AUR_MANIFEST" ]; then
+        if getent hosts aur.archlinux.org >/dev/null 2>&1 || ping -c1 -W3 8.8.8.8 >/dev/null 2>&1; then
+            _todo=""
+            while IFS= read -r _p || [ -n "$_p" ]; do
+                case "$_p" in ''|\#*) continue ;; esac
+                if paru -Q "$_p" >/dev/null 2>&1; then
+                    log "AUR $_p ya instalado, salto"
+                else
+                    _todo="$_todo $_p"
+                fi
+            done < "$AUR_MANIFEST"
+            if [ -n "$_todo" ]; then
+                # shellcheck disable=SC2086
+                paru -S --needed --noconfirm $_todo >> "$LIVE_LOG" 2>&1 \
+                    && log "AUR instalados:$_todo" \
+                    || log "AVISO: paru no pudo instalar$_todo (reintentar con red)"
+            else
+                log "AUR: todo ya instalado, nada que hacer"
+            fi
+            unset _todo _p
+        else
+            log "AVISO: sin red, salto instalacion AUR (reintentar al arrancar con red)"
+        fi
+    else
+        log "AVISO: falta manifest $AUR_MANIFEST, salto AUR"
+    fi
+else
+    log "AVISO: paru no instalado, salto AUR"
 fi
 
 log "listo"

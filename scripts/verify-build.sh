@@ -60,6 +60,10 @@ fi
 [ -x "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" ] && ok "nimbus-live-setup ejecutable" || bad "nimbus-live-setup ejecutable"
 if bash -n "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 2>/dev/null; then ok "bash -n nimbus-live-setup"; else bad "bash -n nimbus-live-setup"; fi
 chkg "live-setup flatpak remote-add flathub" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'flatpak remote-add --if-not-exists flathub'
+chkg "live-setup invoca paru (AUR defer)" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'paru -S --needed --noconfirm'
+chkg "live-setup no reinstala (paru -Q)" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'paru -Q'
+chkg "live-setup log + exit 0" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'nimbus-live-setup.log'
+chkg "live-setup lee manifest AUR" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'packages.nimbus-aur.txt'
 chkg "live-setup mask power-profiles-daemon" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'mask power-profiles-daemon'
 chkg "live-setup enable auto-cpufreq" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'auto-cpufreq'
 chkg "live-setup fusiona pamac.conf" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'EnableFlatpak|pamac.conf'
@@ -108,17 +112,35 @@ if [ -f "$MAN" ]; then
     chkg "manifest pin UPSTREAM_COMMIT" "$MAN" 'UPSTREAM_COMMIT=3215497|commit: 3215497'
 fi
 # Fusion simulada: el pipeline de apply_overlay no deja comentarios en
-# packages_desktop (regresion Important 3):
+# packages_desktop (regresion Important 3) y filtra las 5 AUR a skipped-aur:
 if [ -f "$APP" ]; then
     TMPSIM="$(mktemp -d)"
     printf 'mesa\nntfs-3g\nlinux-cachyos\n' > "$TMPSIM/upstream.txt"
-    grep -vE '^\s*#|^\s*$' "$APP" | grep -vxFf "$TMPSIM/upstream.txt" > "$TMPSIM/merged.txt" || true
+    printf 'whitesur-gtk-theme\nwhitesur-icon-theme\npamac-gtk\nlibpamac-flatpak-plugin\nhyprshell\n' > "$TMPSIM/aur.txt"
+    grep -vE '^\s*#|^\s*$' "$APP" | grep -vxFf "$TMPSIM/upstream.txt" > "$TMPSIM/predup.txt" || true
+    grep -xFf "$TMPSIM/aur.txt" "$TMPSIM/predup.txt" > "$TMPSIM/skipped-aur.txt" || true
+    grep -vxFf "$TMPSIM/aur.txt" "$TMPSIM/predup.txt" > "$TMPSIM/merged.txt" || true
     if grep -qE '^\s*#' "$TMPSIM/merged.txt" 2>/dev/null; then
         bad "fusion simulada sin lineas '# Nimbus'"
     else
         ok "fusion simulada sin lineas '# Nimbus'"
     fi
+    for _a in whitesur-gtk-theme whitesur-icon-theme pamac-gtk libpamac-flatpak-plugin hyprshell; do
+        if grep -qx "$_a" "$TMPSIM/merged.txt" 2>/dev/null; then bad "packages.x86_64 sin AUR $_a"; else ok "packages.x86_64 sin AUR $_a"; fi
+    done
+    if grep -qx 'paru' "$TMPSIM/merged.txt" 2>/dev/null; then ok "packages.x86_64 con paru (cachyos/oficial)"; else bad "packages.x86_64 con paru (cachyos/oficial)"; fi
+    if [ -s "$TMPSIM/skipped-aur.txt" ]; then ok "skipped-aur existe en simulacion"; else bad "skipped-aur existe en simulacion"; fi
     rm -rf "$TMPSIM"
+fi
+# Manifest AUR: canonico en raiz + copia en overlay para live-setup:
+[ -f "$ROOT/packages.nimbus-aur.txt" ] && ok "existe packages.nimbus-aur.txt" || bad "existe packages.nimbus-aur.txt"
+[ -f "$ROOT/nimbus-overlay/usr/share/nimbus/packages.nimbus-aur.txt" ] && ok "overlay: usr/share/nimbus/packages.nimbus-aur.txt" || bad "overlay: usr/share/nimbus/packages.nimbus-aur.txt"
+if [ -f "$ROOT/packages.nimbus-aur.txt" ]; then
+    for _a in whitesur-gtk-theme whitesur-icon-theme pamac-gtk libpamac-flatpak-plugin hyprshell; do
+        if grep -qx "$_a" "$ROOT/packages.nimbus-aur.txt" 2>/dev/null; then ok "manifest AUR: $_a"; else bad "manifest AUR: $_a"; fi
+    done
+    chkg "build filtra AUR a skipped-aur.txt" "$ROOT/build_iso.sh" 'skipped-aur'
+    chkg "build excluye AUR de pacstrap (aur-skip)" "$ROOT/build_iso.sh" 'aur-skip'
 fi
 
 # --- QEMU: doc + script ---------------------------------------------------------

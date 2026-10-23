@@ -1,0 +1,5 @@
+whitesur-gtk-theme
+whitesur-icon-theme
+pamac-gtk
+libpamac-flatpak-plugin
+hyprshell
