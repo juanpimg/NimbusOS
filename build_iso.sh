@@ -288,6 +288,18 @@ print("profiledef.sh: file_permissions Nimbus inyectados (bloque anclado)")
 EOF
 fi
 bash -n "$PROFILE_DIR/profiledef.sh" || fail "profiledef.sh roto tras parche"
+# 5c-bis. Limitar hilos de mksquashfs: con 20 procesadores falla de forma
+# reproducible (FATAL xz uncompress error 9 ~30-38% del squashfs); con 8
+# pasa (verificado manual). mkarchiso reenvia airootfs_image_tool_options
+# tal cual a mksquashfs, asi que el limite vive en el perfil.
+# Idempotente: saltar si ya presente (re-run tras reset conserva el parche
+# porque reset --hard solo afecta a archivos trackeados sin cambios... el
+# parche se reaplica igual, el guard evita duplicados).
+if ! grep -q "'-processors'" "$PROFILE_DIR/profiledef.sh"; then
+    sed -i "s/'-Xdict-size' '1M')/'-Xdict-size' '1M' '-processors' '8')/" "$PROFILE_DIR/profiledef.sh"
+fi
+grep -q "'-processors' '8'" "$PROFILE_DIR/profiledef.sh" || fail "no se inyecto -processors 8 en tool_options"
+bash -n "$PROFILE_DIR/profiledef.sh" || fail "profiledef.sh roto tras parche processors"
 # 5d. mkarchiso lee packages.x86_64 (no packages_desktop.x86_64): el perfil
 # upstream solo trae packages_desktop.x86_64 y su util-iso.sh prepare_profile
 # hace cp packages_desktop.x86_64 -> packages.x86_64 antes de buildear.

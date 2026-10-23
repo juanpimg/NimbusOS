@@ -49,6 +49,7 @@ chkg "customize_airootfs copiado al perfil +x" "$ROOT/build_iso.sh" 'customize_a
 if bash -n "$ROOT/nimbus-profile/customize_airootfs.sh" 2>/dev/null; then ok "bash -n customize_airootfs.sh"; else bad "bash -n customize_airootfs.sh"; fi
 chkg "customize instala displaymanager via install" "$ROOT/nimbus-profile/customize_airootfs.sh" 'displaymanager.conf'
 chkg "customize instala gtk settings via install" "$ROOT/nimbus-profile/customize_airootfs.sh" 'gtk-3.0/settings.ini'
+chkg "tool_options limita mksquashfs a 8 hilos" "$ROOT/build_iso.sh" "'-processors' '8'"
 
 # --- Overlay: ficheros pendientes Task 1-4 -------------------------------------
 for f in usr/share/backgrounds/nimbus/sequoia-light.jpg \
