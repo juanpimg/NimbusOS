@@ -79,6 +79,7 @@
 # Upstream perfil (verificado 2026-10-23 via git ls-remote + clone --depth 1):
 #   repo:   https://github.com/CachyOS/CachyOS-Live-ISO
 #   rama:   master (sin tags publicados)
+#   UPSTREAM_COMMIT=3215497d2e8c5fea90e185affcf973dfa2cf790b
 #   commit: 3215497d2e8c5fea90e185affcf973dfa2cf790b (2026-10-03,
 #             "Replace nvidia-module-loader with cachyos-drm-awaiter")
 #   perfil: archiso/profiledef.sh (iso_name=cachyos -> build lo renombra a

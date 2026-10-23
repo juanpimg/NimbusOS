@@ -32,6 +32,12 @@ chkg "check-only sin root" "$ROOT/build_iso.sh" 'check-only'
 chkg "pin git log --format=%ct" "$ROOT/build_iso.sh" 'git log -1 --format=%ct'
 chkg "no overwrite passwd/shadow" "$ROOT/build_iso.sh" 'passwd.*shadow|shadow.*passwd'
 chkg "file_permissions declara binarios" "$ROOT/build_iso.sh" 'file_permissions'
+chkg "pin UPSTREAM_COMMIT default" "$ROOT/build_iso.sh" 'UPSTREAM_COMMIT.*3215497'
+chkg "get_upstream fetch+reset pin" "$ROOT/build_iso.sh" 'reset --hard "\$UPSTREAM_COMMIT"'
+chkg "apply_overlay cp -a (preserva symlinks)" "$ROOT/build_iso.sh" 'cp -a'
+chkg "apply_overlay filtra comentarios antes de concat" "$ROOT/build_iso.sh" "grep -vE.*APPEND.*grep -vxFf"
+chkg "file_permissions anclado a bloque" "$ROOT/build_iso.sh" 'file_permissions=\('
+chkg "sin sudo redundante ante mkarchiso" "$ROOT/build_iso.sh" '^mkarchiso -v'
 
 # --- Overlay: ficheros pendientes Task 1-4 -------------------------------------
 for f in usr/share/backgrounds/nimbus/sequoia-light.jpg \
@@ -55,6 +61,15 @@ chkg "live-setup enable auto-cpufreq" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-
 chkg "live-setup fusiona pamac.conf" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'EnableFlatpak|pamac.conf'
 [ ! -e "$ROOT/nimbus-overlay/etc/passwd" ] && ok "overlay sin etc/passwd" || bad "overlay sin etc/passwd"
 [ ! -e "$ROOT/nimbus-overlay/etc/shadow" ] && ok "overlay sin etc/shadow" || bad "overlay sin etc/shadow"
+WANTS="$ROOT/nimbus-overlay/etc/systemd/system/multi-user.target.wants/nimbus-live-setup.service"
+if [ -L "$WANTS" ]; then ok "live service habilitado (wants symlink)"; else bad "live service habilitado (wants symlink)"; fi
+if [ -L "$WANTS" ]; then
+    TGT="$(readlink "$WANTS")"
+    case "$TGT" in
+        *nimbus-live-setup.service) ok "wants symlink apunta a nimbus-live-setup.service" ;;
+        *) bad "wants symlink apunta a nimbus-live-setup.service (es $TGT)" ;;
+    esac
+fi
 [ ! -e "$ROOT/nimbus-overlay/etc/gshadow" ] && ok "overlay sin etc/gshadow" || bad "overlay sin etc/gshadow"
 chkg ".inc declara macshell 0755" "$ROOT/nimbus-overlay/profiledef.nimbus.inc" '"/usr/bin/macshell.*0:0:755'
 chkg ".inc declara nimbus-live-setup 0755" "$ROOT/nimbus-overlay/profiledef.nimbus.inc" '"/usr/bin/nimbus-live-setup.*0:0:755'
@@ -85,6 +100,20 @@ if [ -f "$MAN" ]; then
     chkg "manifest pin MacShell" "$MAN" '0-ss/MacShell'
     chkg "manifest upstream Live-ISO" "$MAN" 'CachyOS-Live-ISO'
     chkg "manifest seccion Task 5" "$MAN" 'Task 5'
+    chkg "manifest pin UPSTREAM_COMMIT" "$MAN" 'UPSTREAM_COMMIT=3215497|commit: 3215497'
+fi
+# Fusion simulada: el pipeline de apply_overlay no deja comentarios en
+# packages_desktop (regresion Important 3):
+if [ -f "$APP" ]; then
+    TMPSIM="$(mktemp -d)"
+    printf 'mesa\nntfs-3g\nlinux-cachyos\n' > "$TMPSIM/upstream.txt"
+    grep -vE '^\s*#|^\s*$' "$APP" | grep -vxFf "$TMPSIM/upstream.txt" > "$TMPSIM/merged.txt" || true
+    if grep -qE '^\s*#' "$TMPSIM/merged.txt" 2>/dev/null; then
+        bad "fusion simulada sin lineas '# Nimbus'"
+    else
+        ok "fusion simulada sin lineas '# Nimbus'"
+    fi
+    rm -rf "$TMPSIM"
 fi
 
 # --- QEMU: doc + script ---------------------------------------------------------
