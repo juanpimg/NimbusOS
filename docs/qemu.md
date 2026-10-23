@@ -27,3 +27,19 @@ qemu-system-x86_64 -enable-kvm -M q35,accel=kvm -cpu host -smp 4 -m 4096 \
 2. `upower -d | grep -i battery` muestra bateria (`-device acpi-battery`).
 3. Lanzar calamares (pantalla Hello), instalar en `/dev/vda`.
 4. Reboot con `-boot order=c`, login en Hyprland instalado.
+
+## Checklist obligatorio pre-release (no bloquea --check-only)
+
+- En el guest live, antes de declarar la release: `hyprland --check-config`
+  debe pasar sin errores (valida hyprland.conf + 10-shortcuts.conf tras la
+  fusion del overlay). `--check-only`/`verify-build.sh` NO lo ejecutan
+  (requiere Hyprland instalado + sesion live); este paso es manual en QEMU.
+  Si falla, bloquear la release aunque `build_iso.sh --check-only` sea PASS.
+- DM: confirmar que el DM efectivo del live sigue siendo el esperado
+  (ver nota greetd en `scripts/verify-build.sh`: alerta si el upstream
+  cambia `display-manager` en profiledef). Greetd sin probar E2E en V1.
+
+## Limitaciones V1 conocidas (verificar en QEMU)
+
+- Semáforos: WhiteSur + MacShell cubren GTK/CSD; ventanas Hyprland SSD
+  no-GTK no tienen semáforos nativos (limitación V1, no bloquea).

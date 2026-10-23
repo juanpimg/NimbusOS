@@ -20,3 +20,9 @@
 #   inactivo en sddm.conf.d/). No tocan la base CachyOS.
 #
 # Paleta canonica: #F5F5F7 / #1D1D1F / #007AFF. Fuente canonica: Inter.
+#
+# Limitacion V1 (semáforos): WhiteSur + MacShell cubren GTK/CSD; las
+#   ventanas Hyprland SSD no-GTK no tienen semáforos nativos. No bloquea V1;
+#   verificar aspecto en QEMU (docs/qemu.md).
+# Global-menu V1: la top-bar muestra solo el titulo de la app activa, sin
+#   menu D-Bus appmenu (sin vala-panel-appmenu/protocolo global-menu).

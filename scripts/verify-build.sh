@@ -59,6 +59,7 @@ chkg "live-setup flatpak remote-add flathub" "$ROOT/nimbus-overlay/usr/bin/nimbu
 chkg "live-setup mask power-profiles-daemon" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'mask power-profiles-daemon'
 chkg "live-setup enable auto-cpufreq" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'auto-cpufreq'
 chkg "live-setup fusiona pamac.conf" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'EnableFlatpak|pamac.conf'
+chkg "live service After=network.target (sin stall online)" "$ROOT/nimbus-overlay/usr/lib/systemd/system/nimbus-live-setup.service" 'After=network.target'
 [ ! -e "$ROOT/nimbus-overlay/etc/passwd" ] && ok "overlay sin etc/passwd" || bad "overlay sin etc/passwd"
 [ ! -e "$ROOT/nimbus-overlay/etc/shadow" ] && ok "overlay sin etc/shadow" || bad "overlay sin etc/shadow"
 WANTS="$ROOT/nimbus-overlay/etc/systemd/system/multi-user.target.wants/nimbus-live-setup.service"
@@ -125,6 +126,30 @@ if [ -f "$ROOT/scripts/test-qemu.sh" ]; then
     chkg "qemu pre-check x86-64-v3" "$ROOT/scripts/test-qemu.sh" 'x86-64-v|avx2|AVX2'
 fi
 [ -f "$ROOT/docs/qemu.md" ] && ok "existe docs/qemu.md" || bad "existe docs/qemu.md"
+chkg "qemu.md checklist hyprland --check-config pre-release" "$ROOT/docs/qemu.md" 'hyprland --check-config'
+
+# --- DM (I4): greetd sin probar E2E; alertar si el upstream cambia de DM ----
+# Nimbus V1 asume greetd+Hyprland (displaymanager.conf del overlay). El perfil
+# upstream podria cambiar su DM/display-manager en un commit posterior al pin;
+# el build real debe cruzar esto antes de la release (ver docs/qemu.md).
+chkg "DM overlay greetd+Hyprland" "$ROOT/nimbus-overlay/etc/calamares/modules/displaymanager.conf" 'greetd'
+# En --check-only no hay red pesada: avisar (no fallar) si no podemos
+# inspeccionar el profiledef upstream. El build real (get_upstream) debe
+# ejecutar: grep -ri 'display-manager\|displaymanager\|greetd\|sddm' PROFILE/profiledef.sh
+# y abortar la release si el DM efectivo ya no es greetd.
+if command -v git >/dev/null 2>&1; then
+    if [ -d "$ROOT/work/upstream/.git" ]; then
+        if grep -riE 'display-manager|displaymanager' "$ROOT/work/upstream/archiso/profiledef.sh" 2>/dev/null | grep -qv 'greetd'; then
+            echo "AVISO DM: el profiledef upstream menciona un display-manager distinto de greetd; revisar docs/qemu.md antes de la release"
+        else
+            ok "DM upstream sin drift (o sin mencion display-manager)"
+        fi
+    else
+        skip "DM upstream drift (sin work/upstream; verificar en build real)"
+    fi
+else
+    skip "DM upstream drift (sin git)"
+fi
 
 # --- check-only end-to-end (requiere git + red ligera ls-remote) -----------------
 if "$ROOT/build_iso.sh" --check-only >/tmp/nimbus-check-only.log 2>&1; then

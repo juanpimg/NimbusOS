@@ -19,6 +19,14 @@
 # REGLA: nunca declarar aqui /etc/passwd ni /etc/shadow (los gestiona el
 # perfil upstream; sobrescribirlos romperia el login live). verify-build.sh
 # falla si este fichero menciona passwd/shadow.
+# M1 (fragilidad conocida): este parche asume la estructura
+#   file_permissions=( ... ) del profiledef.sh upstream (apertura en su
+#   propia linea + cierre `)` en su propia linea). Si el upstream reestructura
+#   ese bloque, el build real falla en apply_overlay (assert de anclaje) en
+#   lugar de corromper en silencio; actualizar entonces este .inc + el regex.
+#   verify-build.sh alerta ademas si el upstream cambia de DM
+#   (grep display-manager en el perfil; DM Nimbus V1: greetd+Hyprland, sin
+#   prueba E2E — ver docs/qemu.md).
 # =============================================================================
 # NIMBUS_PROFILEDEF_PATCH_V1
 NIMBUS_ISO_NAME="nimbus"

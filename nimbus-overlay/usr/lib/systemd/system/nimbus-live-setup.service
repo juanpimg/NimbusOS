@@ -5,7 +5,11 @@
 # %post ya lo aplico (marker en /var/lib/nimbus/).
 [Unit]
 Description=NimbusOS live first-boot setup (pamac+flathub+power)
-After=network-online.target
+# M4: After=network.target (no network-online.target): evita stall de
+#   90s si la red del live tarda; el script ya es best-effort (exit 0
+#   aunque falte red/flatpak/systemd). Se mantiene
+#   Wants=network-online.target como intento oportunista, sin orden duro.
+After=network.target
 Wants=network-online.target
 ConditionPathExists=!/var/lib/nimbus/live-setup.done
 
