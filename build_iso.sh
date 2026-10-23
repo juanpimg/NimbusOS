@@ -206,6 +206,26 @@ AIROOTFS="$PROFILE_DIR/airootfs"
 
 # 5a. Copiar overlay sobre airootfs (cp -a; el overlay nunca trae passwd/shadow):
 cp -a "$OVERLAY"/. "$AIROOTFS"/
+# 5a2. Conflictos overlay vs paquetes (pacstrap aborta si el fichero ya existe
+# en airootfs y lo posee un paquete): cachyos-calamares-next posee
+# etc/calamares/modules/{displaymanager,partition,users}.conf y
+# cachyos-kde-settings posee etc/skel/.config/gtk-{3,4}.0/settings.ini.
+# archiso no permite overwrite en pacstrap, asi que se mueven a staging
+# (/usr/share/nimbus/staging/) y customize_airootfs.sh (post-pacstrap, root)
+# los reinstala con overwrite. Idempotente: guards [ -f ].
+STAGING="$AIROOTFS/usr/share/nimbus/staging"
+for _cf in etc/calamares/modules/displaymanager.conf etc/calamares/modules/partition.conf etc/calamares/modules/users.conf etc/skel/.config/gtk-3.0/settings.ini etc/skel/.config/gtk-4.0/settings.ini; do
+    if [ -f "$AIROOTFS/$_cf" ]; then
+        mkdir -p "$STAGING/$(dirname "$_cf")"
+        mv "$AIROOTFS/$_cf" "$STAGING/$_cf"
+        echo "apply_overlay: staging $_cf (conflicto paquete diferido a customize_airootfs)"
+    fi
+done
+# customize_airootfs.sh corre post-pacstrap como root y si puede sobrescribir:
+# mkarchiso lo detecta solo en la raiz del perfil.
+cp "$REPO_ROOT/nimbus-profile/customize_airootfs.sh" "$PROFILE_DIR/customize_airootfs.sh"
+chmod +x "$PROFILE_DIR/customize_airootfs.sh"
+[ -x "$PROFILE_DIR/customize_airootfs.sh" ] || fail "customize_airootfs.sh no instalado en perfil"
 # 5b. Concatenar paquetes Nimbus al perfil desktop, deduplicando contra el
 # perfil upstream (el append es append-only Task1-4; el solape conocido
 # dosfstools exfatprogs mesa mtools noto-fonts ntfs-3g nvidia-utils se filtra

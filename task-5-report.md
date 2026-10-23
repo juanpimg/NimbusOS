@@ -81,3 +81,19 @@ defaults presentes. Plan B si el solver sigue fallando por el pin
 
 **Verificación:** `bash -n` OK, `--check-only` PASS,
 `verify-build.sh` → PASS=96 FAIL=0. Commit `nimbusos`.
+
+## Fix overlay vs paquetes conflicting files (2026-10-23)
+
+**Root cause:** overlay copiaba 5 paths a airootfs ANTES de pacstrap y los
+poseen paquetes (cachyos-calamares-next: displaymanager/partition/users.conf;
+cachyos-kde-settings: gtk-3.0/gtk-4.0 settings.ini) → pacman aborta; archiso
+no permite overwrite en pacstrap.
+
+**Fix archiso-nativo:** `apply_overlay` tras `cp -a` mueve (mv, idempotente
+con guards) los 5 a `$AIROOTFS/usr/share/nimbus/staging/`; copia
+`nimbus-profile/customize_airootfs.sh` a `$PROFILE_DIR/` + chmod +x
+(mkarchiso lo ejecuta post-pacstrap como root, sí puede sobrescribir con
+`install -Dm644`). Overlay repo intacto (fuente de verdad para verify/QEMU).
+
+**Verificación:** `bash -n` OK (build_iso, customize, verify),
+`--check-only` PASS, `verify-build.sh` → PASS=103 FAIL=0. Commit `nimbusos`.

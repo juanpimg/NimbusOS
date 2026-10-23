@@ -42,6 +42,13 @@ chkg "apply_overlay idempotente (restaura desktop desde git)" "$ROOT/build_iso.s
 chkg "iso_name sed solo si aun cachyos" "$ROOT/build_iso.sh" 'iso_name="cachyos"'
 chkg "file_permissions anclado a bloque" "$ROOT/build_iso.sh" 'file_permissions=\('
 chkg "sin sudo redundante ante mkarchiso" "$ROOT/build_iso.sh" '^mkarchiso -v'
+chkg "conflictos staging (mv a usr/share/nimbus/staging)" "$ROOT/build_iso.sh" 'usr/share/nimbus/staging'
+chkg "conflictos mueve displaymanager a staging" "$ROOT/build_iso.sh" 'displaymanager.conf'
+chkg "customize_airootfs copiado al perfil +x" "$ROOT/build_iso.sh" 'customize_airootfs.sh.*chmod \+x|chmod \+x.*customize_airootfs'
+[ -f "$ROOT/nimbus-profile/customize_airootfs.sh" ] && ok "existe nimbus-profile/customize_airootfs.sh" || bad "existe nimbus-profile/customize_airootfs.sh"
+if bash -n "$ROOT/nimbus-profile/customize_airootfs.sh" 2>/dev/null; then ok "bash -n customize_airootfs.sh"; else bad "bash -n customize_airootfs.sh"; fi
+chkg "customize instala displaymanager via install" "$ROOT/nimbus-profile/customize_airootfs.sh" 'displaymanager.conf'
+chkg "customize instala gtk settings via install" "$ROOT/nimbus-profile/customize_airootfs.sh" 'gtk-3.0/settings.ini'
 
 # --- Overlay: ficheros pendientes Task 1-4 -------------------------------------
 for f in usr/share/backgrounds/nimbus/sequoia-light.jpg \
