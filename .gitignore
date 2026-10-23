@@ -1,0 +1,10 @@
+# Build scratch (regenerable con ./build_iso.sh; la ISO pesa GBs)
+out/
+work/
+*.iso
+*.sha256
+# SDD workspaces (scratch por plan, git-ignored por diseño)
+.superpowers/
+# Logs locales
+*.log
+/tmp/

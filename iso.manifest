@@ -95,3 +95,7 @@
 #   cpu host smp4 4G OVMF virtio-vga-gl sdl,gl acpi-battery boot order=d).
 #   Pre-check lscpu AVX2 (x86-64-v3) o abortar.
 # Pins MacShell (heredado Task 1): 0-ss/MacShell main @ bef9fc4 (2026-10-23).
+ISO=nimbus-2026.10.23-x86_64.iso
+SHA256=fc7e4821b08fc5ddbe669a86e4464939b5d3257af70da053476adca38b317043
+SIZE=3,6G
+DATE=2026-10-23T11:41Z
