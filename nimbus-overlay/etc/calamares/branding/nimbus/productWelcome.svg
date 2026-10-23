@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <!-- NimbusOS placeholder welcome (Task 4). Task 5: sustituir por arte final. -->
+  <rect width="640" height="360" fill="#F5F5F7"/>
+  <circle cx="320" cy="150" r="56" fill="#007AFF"/>
+  <text x="320" y="170" font-family="Inter, sans-serif" font-size="72" font-weight="600" fill="#FFFFFF" text-anchor="middle">N</text>
+  <text x="320" y="250" font-family="Inter, sans-serif" font-size="40" font-weight="600" fill="#1D1D1F" text-anchor="middle">Hello.</text>
+  <text x="320" y="290" font-family="Inter, sans-serif" font-size="20" fill="#1D1D1F" text-anchor="middle">Bienvenido a NimbusOS.</text>
+</svg>

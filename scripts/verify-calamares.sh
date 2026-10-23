@@ -50,6 +50,18 @@ chkg "desc ventana 1024x640" "$DESC" '1024,640'
 chkg "desc SidebarBackground #F5F5F7" "$DESC" '#F5F5F7'
 chkg "desc SidebarText #1D1D1F" "$DESC" '#1D1D1F'
 chkg "desc Current #007AFF" "$DESC" '#007AFF'
+chkg "desc sidebar explicito" "$DESC" '^sidebar:[[:space:]]*(widget|none)'
+chkg "desc navigation explicito" "$DESC" '^navigation:[[:space:]]*(widget|none)'
+
+# --- branding assets: existen en el overlay --------------------------------------
+for img in nimbus-logo.svg productWelcome.svg; do
+  [ -f "$BR/$img" ] && ok "branding asset presente: $img" || bad "branding asset presente: $img"
+done
+if grep -qE '\.png' "$DESC" 2>/dev/null; then
+  bad "desc sin referencias PNG inexistentes"
+else
+  ok "desc sin referencias PNG inexistentes"
+fi
 
 # --- show.qml: 3 slides, Hello, slideshowAPI 2 -----------------------------------
 nslides="$(grep -cE '^[[:space:]]*Slide[[:space:]]*\{' "$QML" 2>/dev/null || echo 0)"
@@ -84,11 +96,12 @@ done
 
 # --- partition.conf ----------------------------------------------------------------
 chkg "partition erase por defecto (nota)" "$PART" '[Ee]rase'
+chkg "partition initialPartitioningChoice erase" "$PART" '^initialPartitioningChoice:[[:space:]]*erase'
 chkg "partition allowManualPartitioning false" "$PART" '^allowManualPartitioning:[[:space:]]*false'
 chkg "partition swap file" "$PART" 'file'
 chkg "partition btrfs" "$PART" 'btrfs'
 chkg "partition ext4" "$PART" 'ext4'
-chkg "partition EFI 512M" "$PART" '512M'
+chkg "partition EFI 512MiB" "$PART" '512Mi?B'
 
 # --- users.conf -----------------------------------------------------------------------
 chkg "users wheel" "$USERS" 'wheel'

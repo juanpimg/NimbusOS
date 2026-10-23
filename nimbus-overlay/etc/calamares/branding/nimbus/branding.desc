@@ -6,6 +6,10 @@ componentName: nimbus
 welcomeStyleCalamares: false
 welcomeExpandingLogo: true
 
+# Barra lateral explicita estilo asistente (brief: sidebar widget|none).
+sidebar: widget
+navigation: widget
+
 # Tamano de ventana estilo asistente (1024x640).
 windowSize: 1024,640
 
@@ -15,15 +19,17 @@ strings:
   shortVersion: "1.0"
   shortProductName: NimbusOS
   bootloaderEntryName: NimbusOS
+  # TODO(Task5): sustituir URLs placeholder por las reales antes de la ISO final.
   productUrl: https://nimbusos.example/
   supportUrl: https://nimbusos.example/support
   knownIssuesUrl: https://nimbusos.example/issues
   releaseNotesUrl: https://nimbusos.example/release-notes
 
+# Placeholders SVG minimos incluidos en este directorio (Task 5: arte final).
 images:
-  productLogo: "nimbus-logo.png"
-  productIcon: "nimbus-logo.png"
-  productWelcome: "productWelcome.png"
+  productLogo: "nimbus-logo.svg"
+  productIcon: "nimbus-logo.svg"
+  productWelcome: "productWelcome.svg"
 
 slideshow: "show.qml"
 
