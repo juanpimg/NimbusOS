@@ -38,9 +38,10 @@ whitesur-gtk-theme
 whitesur-icon-theme
 
 # --- Task2 power (2026-10-23): laptop power + GPU hibrida + VA-API + ZRAM -----
-# Repos oficiales (extra): auto-cpufreq (NO power-profiles-daemon), thermald,
-# zram-generator, PRIME RTD3 nativo (NO supergfxctl/environments), VA-API/VDPAU.
-# AUR (los instala Task 5 via helper): nvtop, libva-nvidia-driver.
+# Repos oficiales (extra/cachyos): auto-cpufreq (cachyos, NO
+# power-profiles-daemon), thermald, zram-generator, PRIME RTD3 nativo (NO
+# supergfxctl/envycontrol), VA-API/VDPAU. Sin paquetes AUR en Task2: nvtop y
+# libva-nvidia-driver estan en extra oficial (no AUR).
 # --- extra ---
 auto-cpufreq
 thermald
@@ -67,8 +68,9 @@ ffmpeg
 gst-plugins-bad
 mpv
 vlc
-# --- AUR ---
 nvtop
 libva-nvidia-driver
+# --- AUR ---
+# (sin paquetes: todo Task2 en repos oficiales extra/cachyos)
 # Excluidos por decision de auditoria (NO anadir): power-profiles-daemon
 # tuned-ppd tlp bumblebee optimus-manager xf86-video-intel.
