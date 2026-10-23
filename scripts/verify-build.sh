@@ -161,9 +161,10 @@ if [ -f "$ROOT/packages.nimbus-aur.txt" ]; then
     if grep -qx 'pamac-aur' "$ROOT/nimbus-overlay/usr/share/nimbus/packages.nimbus-aur.txt" 2>/dev/null; then ok "overlay AUR copia sincronizada (pamac-aur)"; else bad "overlay AUR copia sincronizada (pamac-aur)"; fi
     if grep -qx 'pamac-gtk' "$ROOT/packages.nimbus-aur.txt" 2>/dev/null; then bad "manifest AUR sin pamac-gtk (no existe en AUR)"; else ok "manifest AUR sin pamac-gtk (no existe en AUR)"; fi
     if grep -qx 'libpamac-flatpak-plugin' "$ROOT/packages.nimbus-aur.txt" 2>/dev/null; then bad "manifest AUR sin libpamac-flatpak-plugin (no existe en AUR)"; else ok "manifest AUR sin libpamac-flatpak-plugin (no existe en AUR)"; fi
-    for _b in vala meson cargo; do
+    for _b in vala meson; do
         if grep -qx "$_b" "$APP" 2>/dev/null; then ok "append build-deps AUR: $_b"; else bad "append build-deps AUR: $_b"; fi
     done
+    if grep -qE '^rust( |$)' "$APP" 2>/dev/null; then ok "append build-deps AUR: rust (provee cargo, evita prompt)"; else bad "append build-deps AUR: rust (provee cargo)"; fi
     chkg "build filtra AUR a skipped-aur.txt" "$ROOT/build_iso.sh" 'skipped-aur'
     chkg "build excluye AUR de pacstrap (aur-skip)" "$ROOT/build_iso.sh" 'aur-skip'
 fi
