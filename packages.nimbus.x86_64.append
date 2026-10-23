@@ -36,3 +36,39 @@ libnotify
 # --- AUR/chaotic-AUR (los instala Task 5 via helper; verificados 2026-10-23):
 whitesur-gtk-theme
 whitesur-icon-theme
+
+# --- Task2 power (2026-10-23): laptop power + GPU hibrida + VA-API + ZRAM -----
+# Repos oficiales (extra): auto-cpufreq (NO power-profiles-daemon), thermald,
+# zram-generator, PRIME RTD3 nativo (NO supergfxctl/environments), VA-API/VDPAU.
+# AUR (los instala Task 5 via helper): nvtop, libva-nvidia-driver.
+# --- extra ---
+auto-cpufreq
+thermald
+zram-generator
+nvidia-dkms
+nvidia-utils
+lib32-nvidia-utils
+nvidia-prime
+switcheroo-control
+mesa
+vulkan-radeon
+vulkan-intel
+vulkan-mesa-layers
+lib32-vulkan-mesa-layers
+libva
+libva-utils
+vdpauinfo
+libvdpau-va-gl
+intel-media-driver
+libva-intel-driver
+libvpl
+vpl-gpu-rt
+ffmpeg
+gst-plugins-bad
+mpv
+vlc
+# --- AUR ---
+nvtop
+libva-nvidia-driver
+# Excluidos por decision de auditoria (NO anadir): power-profiles-daemon
+# tuned-ppd tlp bumblebee optimus-manager xf86-video-intel.
