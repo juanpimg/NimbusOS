@@ -48,9 +48,18 @@ chkg "append seccion Task3" "$APP" '--- Task3 store\+USB'
 for p in pamac-gtk libpamac-flatpak-plugin appstream archlinux-appstream-data \
   flatpak xdg-desktop-portal xdg-desktop-portal-hyprland base-devel git \
   polkit-gnome udisks2 udiskie gvfs gvfs-mtp ntfs-3g exfatprogs dosfstools \
-  mtools swaynotificationcenter nautilus; do
+  mtools nautilus hyprshell; do
   chkg "append: $p" "$APP" "^${p}$"
 done
+chkg "append nota base-devel metagrupo Task5 expande" "$APP" 'base-devel es metagrupo.*Task5.*expand|Task5.*expand.*base-devel|archiso lo expande'
+chkg "append hyprshell URL H3rmt" "$APP" 'H3rmt/hyprshell'
+chkg "append fallback cyclenext comentado" "$APP" 'cyclenext'
+if grep -qE '^[[:space:]]*swaynotificationcenter[[:space:]]*$' "$APP" 2>/dev/null; then
+  bad "append: swaynotificationcenter NO es default (debe ser solo comentario opcional)"
+else
+  ok "append: swaynotificationcenter NO es default (solo comentario opcional)"
+fi
+chkg "append swaynotificationcenter opcional comentado" "$APP" '#.*swaynotificationcenter'
 chkg "append nota Flathub remote-add" "$APP" 'flatpak remote-add.*flathub'
 chkg "append decision bauh descartado" "$APP" 'bauh'
 chkg "append decision Discover sin AUR" "$APP" 'Discover'
@@ -60,11 +69,16 @@ chkg "pamac EnableFlatpak=true" "$PAMC" '^EnableFlatpak=true'
 chkg "pamac EnableAUR=true" "$PAMC" '^EnableAUR=true'
 chkg "pamac nota Task5 fusion /etc/pamac.conf" "$PAMC" 'pamac\.conf'
 
-# --- hyprland.conf: import + 3 exec-once USB (verbatim brief) -----------------------
+# --- hyprland.conf: import + 2 exec-once USB (polkit + udiskie; MacBar notifs) ---
 chkg "hyprland importa 10-shortcuts.conf" "$HYPR" 'source[[:space:]]*=.*10-shortcuts\.conf'
 chkg "exec-once polkit-gnome agent" "$HYPR" 'exec-once[[:space:]]*=[[:space:]]*/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1'
 chkg "exec-once udiskie automount" "$HYPR" 'exec-once[[:space:]]*=[[:space:]]*udiskie --automount --notify --smart-tray'
-chkg "exec-once swaynotificationcenter" "$HYPR" 'exec-once[[:space:]]*=[[:space:]]*swaynotificationcenter'
+chkg "hyprland nota MacBar daemon notifs + udiskie usa MacBar" "$HYPR" 'MacBar.*(daemon|Notifications)|udiskie --notify usa MacBar'
+if grep -qE '^[[:space:]]*exec-once[[:space:]]*=[[:space:]]*swaynotificationcenter' "$HYPR" 2>/dev/null; then
+  bad "hyprland SIN exec-once swaynotificationcenter (MacBar posee Notifications)"
+else
+  ok "hyprland SIN exec-once swaynotificationcenter (MacBar posee Notifications)"
+fi
 chkg "hyprland conserva exec-once macshell" "$HYPR" 'exec-once[[:space:]]*=[[:space:]]*macshell'
 chkg "hyprland conserva ref Task1 comentada" "$HYPR" '10-shortcuts\.conf.*doble-disparo|canonica ACTIVA'
 
@@ -78,14 +92,14 @@ else
   bad "shortcuts fallback cyclenext comentado"
 fi
 
-# --- Cero binds CTRL (brief step 3, verbatim) ------------------------------------------
-if grep -E 'bind.*CTRL.*(C|V|X|Z|S|A|F|P)' "$HYPRDIR"/*.conf >/dev/null 2>&1; then
+# --- Cero binds CTRL (brief step 3, case-insensitive ctrl/CTRL) -----------------------
+if grep -iE 'bind.*ctrl.*(C|V|X|Z|S|A|F|P)' "$HYPRDIR"/*.conf >/dev/null 2>&1; then
   bad "cero binds Ctrl (Ctrl+C/V/X/Z/S/A/F/P intactos)"
 else
   ok "cero binds Ctrl (Ctrl+C/V/X/Z/S/A/F/P intactos)"
 fi
-# Refuerzo: ningun bind CTRL-* activo (sin comentar) en ningun .conf.
-if grep -hE '^[[:space:]]*bind[^#=]*=[^#]*CTRL' "$HYPRDIR"/*.conf >/dev/null 2>&1; then
+# Refuerzo: ningun bind CTRL-* activo (sin comentar) en ningun .conf (case-insensitive).
+if grep -hiE '^[[:space:]]*bind[^#=]*=[^#]*ctrl' "$HYPRDIR"/*.conf >/dev/null 2>&1; then
   bad "ningun bind CTRL-* activo en hypr/*.conf"
 else
   ok "ningun bind CTRL-* activo en hypr/*.conf"

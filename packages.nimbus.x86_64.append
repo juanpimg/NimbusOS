@@ -92,10 +92,14 @@ archlinux-appstream-data
 flatpak
 xdg-desktop-portal
 xdg-desktop-portal-hyprland
+# NOTA: base-devel es metagrupo; Task5 debe expandir el grupo (archiso lo expande).
 base-devel
 git
 polkit-gnome
-# --- USB plug&play (udiskie --automount --notify --smart-tray) + notifs ---
+# --- USB plug&play (udiskie --automount --notify --smart-tray) ---
+# Notificaciones via MacBar (Task1: posee org.freedesktop.Notifications).
+# swaynotificationcenter solo opcional (NO default, no descomentar sin quitar MacBar):
+# swaynotificationcenter
 udisks2
 udiskie
 gvfs
@@ -104,5 +108,8 @@ ntfs-3g
 exfatprogs
 dosfstools
 mtools
-swaynotificationcenter
 nautilus
+# --- AUR ---
+# hyprshell (switcher preview ALT+TAB): https://github.com/H3rmt/hyprshell
+# Fallback si no disponible: cyclenext comentado en 10-shortcuts.conf (built-in, sin paquete).
+hyprshell
