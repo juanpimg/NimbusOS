@@ -4,6 +4,8 @@
 # MacOS-Like (recomendado upstream, https://github.com/Scrimas/MacOS-Like,
 # instalación manual en Task 5) o Papirus (paquete papirus-icon-theme).
 QS_ICON_THEME=WhiteSur
+# NOTA coherencia: duplicado en hypr/hyprland.conf (env = QS_ICON_THEME,...);
+# mantener ambos iguales — verify-macshell.sh comprueba que coincidan.
 #QS_ICON_THEME=MacOS-Like
 #QS_ICON_THEME=Papirus
 # Fallbacks GPU antigua (descomentar si glass entrecortado):

@@ -11,7 +11,7 @@
 -- Quitar otras barras/docks/daemons de notificaciones antes (waybar,
 -- hyprpanel, ags, dunst, mako, swaync): MacBar posee Notifications.
 hl.on("hyprland.start", function()
-    hl.exec_cmd("sh ~/.local/bin/macshell-start")
+    hl.exec_cmd("sh $HOME/.local/bin/macshell-start")
 end)
 
 -- Layer rules: blur para las superficies Liquid Glass.

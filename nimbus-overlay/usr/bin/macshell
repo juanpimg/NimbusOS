@@ -8,5 +8,6 @@
 if [ -x "$HOME/.local/bin/macshell-start" ]; then
     exec sh "$HOME/.local/bin/macshell-start" "$@"
 else
+    command -v qs >/dev/null 2>&1 || { echo "macshell: falta quickshell (qs no encontrado)" >&2; exit 127; }
     exec qs -c MacShell "$@"
 fi

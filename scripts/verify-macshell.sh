@@ -6,7 +6,10 @@
 # SKIP si hyprland no esta instalado (p. ej. host de desarrollo).
 set -u
 ROOT="${1:-$(cd "$(dirname "$0")/.." && pwd)}"
-[ "${1:-}" = "--root" ] && ROOT="$2"
+if [ "${1:-}" = "--root" ]; then
+  ROOT="${2:-}"
+  [ -n "$ROOT" ] || { echo "Uso: $0 [--root DIR]" >&2; exit 2; }
+fi
 HYPR="$ROOT/nimbus-overlay/etc/skel/.config/hypr/hyprland.conf"
 LUA="$ROOT/nimbus-overlay/etc/skel/.config/hypr/macshell.lua"
 WRAP="$ROOT/nimbus-overlay/usr/bin/macshell"
@@ -68,13 +71,32 @@ if grep -qE 'CTRL \+' "$LUA"; then bad "lua: sin binds CTRL"; else ok "lua: sin 
 # --- wrapper + env --------------------------------------------------------------
 chkg "wrapper prefiere macshell-start" "$WRAP" 'macshell-start'
 chkg "wrapper fallback qs -c MacShell" "$WRAP" 'qs -c MacShell'
+chkg "wrapper guarda qs ausente (exit 127)" "$WRAP" 'command -v qs'
 chkg "env QS_ICON_THEME" "$ENVF" '^QS_ICON_THEME='
+# Coherencia QS_ICON_THEME entre hyprland.conf y macshell/env (mismo valor).
+HYPR_ICON="$(grep -oE 'env[[:space:]]*=[[:space:]]*QS_ICON_THEME,[^[:space:]]+' "$HYPR" 2>/dev/null | sed 's/.*,//' | head -n1)"
+ENV_ICON="$(grep -E '^QS_ICON_THEME=' "$ENVF" 2>/dev/null | cut -d= -f2 | head -n1)"
+if [ -n "${HYPR_ICON:-}" ] && [ "$HYPR_ICON" = "$ENV_ICON" ]; then
+  ok "QS_ICON_THEME coherente hyprland.conf/env ($HYPR_ICON)"
+else
+  bad "QS_ICON_THEME coherente hyprland.conf/env (conf='${HYPR_ICON:-?}' env='${ENV_ICON:-?}')"
+fi
 
 # --- settings.json valido + wallpaperPath fijo ----------------------------------
 if python3 -c "import json;d=json.load(open('$MDOCK'));assert d.get('wallpaperPath','').startswith('/usr/share/backgrounds/nimbus/'), 'wallpaperPath'" 2>/dev/null; then
   ok "settings.json valido + wallpaperPath fijo"
 else
   bad "settings.json valido + wallpaperPath fijo"
+fi
+
+# NOTA Task 5: debe proveer /usr/share/backgrounds/nimbus/sequoia-light.jpg
+# (canonico en hyprpaper.conf + macdock settings.json). Sin el fichero real,
+# hyprpaper `preload` falla al arrancar: no es FAIL de Task 1, es SKIP.
+WP_REL="usr/share/backgrounds/nimbus/sequoia-light.jpg"
+if [ -f "$OVL/$WP_REL" ] || [ -f "/$WP_REL" ]; then
+  ok "wallpaper canonico provisionado"
+else
+  skip "wallpaper canonico no provisionado (Task 5 debe proveer /$WP_REL)"
 fi
 
 # --- Desconflictos: ningun shell/bar/daemon rival en el overlay -----------------
