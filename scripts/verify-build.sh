@@ -36,6 +36,10 @@ chkg "pin UPSTREAM_COMMIT default" "$ROOT/build_iso.sh" 'UPSTREAM_COMMIT.*321549
 chkg "get_upstream fetch+reset pin" "$ROOT/build_iso.sh" 'reset --hard "\$UPSTREAM_COMMIT"'
 chkg "apply_overlay cp -a (preserva symlinks)" "$ROOT/build_iso.sh" 'cp -a'
 chkg "apply_overlay filtra comentarios antes de concat" "$ROOT/build_iso.sh" "grep -vE.*APPEND.*grep -vxFf"
+chkg "apply_overlay genera packages.x86_64 (cp desktop)" "$ROOT/build_iso.sh" 'packages_desktop.x86_64.*packages.x86_64'
+chkg "apply_overlay exige syslinux en packages.x86_64" "$ROOT/build_iso.sh" 'syslinux'
+chkg "apply_overlay idempotente (restaura desktop desde git)" "$ROOT/build_iso.sh" 'checkout --.*packages_desktop'
+chkg "iso_name sed solo si aun cachyos" "$ROOT/build_iso.sh" 'iso_name="cachyos"'
 chkg "file_permissions anclado a bloque" "$ROOT/build_iso.sh" 'file_permissions=\('
 chkg "sin sudo redundante ante mkarchiso" "$ROOT/build_iso.sh" '^mkarchiso -v'
 

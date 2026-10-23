@@ -205,13 +205,23 @@ mkdir -p "$OUTDIR"
 grep -vE '^\s*#|^\s*$' "$APPEND" | sort -u > "$WORKDIR/append.pkgs"
 grep -vE '^\s*#|^\s*$' "$PROFILE_DIR/packages_desktop.x86_64" | sort -u > "$WORKDIR/upstream.pkgs"
 comm -12 "$WORKDIR/append.pkgs" "$WORKDIR/upstream.pkgs" > "$OUTDIR/skipped-dupes.txt" || true
-# Solo paquetes (sin comentarios/vacias), deduplicados contra upstream:
+# Solo paquetes (sin comentarios/vacias), deduplicados contra upstream.
+# Idempotencia ante re-run: get_upstream ya hizo reset --hard $UPSTREAM_COMMIT
+# antes de apply, asi que packages_desktop.x86_64 esta limpio. Si aun asi el
+# marcador Nimbus ya esta presente (re-run sin get_upstream), restaurar desde
+# git antes de concatenar para no duplicar el append:
+if grep -q '# --- Task' "$PROFILE_DIR/packages_desktop.x86_64"; then
+    git -C "$UPSTREAM_DIR" checkout -- archiso/packages_desktop.x86_64
+fi
 grep -vE '^\s*#|^\s*$' "$APPEND" | grep -vxFf "$WORKDIR/upstream.pkgs" \
     >> "$PROFILE_DIR/packages_desktop.x86_64"
 echo "apply_overlay: solape upstream filtrado (ver $OUTDIR/skipped-dupes.txt)"
-# 5c. Renombrar ISO + inyectar file_permissions (delta profiledef.nimbus.inc):
-sed -i -E 's/^iso_name="cachyos"/iso_name="nimbus"/' "$PROFILE_DIR/profiledef.sh"
+# 5c. Renombrar ISO + inyectar file_permissions (delta profiledef.nimbus.inc).
+# Idempotente: sed solo si aun dice cachyos:
+grep -q '^iso_name="cachyos"' "$PROFILE_DIR/profiledef.sh" \
+    && sed -i -E 's/^iso_name="cachyos"/iso_name="nimbus"/' "$PROFILE_DIR/profiledef.sh"
 grep -q '^iso_name="nimbus"' "$PROFILE_DIR/profiledef.sh" || fail "renombrado iso_name fallo"
+if ! grep -q '"/usr/bin/macshell"' "$PROFILE_DIR/profiledef.sh"; then
 python3 - "$PROFILE_DIR/profiledef.sh" <<'EOF'
 import re, sys
 path = sys.argv[1]
@@ -236,7 +246,15 @@ assert '/usr/bin/macshell' in blk and '/usr/bin/nimbus-live-setup' in blk
 open(path, 'w').write(new)
 print("profiledef.sh: file_permissions Nimbus inyectados (bloque anclado)")
 EOF
+fi
 bash -n "$PROFILE_DIR/profiledef.sh" || fail "profiledef.sh roto tras parche"
+# 5d. mkarchiso lee packages.x86_64 (no packages_desktop.x86_64): el perfil
+# upstream solo trae packages_desktop.x86_64 y su util-iso.sh prepare_profile
+# hace cp packages_desktop.x86_64 -> packages.x86_64 antes de buildear.
+# Sin este cp la lista queda vacia y falla con syslinux missing:
+cp "$PROFILE_DIR/packages_desktop.x86_64" "$PROFILE_DIR/packages.x86_64"
+[ -f "$PROFILE_DIR/packages.x86_64" ] || fail "no se genero packages.x86_64"
+grep -q '^syslinux$' "$PROFILE_DIR/packages.x86_64" || fail "packages.x86_64 sin syslinux (lista incompleta)"
 echo "apply_overlay OK"
 
 # --- Paso 6: build ------------------------------------------------------------
