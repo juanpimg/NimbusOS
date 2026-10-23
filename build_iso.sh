@@ -180,12 +180,12 @@ if [ "$CHECK_ONLY" = "1" ]; then
     # packages_desktop.x86_64):
     TMPD="$(mktemp -d)"
     printf 'mesa\nntfs-3g\n# upstream comment\n\nlinux-cachyos\n' > "$TMPD/upstream.pkgs"
-    printf 'whitesur-gtk-theme\nwhitesur-icon-theme\npamac-gtk\nlibpamac-flatpak-plugin\nhyprshell\n' > "$TMPD/aur-skip.pkgs"
+    printf 'whitesur-gtk-theme\nwhitesur-icon-theme\npamac-aur\nhyprshell\n' > "$TMPD/aur-skip.pkgs"
     grep -vE '^\s*#|^\s*$' "$APPEND" | grep -vxFf "$TMPD/upstream.pkgs" | grep -vxFf "$TMPD/aur-skip.pkgs" > "$TMPD/merged.pkgs"
     grep -qE '^\s*#' "$TMPD/merged.pkgs" && { rm -rf "$TMPD"; fail "fusion simulada deja comentarios"; }
     grep -qE '^\s*$' "$TMPD/merged.pkgs" && { rm -rf "$TMPD"; fail "fusion simulada deja lineas vacias"; }
-    # AUR defer: las 5 no deben llegar a pacstrap; paru (cachyos/oficial) si:
-    for _aur in whitesur-gtk-theme whitesur-icon-theme pamac-gtk libpamac-flatpak-plugin hyprshell; do
+    # AUR defer: las 4 no deben llegar a pacstrap; paru (cachyos/oficial) si:
+    for _aur in whitesur-gtk-theme whitesur-icon-theme pamac-aur hyprshell; do
         grep -qx "$_aur" "$TMPD/merged.pkgs" && { rm -rf "$TMPD"; fail "fusion simulada deja AUR $_aur (debe ir a skipped-aur)"; }
     done
     grep -qx 'paru' "$TMPD/merged.pkgs" || { rm -rf "$TMPD"; fail "fusion simulada filtra paru (es cachyos/oficial, debe quedar)"; }
@@ -238,14 +238,15 @@ grep -vE '^\s*#|^\s*$' "$APPEND" | sort -u > "$WORKDIR/append.pkgs"
 grep -vE '^\s*#|^\s*$' "$PROFILE_DIR/packages_desktop.x86_64" | sort -u > "$WORKDIR/upstream.pkgs"
 comm -12 "$WORKDIR/append.pkgs" "$WORKDIR/upstream.pkgs" > "$OUTDIR/skipped-dupes.txt" || true
 # AUR defer (mkarchiso/pacstrap solo repos oficiales; pacman.conf sin repos
-# propios): estas 5 NO estan en repos (audit pacman -Si) y se instalan en
-# primer arranque live via paru. Se filtran de pacstrap y se registran en
-# out/skipped-aur.txt. paru SI es cachyos/oficial y debe quedar en pacstrap.
+# propios): estas 4 NO estan en repos (audit AUR RPC v5 2026-10-23) y se
+# instalan en primer arranque live via paru. Se filtran de pacstrap y se
+# registran en out/skipped-aur.txt. paru SI es cachyos/oficial y debe quedar
+# en pacstrap.
 AUR_LIST="$WORKDIR/aur-skip.pkgs"
 if [ -f "$REPO_ROOT/packages.nimbus-aur.txt" ]; then
     grep -vE '^\s*#|^\s*$' "$REPO_ROOT/packages.nimbus-aur.txt" | sort -u > "$AUR_LIST"
 else
-    printf 'whitesur-gtk-theme\nwhitesur-icon-theme\npamac-gtk\nlibpamac-flatpak-plugin\nhyprshell\n' > "$AUR_LIST"
+    printf 'whitesur-gtk-theme\nwhitesur-icon-theme\npamac-aur\nhyprshell\n' > "$AUR_LIST"
 fi
 grep -xFf "$AUR_LIST" "$WORKDIR/append.pkgs" > "$OUTDIR/skipped-aur.txt" || true
 # Solo paquetes (sin comentarios/vacias), deduplicados contra upstream y sin AUR.

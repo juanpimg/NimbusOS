@@ -2,30 +2,51 @@
 # NimbusOS — nimbus-live-setup (post-install / primer arranque live)
 # Fusiona la capa Task 3 (nimbus.conf) en /etc/pamac.conf — pamac no lee
 # conf.d de forma nativa — y deja el live/instalado listo:
-#   1. flags EnableFlatpak/EnableAUR en /etc/pamac.conf (idempotente)
+#   1. flags EnableFlatpak/EnableAUR en /etc/pamac.conf (idempotente; si el
+#      fichero no existe —pamac aun no instalado en el live— se crea minimo)
 #   2. flatpak remote-add --if-not-exists flathub (solo si flatpak existe)
 #   3. mask power-profiles-daemon (Task 2: auto-cpufreq es el gestor canonico;
 #      PPD y auto-cpufreq en conflicto romperian el escalado en laptop)
 #   4. enable auto-cpufreq + thermald (si estan instalados y hay systemd)
-#   5. AUR defer (Task5): instala las 5 AUR fuera de pacstrap via paru
+#   5. AUR defer (Task5): instala las 4 AUR fuera de pacstrap via paru
 #      (manifest usr/share/nimbus/packages.nimbus-aur.txt; best-effort con
-#      red, sin reinstalar si ya presentes, exit 0 siempre).
+#      red, sin reinstalar si ya presentes, exit 0 siempre). makepkg prohibe
+#      compilar como root: se ejecuta como el usuario live (uid 1000, o
+#      liveuser) via runuser; sin usuario no-root se salta el paso.
+#   6. marker /var/lib/nimbus/live-setup.done cuando todo el manifest esta
+#      instalado (fast-path en proximos arranques: exit 0 rapido).
 # Uso: como root en %post de calamares, o via nimbus-live-setup.service.
-# Idempotente: seguro re-ejecutar. Devuelve 0 aunque flatpak/systemd/red
-# falten (entorno live minimo); solo falla (1) si no es root o falta
-# /etc/pamac.conf.
+# Idempotente: seguro re-ejecutar. Devuelve 0 aunque falten
+# flatpak/systemd/red/pamac.conf (entorno live minimo); solo falla (1) si
+# no es root.
 set -u
 
 PAMAC_CONF="${PAMAC_CONF:-/etc/pamac.conf}"
 AUR_MANIFEST="${AUR_MANIFEST:-/usr/share/nimbus/packages.nimbus-aur.txt}"
 LIVE_LOG="${LIVE_LOG:-/var/log/nimbus-live-setup.log}"
+MARKER="${MARKER:-/var/lib/nimbus/live-setup.done}"
 FLATHUB_URL="https://dl.flathub.org/repo/flathub.flatpakrepo"
 
 log() { echo "nimbus-live-setup: $1"; echo "$(date -u +%FT%TZ) $1" >> "$LIVE_LOG" 2>/dev/null || true; }
 die() { echo "nimbus-live-setup: ERROR: $1" >&2; exit 1; }
 
 [ "$(id -u)" = "0" ] || die "requiere root"
-[ -f "$PAMAC_CONF" ] || die "falta $PAMAC_CONF (instala pamac-gtk primero)"
+
+# --- 0. Fast-path: marker + manifest completo → nada que hacer ---------------
+all_installed() {
+    [ -f "$AUR_MANIFEST" ] || return 1
+    _chk=""
+    while IFS= read -r _chk || [ -n "$_chk" ]; do
+        case "$_chk" in ''|\#*) continue ;; esac
+        pacman -Q "$_chk" >/dev/null 2>&1 || return 1
+    done < "$AUR_MANIFEST"
+    unset _chk
+    return 0
+}
+if [ -f "$MARKER" ] && all_installed; then
+    log "marker presente y AUR completos, nada que hacer"
+    exit 0
+fi
 
 # --- 1. Fusionar flags Task 3 en /etc/pamac.conf ------------------------------
 merge_flag() {
@@ -36,9 +57,17 @@ merge_flag() {
         printf '%s=%s\n' "$key" "$val" >> "$PAMAC_CONF"
     fi
 }
-merge_flag "EnableFlatpak" "true"
-merge_flag "EnableAUR" "true"
-log "flags EnableFlatpak/EnableAUR fusionados en $PAMAC_CONF"
+if [ -f "$PAMAC_CONF" ]; then
+    merge_flag "EnableFlatpak" "true"
+    merge_flag "EnableAUR" "true"
+    log "flags EnableFlatpak/EnableAUR fusionados en $PAMAC_CONF"
+else
+    {
+        echo "# NimbusOS — creado por nimbus-live-setup (pamac aun ausente en live)"
+        printf '%s\n' "EnableFlatpak=true" "EnableAUR=true"
+    } > "$PAMAC_CONF"
+    log "creado $PAMAC_CONF minimo con EnableFlatpak/EnableAUR"
+fi
 
 # --- 2. Flathub (solo si flatpak existe) --------------------------------------
 if command -v flatpak >/dev/null 2>&1; then
@@ -67,27 +96,43 @@ else
     log "AVISO: sin systemctl (chroot sin systemd?), salto servicios"
 fi
 
-# --- 5. AUR defer via paru (best-effort, nunca bloquea boot) ------------------
-# mkarchiso/pacstrap solo resuelve repos oficiales; las 5 AUR del manifest se
-# instalan aqui en el live. Guards: solo si hay red, no reinstalar si ya
-# presente (`paru -Q`), log a $LIVE_LOG, exit 0 siempre.
+# --- 5. AUR defer via paru (best-effort, nunca como root) ---------------------
+# mkarchiso/pacstrap solo resuelve repos oficiales; las 4 AUR del manifest se
+# instalan aqui en el live. makepkg prohibe compilar como root: se corre paru
+# como el usuario live via runuser. Guards: solo si hay red, no reinstalar si
+# ya presente (`pacman -Q`, chequeable como root), log a $LIVE_LOG, exit 0
+# siempre.
 if command -v paru >/dev/null 2>&1; then
     if [ -f "$AUR_MANIFEST" ]; then
         if getent hosts aur.archlinux.org >/dev/null 2>&1 || ping -c1 -W3 8.8.8.8 >/dev/null 2>&1; then
             _todo=""
             while IFS= read -r _p || [ -n "$_p" ]; do
                 case "$_p" in ''|\#*) continue ;; esac
-                if paru -Q "$_p" >/dev/null 2>&1; then
+                if pacman -Q "$_p" >/dev/null 2>&1; then
                     log "AUR $_p ya instalado, salto"
                 else
                     _todo="$_todo $_p"
                 fi
             done < "$AUR_MANIFEST"
             if [ -n "$_todo" ]; then
-                # shellcheck disable=SC2086
-                paru -S --needed --noconfirm $_todo >> "$LIVE_LOG" 2>&1 \
-                    && log "AUR instalados:$_todo" \
-                    || log "AVISO: paru no pudo instalar$_todo (reintentar con red)"
+                _u="$(getent passwd 1000 | cut -d: -f1)"
+                if [ -z "$_u" ] && [ -d /home/liveuser ]; then _u="liveuser"; fi
+                if [ -z "$_u" ] || ! getent passwd "$_u" >/dev/null 2>&1; then
+                    log "AVISO: sin usuario no-root, salto instalacion AUR (paru no corre como root)"
+                elif ! command -v runuser >/dev/null 2>&1; then
+                    log "AVISO: sin runuser, salto instalacion AUR (paru no corre como root)"
+                else
+                    _home="$(getent passwd "$_u" | cut -d: -f6)"
+                    if [ -z "$_home" ] || [ ! -d "$_home" ]; then _home="/home/$_u"; fi
+                    # shellcheck disable=SC2086
+                    if ( cd "$_home" 2>/dev/null && runuser -u "$_u" -- env HOME="$_home" paru -S --needed --noconfirm $_todo >> "$LIVE_LOG" 2>&1 ); then
+                        log "AUR instalados:$_todo"
+                    else
+                        log "AVISO: paru no pudo instalar$_todo (reintentar con red)"
+                    fi
+                    unset _home
+                fi
+                unset _u
             else
                 log "AUR: todo ya instalado, nada que hacer"
             fi
@@ -100,6 +145,15 @@ if command -v paru >/dev/null 2>&1; then
     fi
 else
     log "AVISO: paru no instalado, salto AUR"
+fi
+
+# --- 6. Marker: solo si todo el manifest esta instalado -----------------------
+if all_installed; then
+    mkdir -p "$(dirname "$MARKER")" && touch "$MARKER" \
+        && log "marker $MARKER" \
+        || log "AVISO: no se pudo crear $MARKER"
+else
+    log "AVISO: AUR incompletos, sin marker (reintentar proximo arranque)"
 fi
 
 log "listo"

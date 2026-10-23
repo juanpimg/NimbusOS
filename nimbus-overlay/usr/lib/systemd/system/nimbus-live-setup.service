@@ -1,22 +1,21 @@
 # NimbusOS — nimbus-live-setup.service
 # One-shot en el primer arranque del live: ejecuta /usr/bin/nimbus-live-setup
-# (fusion pamac.conf + flathub + mask PPD + enable auto-cpufreq/thermald).
-# El script es idempotente; ConditionPathExists evita re-ejecutar si calamares
-# %post ya lo aplico (marker en /var/lib/nimbus/).
+# (fusion pamac.conf + flathub + mask PPD + enable auto-cpufreq/thermald +
+# AUR via paru como usuario live + marker en /var/lib/nimbus/).
+# El script es idempotente y gestiona el marker: si ya esta hecho, exit 0
+# rapido; si quedo incompleto (sin red), reintenta en cada arranque.
 [Unit]
-Description=NimbusOS live first-boot setup (pamac+flathub+power)
+Description=NimbusOS live first-boot setup (pamac+flathub+power+AUR)
 # M4: After=network.target (no network-online.target): evita stall de
 #   90s si la red del live tarda; el script ya es best-effort (exit 0
 #   aunque falte red/flatpak/systemd). Se mantiene
 #   Wants=network-online.target como intento oportunista, sin orden duro.
 After=network.target
 Wants=network-online.target
-ConditionPathExists=!/var/lib/nimbus/live-setup.done
 
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/nimbus-live-setup
-ExecStartPost=/bin/sh -c 'mkdir -p /var/lib/nimbus && touch /var/lib/nimbus/live-setup.done'
 RemainAfterExit=no
 
 [Install]

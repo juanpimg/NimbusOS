@@ -69,7 +69,13 @@ fi
 if bash -n "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 2>/dev/null; then ok "bash -n nimbus-live-setup"; else bad "bash -n nimbus-live-setup"; fi
 chkg "live-setup flatpak remote-add flathub" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'flatpak remote-add --if-not-exists flathub'
 chkg "live-setup invoca paru (AUR defer)" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'paru -S --needed --noconfirm'
-chkg "live-setup no reinstala (paru -Q)" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'paru -Q'
+chkg "live-setup no reinstala (pacman -Q como root)" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'pacman -Q'
+chkg "live-setup AUR como usuario live (runuser, nunca root)" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'runuser -u'
+chkg "live-setup crea pamac.conf minimo si falta" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'creado \$PAMAC_CONF minimo'
+chkg "live-setup marker live-setup.done" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'live-setup.done'
+if grep -qE 'die.*pamac\.conf|die.*PAMAC_CONF' "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 2>/dev/null; then bad "live-setup sin die por pamac.conf ausente"; else ok "live-setup sin die por pamac.conf ausente"; fi
+if grep -qE '^ConditionPathExists=' "$ROOT/nimbus-overlay/usr/lib/systemd/system/nimbus-live-setup.service" 2>/dev/null; then bad "unit sin ConditionPathExists (el script gestiona el marker)"; else ok "unit sin ConditionPathExists (el script gestiona el marker)"; fi
+if grep -qE '^ExecStartPost=' "$ROOT/nimbus-overlay/usr/lib/systemd/system/nimbus-live-setup.service" 2>/dev/null; then bad "unit sin ExecStartPost (el script gestiona el marker)"; else ok "unit sin ExecStartPost (el script gestiona el marker)"; fi
 chkg "live-setup log + exit 0" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'nimbus-live-setup.log'
 chkg "live-setup lee manifest AUR" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'packages.nimbus-aur.txt'
 chkg "live-setup mask power-profiles-daemon" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'mask power-profiles-daemon'
@@ -129,7 +135,7 @@ fi
 if [ -f "$APP" ]; then
     TMPSIM="$(mktemp -d)"
     printf 'mesa\nntfs-3g\nlinux-cachyos\n' > "$TMPSIM/upstream.txt"
-    printf 'whitesur-gtk-theme\nwhitesur-icon-theme\npamac-gtk\nlibpamac-flatpak-plugin\nhyprshell\n' > "$TMPSIM/aur.txt"
+    printf 'whitesur-gtk-theme\nwhitesur-icon-theme\npamac-aur\nhyprshell\n' > "$TMPSIM/aur.txt"
     grep -vE '^\s*#|^\s*$' "$APP" | grep -vxFf "$TMPSIM/upstream.txt" > "$TMPSIM/predup.txt" || true
     grep -xFf "$TMPSIM/aur.txt" "$TMPSIM/predup.txt" > "$TMPSIM/skipped-aur.txt" || true
     grep -vxFf "$TMPSIM/aur.txt" "$TMPSIM/predup.txt" > "$TMPSIM/merged.txt" || true
@@ -138,7 +144,7 @@ if [ -f "$APP" ]; then
     else
         ok "fusion simulada sin lineas '# Nimbus'"
     fi
-    for _a in whitesur-gtk-theme whitesur-icon-theme pamac-gtk libpamac-flatpak-plugin hyprshell; do
+    for _a in whitesur-gtk-theme whitesur-icon-theme pamac-aur hyprshell; do
         if grep -qx "$_a" "$TMPSIM/merged.txt" 2>/dev/null; then bad "packages.x86_64 sin AUR $_a"; else ok "packages.x86_64 sin AUR $_a"; fi
     done
     if grep -qx 'paru' "$TMPSIM/merged.txt" 2>/dev/null; then ok "packages.x86_64 con paru (cachyos/oficial)"; else bad "packages.x86_64 con paru (cachyos/oficial)"; fi
@@ -149,8 +155,14 @@ fi
 [ -f "$ROOT/packages.nimbus-aur.txt" ] && ok "existe packages.nimbus-aur.txt" || bad "existe packages.nimbus-aur.txt"
 [ -f "$ROOT/nimbus-overlay/usr/share/nimbus/packages.nimbus-aur.txt" ] && ok "overlay: usr/share/nimbus/packages.nimbus-aur.txt" || bad "overlay: usr/share/nimbus/packages.nimbus-aur.txt"
 if [ -f "$ROOT/packages.nimbus-aur.txt" ]; then
-    for _a in whitesur-gtk-theme whitesur-icon-theme pamac-gtk libpamac-flatpak-plugin hyprshell; do
+    for _a in whitesur-gtk-theme whitesur-icon-theme pamac-aur hyprshell; do
         if grep -qx "$_a" "$ROOT/packages.nimbus-aur.txt" 2>/dev/null; then ok "manifest AUR: $_a"; else bad "manifest AUR: $_a"; fi
+    done
+    if grep -qx 'pamac-aur' "$ROOT/nimbus-overlay/usr/share/nimbus/packages.nimbus-aur.txt" 2>/dev/null; then ok "overlay AUR copia sincronizada (pamac-aur)"; else bad "overlay AUR copia sincronizada (pamac-aur)"; fi
+    if grep -qx 'pamac-gtk' "$ROOT/packages.nimbus-aur.txt" 2>/dev/null; then bad "manifest AUR sin pamac-gtk (no existe en AUR)"; else ok "manifest AUR sin pamac-gtk (no existe en AUR)"; fi
+    if grep -qx 'libpamac-flatpak-plugin' "$ROOT/packages.nimbus-aur.txt" 2>/dev/null; then bad "manifest AUR sin libpamac-flatpak-plugin (no existe en AUR)"; else ok "manifest AUR sin libpamac-flatpak-plugin (no existe en AUR)"; fi
+    for _b in vala meson cargo; do
+        if grep -qx "$_b" "$APP" 2>/dev/null; then ok "append build-deps AUR: $_b"; else bad "append build-deps AUR: $_b"; fi
     done
     chkg "build filtra AUR a skipped-aur.txt" "$ROOT/build_iso.sh" 'skipped-aur'
     chkg "build excluye AUR de pacstrap (aur-skip)" "$ROOT/build_iso.sh" 'aur-skip'

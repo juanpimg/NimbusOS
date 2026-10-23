@@ -97,3 +97,43 @@ con guards) los 5 a `$AIROOTFS/usr/share/nimbus/staging/`; copia
 
 **Verificación:** `bash -n` OK (build_iso, customize, verify),
 `--check-only` PASS, `verify-build.sh` → PASS=103 FAIL=0. Commit `nimbusos`.
+
+## Fix live-setup AUR real (2026-10-23)
+
+**Root cause (verificado AUR RPC v5, no reinvestigar):** `pamac-gtk` y
+`libpamac-flatpak-plugin` NO existen en AUR; el paquete real es `pamac-aur`
+(meson+vala, dep `libpamac-aur` auto). El script moria en
+`[ -f /etc/pamac.conf ] || die` (pamac ausente en live → conf ausente →
+exit 1 → FAILED) y corria `paru -S` como root (makepkg prohibe compilar
+como root).
+
+**Fix:**
+- `packages.nimbus-aur.txt` (+ copia overlay): `pamac-gtk` y
+  `libpamac-flatpak-plugin` → `pamac-aur`; comentario libpamac-aur como dep.
+- `packages.nimbus.x86_64.append`: seccion Task5 build-deps AUR (vala meson
+  ninja gobject-introspection itstool asciidoc xorgproto gettext sassc gtk3
+  gtk4 gtk4-layer-shell libadwaita libhandy desktop-file-utils cargo; todas
+  extra/oficiales, el filtro dedupica solo).
+- `nimbus-live-setup`: paso 1 crea `/etc/pamac.conf` minimo si falta (no
+  die); paso 5 detecta usuario live (uid 1000, fallback liveuser), salta sin
+  usuario no-root, ejecuta paru via `runuser -u $_u -- env HOME=...`
+  desde su HOME; marker solo si todo el manifest instalado (`pacman -Q`),
+  fast-path exit 0 si marker + completo.
+- Unit: sin `ConditionPathExists=` ni `ExecStartPost=` (el script gestiona
+  el marker; re-ejecucion barata).
+- `verify-build.sh`: checks manifest pamac-aur/sin pamac-gtk, append
+  vala/meson/cargo, script runuser/sin die pamac.conf, unit sin
+  ConditionPathExists/ExecStartPost.
+- `nimbus-overlay/etc/pamac.conf.d/nimbus.conf`: NO tocado (documenta
+  flags; el script fusiona).
+
+**Nota (fuera de alcance):** el append Task3 aun lista `pamac-gtk` y
+`libpamac-flatpak-plugin` como paquetes `extra` (decision historica
+vinculante + lineas 88-89); esos nombres no existen en repos ni AUR y
+romperian pacstrap si llegan a el — pendiente de Task3, no se toco.
+
+**Verificación:** `bash -n` OK (4 ficheros), `--check-only` PASS,
+`verify-build.sh` → PASS=114 FAIL=0, shellcheck warning OK, sandbox con
+stubs (id/getent/pacman/paru/runuser): crea conf, paru como liveuser con
+HOME correcto, fast-path, salto sin usuario, exit 0 siempre. Commit
+`nimbusos`.

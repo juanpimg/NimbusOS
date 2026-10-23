@@ -1,5 +1,5 @@
 whitesur-gtk-theme
 whitesur-icon-theme
-pamac-gtk
-libpamac-flatpak-plugin
+pamac-aur
 hyprshell
+# libpamac-aur viene como dependencia de pamac-aur (no listar aparte)
