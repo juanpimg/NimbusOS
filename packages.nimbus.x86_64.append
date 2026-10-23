@@ -1,0 +1,38 @@
+# =============================================================================
+# NimbusOS — packages.nimbus.x86_64.append
+# Se concatena a packages_desktop.x86_64 del perfil CachyOS-Live-ISO (Task 5).
+# REGLA: solo añadir lineas/secciones. No borrar ni reordenar (Task 2 anade
+# power/drivers, Task 3 tienda/USB; Task 5 fusiona y valida duplicados).
+# Repos: solo oficiales CachyOS + Arch (extra/cachyos). AUR/chaotic marcados.
+# =============================================================================
+
+# --- Task 1 (2026-10-23): macshell + theming global macOS ---------------------
+# Shell (verificados 2026-10-23: hyprland 0.56.2 >= 0.55, quickshell 0.3.2,
+# Qt 6.12 >= 6.8, todo en extra/cachyos):
+hyprland
+hyprlock
+quickshell
+qt6-base
+qt6-declarative
+qt6-wayland
+qt6-svg
+qt6-shadertools
+hyprpaper
+kitty
+# Theming repo-nativo (extra): Inter + Noto, Papirus (fallback), capitaine
+# (cursor estilo macOS; WhiteSur-cursors no tiene paquete repo-nativo):
+inter-font
+noto-fonts
+noto-fonts-emoji
+papirus-icon-theme
+capitaine-cursors
+# Utilidades que MacShell usa (Spotlight clipboard/emoji, screenshots,
+# notificaciones via libnotify); todas en extra:
+wl-clipboard
+cliphist
+grim
+slurp
+libnotify
+# --- AUR/chaotic-AUR (los instala Task 5 via helper; verificados 2026-10-23):
+whitesur-gtk-theme
+whitesur-icon-theme

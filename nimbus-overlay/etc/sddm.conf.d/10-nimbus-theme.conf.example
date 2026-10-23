@@ -1,0 +1,9 @@
+# NimbusOS — SDDM estilo macOS (INACTIVO: ejemplo para Task 5)
+# Copiar a 10-nimbus-theme.conf (sin .example) SOLO cuando el tema este
+# instalado en /usr/share/sddm/themes/. Inactivo por defecto para no romper
+# la base CachyOS si el tema auditado (ver ../nimbus/theming/sddm-theme.src)
+# aun no esta presente.
+[Theme]
+#Current=echo-sddm
+#CursorTheme=capitaine-cursors-light
+#Font=Inter

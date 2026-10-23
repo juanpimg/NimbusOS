@@ -1,0 +1,10 @@
+# NimbusOS — pin GRUB theme (PLACEHOLDER, no se aplica en Task 1)
+# Proposito: dejar auditada la URL elegida sin romper la base CachyOS.
+# Elegido: vinceliuice/grub-themes, variante Whitesur (coherente con
+# GTK WhiteSur del sistema).
+UPSTREAM_URL=https://github.com/vinceliuice/grub-themes
+UPSTREAM_REF=master
+THEME_VARIANT=whitesur
+STATUS=placeholder-audited
+# Task 5: clonar, copiar themes/whitesur al overlay GRUB y fijar
+# GRUB_THEME en /etc/default/grub durante el build (no en Task 1).

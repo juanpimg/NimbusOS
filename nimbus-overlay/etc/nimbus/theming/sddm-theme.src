@@ -1,0 +1,11 @@
+# NimbusOS — pin SDDM theme (PLACEHOLDER, no se aplica en Task 1)
+# Auditoria Task 1 (2026-10-23, busqueda GitHub "sddm macos theme"):
+# ganadora xCaptaiN09/echo-sddm (MIT, 29 stars, push 2026-07-25): la mas
+# madura/mantenida de estilo macOS; descartadas redrock (2022, abandonada),
+# exxtnd-sddm-theme / sddm-macos-red-black (4 stars), resto 0 stars.
+UPSTREAM_URL=https://github.com/xCaptaiN09/echo-sddm
+UPSTREAM_REF=master
+STATUS=placeholder-audited
+# Task 5: probar en QEMU; si OK, instalar en /usr/share/sddm/themes/ y
+# activar via sddm.conf.d (el .example de este directorio muestra como).
+# NO activar antes: un Current= inexistente rompe el login.

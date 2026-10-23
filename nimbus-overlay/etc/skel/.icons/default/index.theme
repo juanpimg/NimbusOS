@@ -1,0 +1,6 @@
+[Icon Theme]
+# NimbusOS — cursor por defecto estilo macOS (paquete oficial capitaine-cursors).
+# WhiteSur-cursors (opcional, manual post-instalacion) puede sustituirlo.
+Name = Default
+Comment = NimbusOS default cursor (capitaine light, macOS-like)
+Inherits = capitaine-cursors-light

@@ -1,0 +1,31 @@
+# =============================================================================
+# NimbusOS — iso.manifest (pins reproducibles; Task 5 lo extiende y congela
+# SOURCE_DATE_EPOCH. No borrar secciones: cada Task anade la suya.)
+# =============================================================================
+
+# --- Task 1 (2026-10-23): macshell + theming ----------------------------------
+# Shell (MIT, 246 stars, push verificado 2026-10-23T02:26:59Z via GitHub API):
+#   repo:    https://github.com/0-ss/MacShell
+#   ref:     main @ bef9fc4d20cedd570c1a9a9fb72f548fe4571936 (2026-10-23)
+#   deps:    Quickshell>=0.3.2 (extra: 0.3.2), Qt>=6.8 (extra: 6.12),
+#            Hyprland>=0.55 Lua (cachyos: 0.56.2)
+#   install: install.sh -> ~/.config/quickshell/{MacShell,MacLock},
+#            ~/.local/bin/{macshell-start,macshell-update}; autostart
+#            hyprland.lua (hl.on hyprland.start) o exec-once=macshell (.conf)
+# Iconos recomendados upstream (GPL-3.0, 14 stars, push 2026-09-25):
+#   repo:    https://github.com/Scrimas/MacOS-Like
+#   install: manual post-ISO (sin paquete repo-nativo; lo hace Task 5)
+# GTK (instalacion via AUR/chaotic; WhiteSur-cursors sin paquete verificado):
+#   https://github.com/vinceliuice/WhiteSur-gtk-theme  (MIT, 9369 stars)
+#   https://github.com/vinceliuice/WhiteSur-icon-theme (GPL-3.0, 2102 stars)
+# GRUB (placeholder, fichero .src en nimbus-overlay/etc/nimbus/theming/):
+#   https://github.com/vinceliuice/grub-themes (variante Whitesur)
+# SDDM auditado Task 1 (MIT, 29 stars, push 2026-07-25, el mas maduro
+#   de estilo macOS encontrado 2026-10-23; resto <=16 stars o abandonados):
+#   repo:    https://github.com/xCaptaiN09/echo-sddm (branch master)
+#   estado:  PLACEHOLDER (.example inactivo para no romper base CachyOS;
+#            Task 5 decide inclusion final tras prueba QEMU)
+# Fondos/paleta canonicos (Task 1 define, Task 4 reutiliza):
+#   wallpaper: /usr/share/backgrounds/nimbus/sequoia-light.jpg
+#   paleta:    claro #F5F5F7 / oscuro #1D1D1F / acento #007AFF
+#   fuente:    Inter (extra: inter-font 4.1-1)

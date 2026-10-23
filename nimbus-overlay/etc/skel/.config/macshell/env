@@ -1,0 +1,12 @@
+# NimbusOS — ~/.config/macshell/env (variables propias, las lee macshell-start)
+# El instalador de MacShell crea este fichero con ejemplos comentados.
+# Iconos: WhiteSur (paquete whitesur-icon-theme). Alternativas comentadas:
+# MacOS-Like (recomendado upstream, https://github.com/Scrimas/MacOS-Like,
+# instalación manual en Task 5) o Papirus (paquete papirus-icon-theme).
+QS_ICON_THEME=WhiteSur
+#QS_ICON_THEME=MacOS-Like
+#QS_ICON_THEME=Papirus
+# Fallbacks GPU antigua (descomentar si glass entrecortado):
+#QSG_RHI_BACKEND=opengl
+#QSG_RENDER_LOOP=basic
+#QT_QUICK_BACKEND=software
