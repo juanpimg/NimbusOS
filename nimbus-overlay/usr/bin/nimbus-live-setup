@@ -1,0 +1,65 @@
+#!/bin/sh
+# NimbusOS — nimbus-live-setup (post-install / primer arranque live)
+# Fusiona la capa Task 3 (nimbus.conf) en /etc/pamac.conf — pamac no lee
+# conf.d de forma nativa — y deja el live/instalado listo:
+#   1. flags EnableFlatpak/EnableAUR en /etc/pamac.conf (idempotente)
+#   2. flatpak remote-add --if-not-exists flathub (solo si flatpak existe)
+#   3. mask power-profiles-daemon (Task 2: auto-cpufreq es el gestor canonico;
+#      PPD y auto-cpufreq en conflicto romperian el escalado en laptop)
+#   4. enable auto-cpufreq + thermald (si estan instalados y hay systemd)
+# Uso: como root en %post de calamares, o via nimbus-live-setup.service.
+# Idempotente: seguro re-ejecutar. Devuelve 0 aunque flatpak/systemd falten
+# (entorno live minimo); solo falla (1) si no es root o falta /etc/pamac.conf.
+set -u
+
+PAMAC_CONF="${PAMAC_CONF:-/etc/pamac.conf}"
+FLATHUB_URL="https://dl.flathub.org/repo/flathub.flatpakrepo"
+
+log() { echo "nimbus-live-setup: $1"; }
+die() { echo "nimbus-live-setup: ERROR: $1" >&2; exit 1; }
+
+[ "$(id -u)" = "0" ] || die "requiere root"
+[ -f "$PAMAC_CONF" ] || die "falta $PAMAC_CONF (instala pamac-gtk primero)"
+
+# --- 1. Fusionar flags Task 3 en /etc/pamac.conf ------------------------------
+merge_flag() {
+    key="$1" val="$2"
+    if grep -qE "^[# ]*${key}=" "$PAMAC_CONF"; then
+        sed -i -E "s|^[# ]*${key}=.*|${key}=${val}|" "$PAMAC_CONF"
+    else
+        printf '%s=%s\n' "$key" "$val" >> "$PAMAC_CONF"
+    fi
+}
+merge_flag "EnableFlatpak" "true"
+merge_flag "EnableAUR" "true"
+log "flags EnableFlatpak/EnableAUR fusionados en $PAMAC_CONF"
+
+# --- 2. Flathub (solo si flatpak existe) --------------------------------------
+if command -v flatpak >/dev/null 2>&1; then
+    flatpak remote-add --if-not-exists flathub "$FLATHUB_URL" \
+        && log "remote flathub OK" \
+        || log "AVISO: no se pudo anadir flathub (sin red en live?)"
+else
+    log "AVISO: flatpak no instalado, salto flathub"
+fi
+
+# --- 3. power-profiles-daemon fuera (conflicto con auto-cpufreq) --------------
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl mask power-profiles-daemon.service >/dev/null 2>&1 \
+        && log "power-profiles-daemon enmascarado" \
+        || log "AVISO: no se pudo enmascarar power-profiles-daemon"
+    for unit in auto-cpufreq.service thermald.service; do
+        if systemctl list-unit-files 2>/dev/null | grep -q "^${unit}"; then
+            systemctl enable "$unit" >/dev/null 2>&1 \
+                && log "$unit habilitado" \
+                || log "AVISO: no se pudo habilitar $unit"
+        else
+            log "AVISO: $unit no instalado, salto enable"
+        fi
+    done
+else
+    log "AVISO: sin systemctl (chroot sin systemd?), salto servicios"
+fi
+
+log "listo"
+exit 0

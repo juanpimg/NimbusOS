@@ -113,3 +113,21 @@ nautilus
 # hyprshell (switcher preview ALT+TAB): https://github.com/H3rmt/hyprshell
 # Fallback si no disponible: cyclenext comentado en 10-shortcuts.conf (built-in, sin paquete).
 hyprshell
+
+# --- Task5 fusion (2026-10-23): atestacion final, CERO paquetes nuevos -------
+# Deduplicado verificado 2026-10-23: 69 entradas no-comentario, 0 duplicados
+# (sort | uniq -d vacio; lo re-verifica scripts/verify-build.sh en cada run).
+# base-devel: es metapaquete del grupo base-devel (core); pacman/archiso lo
+#   resuelve en el build (autoconf automake binutils bison debugedit fakeroot
+#   file findutils flex gawk gcc gettext grep groff gzip libtool m4 make
+#   pacman patch pkgconf sed sudo texinfo which). Se deja el nombre del grupo:
+#   NO expandir a mano (evita drift con core).
+# Repos: extra/cachyos via pacman (hyprland quickshell auto-cpufreq pamac
+#   udiskie nvtop libva-nvidia-driver ...); AUR via helper en live/chaotic
+#   (whitesur-gtk-theme whitesur-icon-theme hyprshell). auto-cpufreq esta en
+#   cachyos (NO es AUR).
+# Solape conocido con packages_desktop.x86_64 upstream (audit 2026-10-23
+# contra master 3215497): dosfstools exfatprogs mesa mtools noto-fonts
+# ntfs-3g nvidia-utils YA estan en el perfil CachyOS. build_iso.sh paso
+# apply_overlay los filtra al concatenar (grep -vxFf) y registra los
+# omitidos en build.log: el append NO se toca (Task1-4 intactos).

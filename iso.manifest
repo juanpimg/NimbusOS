@@ -29,3 +29,68 @@
 #   wallpaper: /usr/share/backgrounds/nimbus/sequoia-light.jpg
 #   paleta:    claro #F5F5F7 / oscuro #1D1D1F / acento #007AFF
 #   fuente:    Inter (extra: inter-font 4.1-1)
+
+# --- Task 2 (2026-10-23): laptop power + GPU hibrida + VA-API + ZRAM ---------
+# Decisiones: auto-cpufreq (cachyos, NO power-profiles-daemon),
+# PRIME RTD3 nativo (NO supergfxctl/envycontrol), zram-generator+zstd.
+# Overlay: etc/auto-cpufreq.conf (charger performance/balance_performance,
+#   battery powersave/balance_power), etc/udev/rules.d/80-nvidia-pm.rules
+#   (power/control=auto, PCI 10de), etc/modprobe.d/nvidia-pm.conf
+#   (NVreg_DynamicPowerManagement=0x02 + nvidia-drm modeset=1),
+#   etc/systemd/zram-generator.conf (zstd, min(ram/2,8192), prio 100),
+#   etc/sysctl.d/99-vm-zram-parameters.conf (swappiness=180).
+# Paquetes (extra/cachyos, append Task2): auto-cpufreq thermald
+#   zram-generator nvidia-dkms nvidia-utils lib32-nvidia-utils nvidia-prime
+#   switcheroo-control mesa vulkan-radeon vulkan-intel vulkan-mesa-layers
+#   lib32-vulkan-mesa-layers libva libva-utils vdpauinfo libvdpau-va-gl
+#   intel-media-driver libva-intel-driver libvpl vpl-gpu-rt ffmpeg
+#   gst-plugins-bad mpv vlc nvtop libva-nvidia-driver.
+# Excluidos (auditoria, NO anadir): power-profiles-daemon tuned-ppd tlp
+#   bumblebee optimus-manager xf86-video-intel.
+
+# --- Task 3 (2026-10-23): tienda unica pamac + Flathub + plug&play -----------
+# Decision vinculante: pamac-gtk + libpamac-flatpak-plugin + appstream +
+#   archlinux-appstream-data + flatpak + xdg-desktop-portal-hyprland +
+#   base-devel git polkit-gnome. Descartados: vinifmor/bauh (abandonado
+#   0.10.7 Ene-2024), Discover (sin AUR por diseno, PackageKit lock).
+#   Upstream tienda: https://github.com/manjaro/pamac
+#   Flathub: https://dl.flathub.org/repo/flathub.flatpakrepo
+# Overlay: etc/pamac.conf.d/nimbus.conf (EnableFlatpak/EnableAUR=true;
+#   fusion a /etc/pamac.conf la hace usr/bin/nimbus-live-setup, Task 5),
+#   etc/skel/.config/hypr/10-shortcuts.conf (SUPER+SPACE spotlight,
+#   ALT+TAB hyprshell switch), exec-once polkit-agent + udiskie en
+#   hyprland.conf. Cero binds CTRL-*.
+# Paquetes USB (extra): udisks2 udiskie gvfs gvfs-mtp ntfs-3g exfatprogs
+#   dosfstools mtools nautilus.
+# AUR: hyprshell (https://github.com/H3rmt/hyprshell; fallback cyclenext).
+
+# --- Task 4 (2026-10-23): calamares estilo Setup Assistant --------------------
+# Base: CachyOS/cachyos-calamares (GPL-3.0), ejemplo fancy/ (slideshowAPI 2).
+# Overlay: etc/calamares/settings.conf (branding nimbus; show
+#   welcome,locale,keyboard,partition,users,summary; exec 18 modulos
+#   partition..umount; show finished), branding/nimbus/ (branding.desc
+#   1024x640, sidebar widget, paleta #F5F5F7/#1D1D1F/#007AFF, SVG
+#   placeholders nimbus-logo.svg/productWelcome.svg, show.qml 3 slides
+#   Hello primero, stylesheet.qss), modules/ (partition.conf erase default
+#   sin manual, EFI 512MiB, btrfs default; users.conf wheel bash sin root;
+#   displaymanager.conf greetd+hyprland).
+
+# --- Task 5 (2026-10-23): perfil archiso + build reproducible + QEMU ---------
+# Upstream perfil (verificado 2026-10-23 via git ls-remote + clone --depth 1):
+#   repo:   https://github.com/CachyOS/CachyOS-Live-ISO
+#   rama:   master (sin tags publicados)
+#   commit: 3215497d2e8c5fea90e185affcf973dfa2cf790b (2026-10-03,
+#             "Replace nvidia-module-loader with cachyos-drm-awaiter")
+#   perfil: archiso/profiledef.sh (iso_name=cachyos -> build lo renombra a
+#             nimbus; packages_desktop.x86_64 ~201 pkgs, linux-cachyos,
+#             airootfs/etc/skel; file_permissions upstream para shadow/
+#             gshadow/root/polkit/sudoers + /usr/local/bin/* 0755)
+# Build: ./build_iso.sh (7 pasos: check_deps pin setup_keys get_upstream
+#   apply_overlay build verify). SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+#   del repo NimbusOS. Solape append-vs-upstream filtrado al concatenar
+#   (dosfstools exfatprogs mesa mtools noto-fonts ntfs-3g nvidia-utils ya en
+#   perfil CachyOS; lista en out/skipped-dupes.txt).
+# Test: ./scripts/test-qemu.sh (qemu-img 20G + qemu-system-x86_64 kvm q35
+#   cpu host smp4 4G OVMF virtio-vga-gl sdl,gl acpi-battery boot order=d).
+#   Pre-check lscpu AVX2 (x86-64-v3) o abortar.
+# Pins MacShell (heredado Task 1): 0-ss/MacShell main @ bef9fc4 (2026-10-23).
