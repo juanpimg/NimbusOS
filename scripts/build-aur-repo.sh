@@ -17,6 +17,8 @@ pipe_sudo pacman -Sy --needed --noconfirm --asdeps \
     base-devel vala meson ninja gobject-introspection itstool asciidoc \
     xorgproto gettext sassc which gtk3 rust gtk4 gtk4-layer-shell libadwaita \
     libnotify libhandy desktop-file-utils zstd gnutls git hyprland \
+    dbus-glib appstream appstream-glib archlinux-appstream-data json-glib \
+    libsoup3 polkit vte3 \
     || { echo "FAIL pre-instalar deps" >&2; exit 1; }
 
 mkdir -p work/aur-build && cd work/aur-build || exit 1
