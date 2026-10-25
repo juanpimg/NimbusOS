@@ -195,7 +195,7 @@ if [ "$CHECK_ONLY" = "1" ]; then
     while IFS= read -r _aur || [ -n "$_aur" ]; do
         case "$_aur" in ''|\#*) continue ;; esac
         if ls "$REPO_ROOT/work/nimbus-repo/${_aur}-"*.pkg.tar.zst >/dev/null 2>&1; then
-            grep -qx "$_aur" "$APP" 2>/dev/null || { rm -rf "$TMPD"; fail "repo provee $_aur pero no esta en append"; }
+            grep -qx "$_aur" "$APPEND" 2>/dev/null || { rm -rf "$TMPD"; fail "repo provee $_aur pero no esta en append"; }
         else
             grep -qx "$_aur" "$TMPD/merged.pkgs" && { rm -rf "$TMPD"; fail "fusion simulada deja AUR $_aur sin repo (debe ir a skipped-aur)"; }
         fi
