@@ -168,6 +168,9 @@ if [ -f "$ROOT/packages.nimbus-aur.txt" ]; then
     if grep -qE '^[a-z0-9_.+-]+ +#' "$APP" 2>/dev/null; then bad "append sin comentarios en linea (rompen el nombre del paquete)"; else ok "append sin comentarios en linea"; fi
     chkg "build filtra AUR a skipped-aur.txt" "$ROOT/build_iso.sh" 'skipped-aur'
     chkg "build excluye AUR de pacstrap (aur-skip)" "$ROOT/build_iso.sh" 'aur-skip'
+    chkg "repo local [nimbus] en pacman.conf (Server file://)" "$ROOT/build_iso.sh" 'Server = file://'
+    chkg "repo local con SigLevel TrustAll" "$ROOT/build_iso.sh" 'TrustAll'
+    chkg "repo local solo si db existe (fallback live-setup)" "$ROOT/build_iso.sh" 'nimbus.db.tar.gz'
 fi
 
 # --- QEMU: doc + script ---------------------------------------------------------

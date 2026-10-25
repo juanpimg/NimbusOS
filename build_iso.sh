@@ -180,14 +180,26 @@ if [ "$CHECK_ONLY" = "1" ]; then
     # packages_desktop.x86_64):
     TMPD="$(mktemp -d)"
     printf 'mesa\nntfs-3g\n# upstream comment\n\nlinux-cachyos\n' > "$TMPD/upstream.pkgs"
-    printf 'whitesur-gtk-theme\nwhitesur-icon-theme\npamac-aur\nhyprshell\n' > "$TMPD/aur-skip.pkgs"
+    # AUR-skip repo-aware (igual que el path real): solo se excluyen los que
+    # el repo local NO provee como binario:
+    : > "$TMPD/aur-skip.pkgs"
+    while IFS= read -r _aur || [ -n "$_aur" ]; do
+        case "$_aur" in ''|\#*) continue ;; esac
+        ls "$REPO_ROOT/work/nimbus-repo/${_aur}-"*.pkg.tar.zst >/dev/null 2>&1 || printf '%s\n' "$_aur" >> "$TMPD/aur-skip.pkgs"
+    done < "$REPO_ROOT/packages.nimbus-aur.txt"
     grep -vE '^\s*#|^\s*$' "$APPEND" | grep -vxFf "$TMPD/upstream.pkgs" | grep -vxFf "$TMPD/aur-skip.pkgs" > "$TMPD/merged.pkgs"
     grep -qE '^\s*#' "$TMPD/merged.pkgs" && { rm -rf "$TMPD"; fail "fusion simulada deja comentarios"; }
     grep -qE '^\s*$' "$TMPD/merged.pkgs" && { rm -rf "$TMPD"; fail "fusion simulada deja lineas vacias"; }
-    # AUR defer: las 4 no deben llegar a pacstrap; paru (cachyos/oficial) si:
-    for _aur in whitesur-gtk-theme whitesur-icon-theme pamac-aur hyprshell; do
-        grep -qx "$_aur" "$TMPD/merged.pkgs" && { rm -rf "$TMPD"; fail "fusion simulada deja AUR $_aur (debe ir a skipped-aur)"; }
-    done
+    # AUR defer: los no proveidos por el repo no deben llegar a pacstrap;
+    # los proveidos SI (binarios); paru (cachyos/oficial) siempre:
+    while IFS= read -r _aur || [ -n "$_aur" ]; do
+        case "$_aur" in ''|\#*) continue ;; esac
+        if ls "$REPO_ROOT/work/nimbus-repo/${_aur}-"*.pkg.tar.zst >/dev/null 2>&1; then
+            grep -qx "$_aur" "$APP" 2>/dev/null || { rm -rf "$TMPD"; fail "repo provee $_aur pero no esta en append"; }
+        else
+            grep -qx "$_aur" "$TMPD/merged.pkgs" && { rm -rf "$TMPD"; fail "fusion simulada deja AUR $_aur sin repo (debe ir a skipped-aur)"; }
+        fi
+    done < "$REPO_ROOT/packages.nimbus-aur.txt"
     grep -qx 'paru' "$TMPD/merged.pkgs" || { rm -rf "$TMPD"; fail "fusion simulada filtra paru (es cachyos/oficial, debe quedar)"; }
     # Manifest AUR presente y copiado al overlay:
     [ -f "$REPO_ROOT/packages.nimbus-aur.txt" ] || { rm -rf "$TMPD"; fail "falta packages.nimbus-aur.txt"; }
@@ -242,12 +254,26 @@ comm -12 "$WORKDIR/append.pkgs" "$WORKDIR/upstream.pkgs" > "$OUTDIR/skipped-dupe
 # instalan en primer arranque live via paru. Se filtran de pacstrap y se
 # registran en out/skipped-aur.txt. paru SI es cachyos/oficial y debe quedar
 # en pacstrap.
+# propios): si el repo local [nimbus] (5d-bis) provee un paquete como binario,
+# entra a pacstrap (rápido, sin compilar); solo los NO proveidos se difieren
+# a live-setup via paru y se registran en out/skipped-aur.txt.
+# paru SI es cachyos/oficial y debe quedar en pacstrap.
 AUR_LIST="$WORKDIR/aur-skip.pkgs"
-if [ -f "$REPO_ROOT/packages.nimbus-aur.txt" ]; then
-    grep -vE '^\s*#|^\s*$' "$REPO_ROOT/packages.nimbus-aur.txt" | sort -u > "$AUR_LIST"
-else
-    printf 'whitesur-gtk-theme\nwhitesur-icon-theme\npamac-aur\nhyprshell\n' > "$AUR_LIST"
+: > "$AUR_LIST"
+_manifest="$REPO_ROOT/packages.nimbus-aur.txt"
+if [ ! -f "$_manifest" ]; then
+    printf 'whitesur-gtk-theme\nwhitesur-icon-theme\npamac-aur\nhyprshell\n' > "$_manifest.tmp"
+    _manifest="$_manifest.tmp"
 fi
+while IFS= read -r _aur || [ -n "$_aur" ]; do
+    case "$_aur" in ''|\#*) continue ;; esac
+    if ls "$REPO_ROOT/work/nimbus-repo/${_aur}-"*.pkg.tar.zst >/dev/null 2>&1; then
+        echo "apply_overlay: $_aur proveido por repo local [nimbus] (binario a pacstrap)"
+    else
+        printf '%s\n' "$_aur" >> "$AUR_LIST"
+    fi
+done < "$_manifest"
+rm -f "$REPO_ROOT/packages.nimbus-aur.txt.tmp"
 grep -xFf "$AUR_LIST" "$WORKDIR/append.pkgs" > "$OUTDIR/skipped-aur.txt" || true
 # Solo paquetes (sin comentarios/vacias), deduplicados contra upstream y sin AUR.
 # Idempotencia ante re-run: get_upstream ya hizo reset --hard $UPSTREAM_COMMIT
@@ -311,6 +337,37 @@ bash -n "$PROFILE_DIR/profiledef.sh" || fail "profiledef.sh roto tras parche pro
 cp "$PROFILE_DIR/packages_desktop.x86_64" "$PROFILE_DIR/packages.x86_64"
 [ -f "$PROFILE_DIR/packages.x86_64" ] || fail "no se genero packages.x86_64"
 grep -q '^syslinux$' "$PROFILE_DIR/packages.x86_64" || fail "packages.x86_64 sin syslinux (lista incompleta)"
+# 5d-bis. Repo local [nimbus] con AUR pre-compilados (scripts/build-aur-repo.sh
+# genera work/nimbus-repo/). Si existe y esta completo, pacstrap instala
+# binarios en segundos en vez de compilar en el live. Idempotente: get_upstream
+# ya hizo reset --hard (pacman.conf vuelve a upstream), se reinyecta limpio.
+# Sin repo o incompleto: se mantiene el defer a live-setup via paru (paso 5,
+# filtrado por AUR_LIST mas abajo... ver 5b: el filtro excluye del pacstrap
+# solo los que NO provee el repo).
+if [ -f "$REPO_ROOT/work/nimbus-repo/nimbus.db.tar.gz" ]; then
+    rm -rf "$PROFILE_DIR/nimbus-repo"
+    cp -a "$REPO_ROOT/work/nimbus-repo" "$PROFILE_DIR/nimbus-repo"
+    if ! grep -q '^\[nimbus\]' "$PROFILE_DIR/pacman.conf"; then
+        python3 - "$PROFILE_DIR/pacman.conf" "$PROFILE_DIR/nimbus-repo" <<'EOF'
+import sys
+path, repodir = sys.argv[1], sys.argv[2]
+src = open(path).read()
+entry = ("[nimbus]\n"
+         "SigLevel = Optional TrustAll\n"
+         f"Server = file://{repodir}\n\n")
+assert '[nimbus]' not in src
+# Insertar ANTES del primer repo ([cachyos]) para precedencia:
+idx = src.find('[cachyos]')
+assert idx != -1, "pacman.conf sin [cachyos]"
+open(path, 'w').write(src[:idx] + entry + src[idx:])
+print("pacman.conf: repo local [nimbus] inyectado")
+EOF
+    fi
+    grep -q '^\[nimbus\]' "$PROFILE_DIR/pacman.conf" || fail "no se inyecto [nimbus] en pacman.conf"
+    echo "apply_overlay: repo local [nimbus] activo ($(ls "$PROFILE_DIR/nimbus-repo/"*.pkg.tar.zst | wc -l) paquetes)"
+else
+    echo "apply_overlay: sin repo local (work/nimbus-repo/nimbus.db.tar.gz ausente); AUR via live-setup"
+fi
 echo "apply_overlay OK"
 
 # --- Paso 6: build ------------------------------------------------------------
