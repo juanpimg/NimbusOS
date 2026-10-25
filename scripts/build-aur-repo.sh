@@ -9,6 +9,16 @@ printf '%s\n' '1216' | sudo -S -v || { echo "sin sudo, abortar" >&2; exit 1; }
 ( while sleep 240; do sudo -n -v 2>/dev/null || true; done ) & KA=$!
 trap 'kill $KA 2>/dev/null || true' EXIT
 
+# Paso 0: pre-instalar TODAS las dependencias (build + runtime) con sudo
+# no-interactivo. Asi makepkg -s nunca necesita invocar sudo (que falla sin
+# tty en segundo plano). --asdeps para no contaminar el host como explicitos.
+pipe_sudo() { printf '%s\n' '1216' | sudo -S "$@"; }
+pipe_sudo pacman -Sy --needed --noconfirm --asdeps \
+    base-devel vala meson ninja gobject-introspection itstool asciidoc \
+    xorgproto gettext sassc which gtk3 rust gtk4 gtk4-layer-shell libadwaita \
+    libnotify libhandy desktop-file-utils zstd gnutls git hyprland \
+    || { echo "FAIL pre-instalar deps" >&2; exit 1; }
+
 mkdir -p work/aur-build && cd work/aur-build || exit 1
 for p in whitesur-gtk-theme whitesur-icon-theme hyprshell libpamac-aur pamac-aur; do
     if [ ! -d "$p" ]; then
@@ -20,7 +30,10 @@ for p in whitesur-gtk-theme whitesur-icon-theme hyprshell libpamac-aur pamac-aur
         [ "$_ok" = "1" ] || { echo "FAIL fetch $p" >&2; exit 1; }
     fi
     ( cd "$p" && makepkg -s --noconfirm --needed ) || { echo "FAIL build $p" >&2; exit 1; }
-    echo "OK built $p"
+    # Instalar en el host (necesario para encadenar deps AUR: pamac-aur
+    # requiere libpamac-aur en la DB; --asdeps para no contaminar):
+    pipe_sudo pacman -U --noconfirm --asdeps "$p"/*.pkg.tar.zst || { echo "FAIL install $p" >&2; exit 1; }
+    echo "OK built+installed $p"
 done
 mkdir -p ../nimbus-repo
 cp ./*/*.pkg.tar.zst ../nimbus-repo/ 2>/dev/null || true
