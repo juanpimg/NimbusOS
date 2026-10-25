@@ -12,7 +12,12 @@ trap 'kill $KA 2>/dev/null || true' EXIT
 mkdir -p work/aur-build && cd work/aur-build || exit 1
 for p in whitesur-gtk-theme whitesur-icon-theme hyprshell libpamac-aur pamac-aur; do
     if [ ! -d "$p" ]; then
-        paru -G "$p" || { echo "FAIL fetch $p" >&2; exit 1; }
+        _ok=0
+        for _try in 1 2 3 4 5; do
+            if paru -G "$p"; then _ok=1; break; fi
+            echo "reintento fetch $p ($_try/5) en 20s..." >&2; sleep 20
+        done
+        [ "$_ok" = "1" ] || { echo "FAIL fetch $p" >&2; exit 1; }
     fi
     ( cd "$p" && makepkg -s --noconfirm --needed ) || { echo "FAIL build $p" >&2; exit 1; }
     echo "OK built $p"
