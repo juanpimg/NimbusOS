@@ -183,6 +183,9 @@ if [ "$CHECK_ONLY" = "1" ]; then
     [ "$(readlink "$DM")" = "/usr/lib/systemd/system/greetd.service" ] || fail "DM no apunta a greetd"
     grep -q 'initial_session' "$OVERLAY/etc/greetd/config.toml" || fail "greetd sin initial_session"
     grep -qx 'greetd' <(grep -vE '^\s*#' "$APPEND") || fail "greetd fuera de pacstrap"
+    # macshell vendoreado en skel (barra/dock reales en el live/instalado):
+    [ -f "$OVERLAY/etc/skel/.config/quickshell/MacShell/shell.qml" ] || fail "falta MacShell vendoreado en skel"
+    [ -x "$OVERLAY/etc/skel/.local/bin/macshell-start" ] || fail "falta macshell-start ejecutable en skel"
     # 5d. fusion packages simulada: sin comentarios ni lineas vacias en el
     # resultado (el append trae secciones '# ...' que no deben contaminar
     # packages_desktop.x86_64):

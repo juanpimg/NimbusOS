@@ -175,6 +175,9 @@ if [ -f "$ROOT/packages.nimbus-aur.txt" ]; then
     chkg "DM apunta a greetd" "$ROOT/build_iso.sh" 'greetd.service'
     chkg "greetd initial_session Hyprland" "$ROOT/nimbus-overlay/etc/greetd/config.toml" 'initial_session'
     chkg "build exige DM symlink + greetd config" "$ROOT/build_iso.sh" 'display-manager.service'
+    chkg "macshell vendoreado en skel (shell.qml)" "$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/shell.qml" 'shell'
+    [ -x "$ROOT/nimbus-overlay/etc/skel/.local/bin/macshell-start" ] && ok "macshell-start ejecutable en skel" || bad "macshell-start ejecutable en skel"
+    [ -f "$ROOT/nimbus-overlay/etc/systemd/system/greetd.service.d/wait-for-drm.conf" ] && ok "greetd drop-in wait-for-drm" || bad "greetd drop-in wait-for-drm"
     chkg "repo local con SigLevel TrustAll" "$ROOT/build_iso.sh" 'TrustAll'
     chkg "repo local solo si db existe (fallback live-setup)" "$ROOT/build_iso.sh" 'nimbus.db.tar.gz'
 fi
