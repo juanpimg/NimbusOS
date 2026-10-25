@@ -31,7 +31,11 @@ for p in whitesur-gtk-theme whitesur-icon-theme hyprshell libpamac-aur pamac-aur
         done
         [ "$_ok" = "1" ] || { echo "FAIL fetch $p" >&2; exit 1; }
     fi
-    ( cd "$p" && makepkg -s --noconfirm --needed ) || { echo "FAIL build $p" >&2; exit 1; }
+    if ls "$p"/*.pkg.tar.zst >/dev/null 2>&1; then
+        echo "OK $p ya compilado, reutilizo binario"
+    else
+        ( cd "$p" && makepkg -s --noconfirm ) || { echo "FAIL build $p" >&2; exit 1; }
+    fi
     # Instalar en el host (necesario para encadenar deps AUR: pamac-aur
     # requiere libpamac-aur en la DB; --asdeps para no contaminar):
     pipe_sudo pacman -U --noconfirm --asdeps "$p"/*.pkg.tar.zst || { echo "FAIL install $p" >&2; exit 1; }
