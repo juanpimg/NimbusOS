@@ -157,6 +157,7 @@ fi
 if [ -f "$ROOT/packages.nimbus-aur.txt" ]; then
     for _a in whitesur-gtk-theme whitesur-icon-theme pamac-aur hyprshell; do
         if grep -qx "$_a" "$ROOT/packages.nimbus-aur.txt" 2>/dev/null; then ok "manifest AUR: $_a"; else bad "manifest AUR: $_a"; fi
+        if grep -qx "$_a" "$APP" 2>/dev/null; then ok "append pide $_a (repo [nimbus] lo provee)"; else bad "append pide $_a (repo [nimbus] lo provee)"; fi
     done
     if grep -qx 'pamac-aur' "$ROOT/nimbus-overlay/usr/share/nimbus/packages.nimbus-aur.txt" 2>/dev/null; then ok "overlay AUR copia sincronizada (pamac-aur)"; else bad "overlay AUR copia sincronizada (pamac-aur)"; fi
     if grep -qx 'pamac-gtk' "$ROOT/packages.nimbus-aur.txt" 2>/dev/null; then bad "manifest AUR sin pamac-gtk (no existe en AUR)"; else ok "manifest AUR sin pamac-gtk (no existe en AUR)"; fi

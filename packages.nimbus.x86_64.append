@@ -87,6 +87,9 @@ libva-nvidia-driver
 # Post-install (Task5/calamares): flatpak remote-add --if-not-exists flathub
 # https://dl.flathub.org/repo/flathub.flatpakrepo
 # --- extra ---
+# pamac-aur: tienda unica (binario del repo local [nimbus]; libpamac-aur
+# entra como dependencia desde el mismo repo). Antes: pamac-gtk (inexistente).
+pamac-aur
 appstream
 archlinux-appstream-data
 flatpak
