@@ -175,6 +175,14 @@ if [ "$CHECK_ONLY" = "1" ]; then
     # (systemd lo activa via preset/enable; sin symlink no arranca en el live):
     WANTS="$OVERLAY/etc/systemd/system/multi-user.target.wants/nimbus-live-setup.service"
     [ -L "$WANTS" ] || fail "falta symlink enable $WANTS"
+    # 5c-bis. Display Manager del live: greetd con autologin a Hyprland
+    # (sin esto no hay DM: el symlink plasmalogin de upstream lo crea su
+    # prepare_profile, que este build no ejecuta).
+    DM="$OVERLAY/etc/systemd/system/display-manager.service"
+    [ -L "$DM" ] || fail "falta symlink DM $DM"
+    [ "$(readlink "$DM")" = "/usr/lib/systemd/system/greetd.service" ] || fail "DM no apunta a greetd"
+    grep -q 'initial_session' "$OVERLAY/etc/greetd/config.toml" || fail "greetd sin initial_session"
+    grep -qx 'greetd' <(grep -vE '^\s*#' "$APPEND") || fail "greetd fuera de pacstrap"
     # 5d. fusion packages simulada: sin comentarios ni lineas vacias en el
     # resultado (el append trae secciones '# ...' que no deben contaminar
     # packages_desktop.x86_64):

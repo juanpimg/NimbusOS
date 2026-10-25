@@ -1,0 +1,13 @@
+# NimbusOS — greetd (live + instalado): autologin directo a Hyprland.
+# Sin greeter intermedio en el live (initial_session); si la sesion cae,
+# default_session reintenta Hyprland (consistente con Calamares: greetd).
+[terminal]
+vt = 1
+
+[default_session]
+command = "Hyprland"
+user = "liveuser"
+
+[initial_session]
+command = "Hyprland"
+user = "liveuser"

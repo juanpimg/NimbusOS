@@ -9,6 +9,9 @@
 # --- Task 1 (2026-10-23): macshell + theming global macOS ---------------------
 # Shell (verificados 2026-10-23: hyprland 0.56.2 >= 0.55, quickshell 0.3.2,
 # Qt 6.12 >= 6.8, todo en extra/cachyos):
+# greetd: Display Manager del live (autologin Hyprland via initial_session)
+# y del instalado (Calamares displaymanager.conf). Sin greeter intermedio.
+greetd
 hyprland
 hyprlock
 quickshell
