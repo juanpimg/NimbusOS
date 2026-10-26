@@ -192,3 +192,19 @@ rust
 # lo soporta — HOOKS de archiso.conf sin plymouth, sin config en airootfs;
 # solo el paquete sin hook initramfs no pinta splash y arriesga el live).
 qt6ct
+
+# --- Task menu-tienda (2026-10-26): menu global D-Bus + tienda/Flathub -------
+# appmenu-gtk-module (extra + cachyos-extra-v3, verificado `pacman -Si`
+# 2026-10-26): exporta el menu GTK por D-Bus (com.canonical.AppMenu).
+# Requiere env GTK_MODULES=appmenu-gtk-module en hyprland.conf (una linea).
+# Ruling Qt SKIP: appmenu-qt5 / vala-panel-appmenu / qgnomeplatform-qt* NO
+# existen en repos oficiales (pacman -Si/-Ss 2026-10-26); libdbusmenu-qt5
+# esta en extra pero es solo la libreria del protocolo, no el plugin de
+# plataforma Qt que exporta menus. Sin AUR en pacstrap (regla Task5).
+# Ruling MacBar V1: NO implementa registrar/importer AppMenu (menus
+# File/Edit sinteticos por atajos via sendshortcut; ver theming/README.md
+# "Global-menu V1"). El modulo deja el bus listo para consumidores D-Bus.
+# Ruling tienda: pamac-aur es GTK3 y hereda WhiteSur via
+# gtk-3.0/settings.ini (sin config propia de tema pamac en overlay);
+# Flathub ya lo anade nimbus-live-setup (flatpak remote-add --if-not-exists).
+appmenu-gtk-module

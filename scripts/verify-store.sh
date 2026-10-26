@@ -129,6 +129,15 @@ if [ "$n_active" -eq 1 ]; then ok "SUPER SPACE definido una sola vez (activo)"; 
 n_alt="$(grep -cE '^[[:space:]]*bind[[:space:]]*=[[:space:]]*ALT,[[:space:]]*TAB' "$HYPRDIR"/*.conf 2>/dev/null | awk -F: '{s+=$2} END{print s+0}')"
 if [ "$n_alt" -eq 1 ]; then ok "ALT TAB definido una sola vez (activo)"; else bad "ALT TAB definido una sola vez (activo): hay $n_alt"; fi
 
+# --- Task menu-tienda: menú global D-Bus + tienda tematizada + Flathub -------
+MT_GTK3="$ROOT/nimbus-overlay/etc/skel/.config/gtk-3.0/settings.ini"
+MT_LIVE="$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup"
+chkg "menu-tienda append: appmenu-gtk-module" "$APP" '^appmenu-gtk-module$'
+chkg "menu-tienda hyprland env GTK_MODULES" "$HYPR" '^env *= *GTK_MODULES,appmenu-gtk-module'
+chkg "menu-tienda pamac tema WhiteSur (gtk-3.0)" "$MT_GTK3" '^gtk-theme-name *= *WhiteSur'
+chkg "menu-tienda live-setup flathub remote-add" "$MT_LIVE" 'flatpak remote-add --if-not-exists flathub'
+chkg "menu-tienda ruling Qt skip documentado" "$APP" 'appmenu-qt5'
+
 # --- Sintaxis -------------------------------------------------------------------------------
 chk "verify-store supera bash -n" bash -n "$ROOT/scripts/verify-store.sh"
 if command -v hyprland >/dev/null 2>&1; then
