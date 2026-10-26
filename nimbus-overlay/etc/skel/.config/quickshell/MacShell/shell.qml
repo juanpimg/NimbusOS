@@ -46,6 +46,9 @@ ShellRoot {
         // set by MacBar / MacDock (Binding elements) when their glass needs live data
         property bool barWantsGeo: false
         property bool dockWantsGeo: false
+        // NimbusOS: set by WindowBar.qml (Binding) when the traffic lights are enabled — WindowBar.qml
+        // targets this property; without it the Binding warns and the geometry feed never runs for the lights.
+        property bool winBarWantsGeo: false
         property bool barWantsWallpaper: false
         property bool dockWantsWallpaper: false
         property bool widgetsWantWallpaper: false
@@ -192,7 +195,7 @@ ShellRoot {
         Timer {
             interval: sharedHub.geoHot ? 90 : 250
             repeat: true
-            running: (sharedHub.barWantsGeo || sharedHub.dockWantsGeo) && !sharedHub.ipcOk
+            running: (sharedHub.barWantsGeo || sharedHub.dockWantsGeo || sharedHub.winBarWantsGeo) && !sharedHub.ipcOk
             triggeredOnStart: true
             onTriggered: if (!geoProc.running) geoProc.running = true
         }
@@ -251,7 +254,7 @@ ShellRoot {
             // fast (60 Hz) for 1.5 s after any window event, otherwise a relaxed 2.5 Hz check (idle CPU)
             interval: sharedHub.geoHot ? 16 : 400
             repeat: true
-            running: (sharedHub.barWantsGeo || sharedHub.dockWantsGeo) && !sharedHub.ipcBroken
+            running: (sharedHub.barWantsGeo || sharedHub.dockWantsGeo || sharedHub.winBarWantsGeo) && !sharedHub.ipcBroken
             triggeredOnStart: true
             onTriggered: sharedHub.ipcPoll()
         }
@@ -309,6 +312,9 @@ ShellRoot {
 
     MacBar { id: macBar; hub: sharedHub }
     MacDock { id: macDock; hub: sharedHub; bar: macBar }
+    // NimbusOS: the macOS traffic lights on every window. Upstream ships WindowBar.qml but shell.qml never
+    // instantiated it, so no lights were ever drawn — one line, same pattern as the other components.
+    WindowBar { id: winBar; hub: sharedHub }
     MacWidgets { id: macWidgets; hub: sharedHub }
     ClockApp { id: clockApp; hub: sharedHub }
     AboutApp { id: aboutApp; hub: sharedHub }
