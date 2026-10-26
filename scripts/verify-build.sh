@@ -186,7 +186,7 @@ fi
 [ -f "$ROOT/scripts/test-qemu.sh" ] && ok "existe scripts/test-qemu.sh" || bad "existe scripts/test-qemu.sh"
 if [ -f "$ROOT/scripts/test-qemu.sh" ]; then
     if bash -n "$ROOT/scripts/test-qemu.sh" 2>/dev/null; then ok "bash -n test-qemu.sh"; else bad "bash -n test-qemu.sh"; fi
-    chkg "qemu acpi-battery" "$ROOT/scripts/test-qemu.sh" 'acpi-battery'
+    chkg "qemu sin acpi-battery (QEMU 11 no lo trae)" "$ROOT/scripts/test-qemu.sh" 'QEMU 11'
     chkg "qemu OVMF" "$ROOT/scripts/test-qemu.sh" 'OVMF'
     chkg "qemu pre-check x86-64-v3" "$ROOT/scripts/test-qemu.sh" 'x86-64-v|avx2|AVX2'
 fi

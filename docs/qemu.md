@@ -5,13 +5,12 @@ Comando canonico (ver `scripts/test-qemu.sh`, que ademas hace los pre-checks):
 ```bash
 qemu-img create -f qcow2 /tmp/nimbus-test.qcow2 20G
 qemu-system-x86_64 -enable-kvm -M q35,accel=kvm -cpu host -smp 4 -m 4096 \
-  -bios /usr/share/ovmf/x64/OVMF.fd \
+  -bios /usr/share/edk2/x64/OVMF.4m.fd \
   -drive file=out/nimbus-*.iso,media=cdrom,readonly=on \
   -drive file=/tmp/nimbus-test.qcow2,if=virtio,format=qcow2 \
   -device virtio-vga-gl -display sdl,gl=on \
   -device virtio-tablet-pci \
   -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
-  -device acpi-battery \
   -boot order=d -serial stdio
 ```
 
@@ -24,7 +23,7 @@ qemu-system-x86_64 -enable-kvm -M q35,accel=kvm -cpu host -smp 4 -m 4096 \
 ## Checklist live (manual en el guest)
 
 1. Hyprland arranca + `macshell` autostart (barra superior estilo macOS).
-2. `upower -d | grep -i battery` muestra bateria (`-device acpi-battery`).
+2. `upower -d | grep -i battery` muestra bateria si hay bateria virtual (QEMU 11 no trae acpi-battery; opcional, no bloquea).
 3. Lanzar calamares (pantalla Hello), instalar en `/dev/vda`.
 4. Reboot con `-boot order=c`, login en Hyprland instalado.
 

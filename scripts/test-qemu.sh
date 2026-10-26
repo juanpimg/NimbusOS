@@ -23,7 +23,7 @@ if ! lscpu 2>/dev/null | grep -qiE 'avx2'; then
     echo "FAIL: CPU sin AVX2/x86-64-v3; CachyOS aborta aqui" >&2; exit 1
 fi
 OVMF=""
-for c in /usr/share/ovmf/x64/OVMF.fd /usr/share/edk2-ovmf/x64/OVMF.fd /usr/share/OVMF/OVMF_CODE_4M.fd; do
+for c in /usr/share/ovmf/x64/OVMF.fd /usr/share/edk2-ovmf/x64/OVMF.fd /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/edk2/x64/OVMF.4m.fd /usr/share/edk2/x64/OVMF_CODE.4m.fd; do
     [ -f "$c" ] && OVMF="$c" && break
 done
 [ -n "$OVMF" ] || { echo "FAIL: OVMF no encontrado (paquete ovmf)" >&2; exit 1; }
@@ -32,6 +32,8 @@ echo "ISO: $ISO"
 
 [ -f "$DISK" ] || qemu-img create -f qcow2 "$DISK" 20G
 
+# NOTA QEMU 11: no existe `-device acpi-battery`; se arranca sin bateria
+# virtual (el checklist de bateria en docs/qemu.md queda como opcional).
 exec qemu-system-x86_64 \
   -enable-kvm -M q35,accel=kvm -cpu host -smp 4 -m 4096 \
   -bios "$OVMF" \
@@ -40,5 +42,4 @@ exec qemu-system-x86_64 \
   -device virtio-vga-gl -display sdl,gl=on \
   -device virtio-tablet-pci \
   -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
-  -device acpi-battery \
   -boot order=d -serial stdio
