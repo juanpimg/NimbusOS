@@ -243,6 +243,28 @@ chkg "ui-win: lua resize_on_border (redimension con borde)" "$HLUA" 'resize_on_b
 chkg "ui-win: lua extend_border_grab_area 25" "$HLUA" 'extend_border_grab_area *= *25'
 chkg "ui-win: lua hyprbars bar_part_of_window (sombra unica)" "$HLUA" 'bar_part_of_window *= *true'
 
+# --- Task barra-resize: la BARRA mueve (nativo), los BORDES redimensionan ----
+# Ruling de fuente (tag v0.56.0): barDeco.cpp handleDownEvent/onMouseMove/
+# handleMovement = drag MBIND_MOVE sin opcion; sin MBIND_RESIZE ni agarre en
+# la barra (solo resizewindowpixel tactil 50%). Resize = bordes con grab area
+# invisible (resize_on_border + extend_border_grab_area) + SUPER+raton/teclado
+# (checks existentes: ventanas-raton, ui-win, resize-teclado; aqui solo lo nuevo).
+chkg "barra-resize: lua fija bar_precedence_over_border false (defecto auditado)" "$HLUA" 'bar_precedence_over_border *= *false'
+chkg "barra-resize: lua cita drag nativo MBIND_MOVE (barDeco.cpp)" "$HLUA" 'MBIND_MOVE'
+chkg "barra-resize: lua cita handles auditados (barDeco.cpp)" "$HLUA" 'barDeco\.cpp'
+chkg "barra-resize: conf documenta el limite (bloque Task barra-resize)" "$HYPR" 'Task barra-resize'
+if grep -vE '^[[:space:]]*#' "$HYPR" | grep -qE 'plugin:hyprbars[[:space:]]*=|^[[:space:]]*plugin[[:space:]]*\{'; then
+  bad "barra-resize: conf sin bloque plugin:hyprbars (vive en sesion Lua)"
+else
+  ok "barra-resize: conf sin bloque plugin:hyprbars (vive en sesion Lua)"
+fi
+_HBARBLK="$(awk '/hyprbars = \{/{f=1} f{print} f&&/\},/{exit}' "$HLUA")"
+if printf '%s\n' "$_HBARBLK" | grep -vE '^\s*--' | grep -qE 'resize'; then
+  bad "barra-resize: bloque hyprbars sin opcion resize inexistente"
+else
+  ok "barra-resize: bloque hyprbars sin opcion resize inexistente"
+fi
+
 # --- Task ui-desktop2: escritorio live indistinguible de macOS -----------------
 # Checklist: fondo al arrancar (hyprpaper ejecutandose, no solo configurado),
 # barra translucida + blur, dock flotante, Spotlight, Inter, WhiteSur,

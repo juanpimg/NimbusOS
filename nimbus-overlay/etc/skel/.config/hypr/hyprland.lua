@@ -169,12 +169,34 @@ hl.config({
             bar_text_font         = "Inter",
             bar_padding           = 10,
             bar_button_padding    = 6,
-            -- Task ui-win: la barra MUEVE la ventana al arrastrar de forma
-            -- nativa (upstream barDeco.cpp: pulsar en la barra arma drag-pending
-            -- y mover el raton inicia drag MBIND_MOVE; no hay opcion que
-            -- activar). bar_part_of_window explicito (= defecto upstream): la
-            -- sombra envuelve barra+ventana en una sola silueta macOS.
+            -- Task barra-resize: MOVER con la barra = nativo, sin opcion que
+            -- activar. Upstream barDeco.cpp: pulsar dentro de la barra arma
+            -- drag-pending (handleDownEvent, lineas 212-246) y mover el raton
+            -- inicia drag MBIND_MOVE (onMouseMove + handleMovement, lineas
+            -- 152-162 y 272-277); soltar lo cierra (handleUpEvent, lineas
+            -- 249-270). Toda la barra (titulo + semaforos, salvo click sobre
+            -- un boton) agarra la ventana.
+            -- REDIMENSIONAR desde la barra = NO soportado por el plugin: la
+            -- unica mencion a resize en su codigo es el pre-ajuste tactil al
+            -- 50% via resizewindowpixel (onTouchMove, linea 175); no hay
+            -- MBIND_RESIZE ni agarre de bordes/esquinas en la barra, ni
+            -- opcion que lo active (lista cerrada de opciones en main.cpp,
+            -- lineas 214-234; tabla del README). El resize estilo macOS vive
+            -- en los BORDES de la ventana: resize_on_border +
+            -- extend_border_grab_area 25 (bloque general, sesion Lua y .conf),
+            -- SUPER+boton derecho (hl.dsp.window.resize) y SUPER+SHIFT+flechas.
+            -- bar_part_of_window explicito (= defecto upstream): la barra
+            -- cuenta como parte de la ventana (flag
+            -- DECORATION_PART_OF_MAIN_WINDOW, barDeco.cpp lineas 624-626)
+            -- y la sombra envuelve barra+ventana en una sola silueta macOS.
             bar_part_of_window    = true,
+            -- bar_precedence_over_border explicito (= defecto upstream
+            -- false): prioridad 5000 frente a 10005 con true
+            -- (getPositioningInfo, barDeco.cpp lineas 61-73); con false el
+            -- borde de 1px NO envuelve la barra (README: con true "border
+            -- will be around the bar"). Sin cambio visual: solo fija por
+            -- escrito el defecto auditado.
+            bar_precedence_over_border = false,
             on_double_click       = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" })']],
         },
     },
