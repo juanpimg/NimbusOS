@@ -12,6 +12,7 @@ if [ "${1:-}" = "--root" ]; then
 fi
 HYPR="$ROOT/nimbus-overlay/etc/skel/.config/hypr/hyprland.conf"
 LUA="$ROOT/nimbus-overlay/etc/skel/.config/hypr/macshell.lua"
+HLUA="$ROOT/nimbus-overlay/etc/skel/.config/hypr/hyprland.lua"
 WRAP="$ROOT/nimbus-overlay/usr/bin/macshell"
 ENVF="$ROOT/nimbus-overlay/etc/skel/.config/macshell/env"
 MDOCK="$ROOT/nimbus-overlay/etc/skel/.config/macdock/settings.json"
@@ -62,11 +63,11 @@ else
 fi
 
 # --- macshell.lua coherente con .conf ------------------------------------------
+# (Task sesion-lua: los binds viven en hyprland.lua; macshell.lua solo trae
+# autostart + layer rules para no duplicar registros via dofile.)
 chkg "lua: autostart hyprland.start" "$LUA" 'hyprland\.start'
 chkg "lua: macshell-start" "$LUA" 'macshell-start'
 chkg "lua: layer macdock/macspot/macbarbg" "$LUA" 'macdock.*macspot.*macbarbg|namespace = "macbarbg"'
-chkg "lua: SUPER+Space toggle" "$LUA" 'SUPER \+ Space.*spotlight toggle'
-chkg "lua: ALT+TAB next" "$LUA" 'ALT \+ TAB.*switcher next'
 if grep -qE 'CTRL \+' "$LUA"; then bad "lua: sin binds CTRL"; else ok "lua: sin binds CTRL"; fi
 
 # --- wrapper + env --------------------------------------------------------------
@@ -199,6 +200,56 @@ if grep -rn 'windowBar' "$OVL" 2>/dev/null | grep -vE 'bar\.windowBar(Title)? : 
   bad "ventanas-raton: nada en overlay desactiva windowBar"
 else
   ok "ventanas-raton: nada en overlay desactiva windowBar"
+fi
+
+# --- Task sesion-lua: hyprland.lua canonico, sin binds duplicados --------------
+[ -f "$HLUA" ] && ok "hyprland.lua existe" || bad "hyprland.lua existe"
+chkg "lua: SUPER+Space toggle" "$HLUA" 'SUPER \+ Space.*spotlight toggle'
+chkg "lua: SUPER+V clipboard" "$HLUA" 'SUPER \+ V.*spotlight clipboard'
+chkg "lua: ALT+TAB switcher MacShell (qs ipc, no hyprshell)" "$HLUA" 'ALT \+ TAB.*switcher next'
+if grep -vE '^\s*--' "$HLUA" | grep -q 'hyprshell'; then bad "lua: sin hyprshell en sesion Lua"; else ok "lua: sin hyprshell en sesion Lua"; fi
+chkg "lua: SUPER+W switcher (Mission Control fallback)" "$HLUA" 'SUPER \+ W.*switcher'
+chkg "lua: SUPER+L lock" "$HLUA" 'SUPER \+ L.*lock-via-ipc'
+chkg "lua: SUPER+Q close" "$HLUA" 'SUPER \+ Q.*window\.close'
+chkg "lua: SUPER+T kitty" "$HLUA" 'SUPER \+ T.*kitty'
+chkg "lua: PRINT screenshot" "$HLUA" 'PRINT.*screenshot region'
+chkg "lua: Spaces SUPER+1 workspace" "$HLUA" 'focus\(\{ workspace = i \}\)'
+chkg "lua: SUPER+SHIFT+F togglefloating" "$HLUA" 'window\.float\({ action = "toggle" }\)'
+chkg "lua: bindm drag mouse:272" "$HLUA" 'mouse:272.*window\.drag'
+chkg "lua: bindm resize mouse:273" "$HLUA" 'mouse:273.*window\.resize'
+chkg "lua: gesto 3 dedos horizontal workspace" "$HLUA" 'hl\.gesture.*fingers = 3.*direction = "horizontal".*action = "workspace"'
+chkg "lua: ventana flotante global" "$HLUA" 'window_rule.*float *= *true'
+chkg "lua: ventana centrada" "$HLUA" 'window_rule.*center *= *true'
+chkg "lua: ventana tamano 1100x700" "$HLUA" 'window_rule.*size *= *"1100 700"'
+chkg "lua: dofile macshell.lua al final" "$HLUA" 'dofile\(os\.getenv\("HOME"\) \.\. "/\.config/hypr/macshell\.lua"\)'
+if grep -qE 'hl\.bind\(' "$LUA"; then
+  bad "lua: macshell.lua sin binds (todos viven en hyprland.lua, sin duplicar)"
+else
+  ok "lua: macshell.lua sin binds (todos viven en hyprland.lua, sin duplicar)"
+fi
+if grep -qE 'CTRL \+' "$HLUA"; then bad "lua: sin binds CTRL"; else ok "lua: sin binds CTRL"; fi
+if command -v luac >/dev/null 2>&1; then
+  chk "hyprland.lua supera luac -p" luac -p "$HLUA"
+elif command -v luac5.4 >/dev/null 2>&1; then
+  chk "hyprland.lua supera luac5.4 -p" luac5.4 -p "$HLUA"
+else
+  skip "hyprland.lua sintaxis (luac no instalado)"
+fi
+# Precedencia: con .lua + .conf presentes, Hyprland 0.56 usa el .lua.
+if command -v hyprland >/dev/null 2>&1; then
+  _tmpd="$(mktemp -d)"
+  mkdir -p "$_tmpd/.config/hypr"
+  cp "$ROOT/nimbus-overlay/etc/skel/.config/hypr/"*.conf "$_tmpd/.config/hypr/" 2>/dev/null || true
+  cp "$ROOT/nimbus-overlay/etc/skel/.config/hypr/"*.lua "$_tmpd/.config/hypr/" 2>/dev/null || true
+  if HOME="$_tmpd" hyprland --verify-config 2>&1 | grep -q "Using lua config"; then
+    ok "hyprland.lua tiene precedencia sobre .conf (ambos presentes)"
+  else
+    bad "hyprland.lua tiene precedencia sobre .conf (ambos presentes)"
+  fi
+  if HOME="$_tmpd" hyprland --verify-config >/dev/null 2>&1; then ok "hyprland --verify-config (sesion Lua + .conf fallback)"; else bad "hyprland --verify-config (sesion Lua + .conf fallback)"; fi
+  rm -rf "$_tmpd"
+else
+  skip "hyprland --verify-config sesion Lua (hyprland no instalado en host)"
 fi
 
 # --- Sintaxis: hyprland --verify-config si disponible --------------------------
