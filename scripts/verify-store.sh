@@ -110,6 +110,19 @@ fi
 chkg "SUPER SPACE presente (hypr/*.conf)" "$HYPRDIR/10-shortcuts.conf" 'SUPER, SPACE'
 chkg "ALT TAB presente (hypr/*.conf)" "$HYPRDIR/10-shortcuts.conf" 'ALT, TAB'
 
+# --- Task workflow-mac: Spaces/Mission Control/fullscreen sin Control ------------
+chkg "spaces SUPER+1..9 workspace" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*[1-9],[[:space:]]*workspace,'
+chkg "spaces SUPER+SHIFT+1..9 movetoworkspace" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*[1-9],[[:space:]]*movetoworkspace,'
+chkg "spaces SUPER+LEFT/RIGHT workspace -1/+1" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*(LEFT|RIGHT),[[:space:]]*workspace,'
+chkg "mission control SUPER+W switcher MacShell (fallback)" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*W,[[:space:]]*exec.*switcher'
+chkg "boton verde SUPER+F fullscreen" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*F,[[:space:]]*fullscreen'
+chkg "SUPER+SHIFT+F togglefloating" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*F,[[:space:]]*togglefloating'
+if grep -hiE '^[[:space:]]*bind[^#=]*=[^#]*ctrl' "$SHORT" >/dev/null 2>&1; then
+  bad "Task workflow-mac: cero CTRL en 10-shortcuts.conf (Control intacto)"
+else
+  ok "Task workflow-mac: cero CTRL en 10-shortcuts.conf (Control intacto)"
+fi
+
 # --- Unicidad: sin doble-disparo del toggle ----------------------------------------------
 n_active="$(grep -cE '^[[:space:]]*bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*SPACE' "$HYPRDIR"/*.conf 2>/dev/null | awk -F: '{s+=$2} END{print s+0}')"
 if [ "$n_active" -eq 1 ]; then ok "SUPER SPACE definido una sola vez (activo)"; else bad "SUPER SPACE definido una sola vez (activo): hay $n_active"; fi

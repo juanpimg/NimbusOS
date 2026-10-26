@@ -151,6 +151,25 @@ done
 chkg "manifest: pin MacShell + SHA" "$MAN" '0-ss/MacShell'
 chkg "manifest: SHA 2026-10-23" "$MAN" 'bef9fc4'
 
+# --- Task workflow-mac: centrado + Spaces + Mission Control + fullscreen ---------
+SHORT="$ROOT/nimbus-overlay/etc/skel/.config/hypr/10-shortcuts.conf"
+chkg "ventana centrada window_rule center" "$HYPR" 'window_rule[[:space:]]*=[[:space:]]*center,'
+chkg "ventana tamano Mac window_rule size 1100 700" "$HYPR" 'window_rule[[:space:]]*=[[:space:]]*size 1100 700,'
+for n in 1 2 3 4 5 6 7 8 9; do
+  chkg "Spaces SUPER+$n workspace $n" "$SHORT" "bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*${n},[[:space:]]*workspace,[[:space:]]*${n}"
+  chkg "Spaces SUPER+SHIFT+$n movetoworkspace $n" "$SHORT" "bind[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*${n},[[:space:]]*movetoworkspace,[[:space:]]*${n}"
+done
+chkg "Spaces anterior SUPER+LEFT" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*LEFT,[[:space:]]*workspace,[[:space:]]*-1'
+chkg "Spaces siguiente SUPER+RIGHT" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*RIGHT,[[:space:]]*workspace,[[:space:]]*\+1'
+chkg "Mission Control SUPER+W switcher MacShell (fallback sin overview)" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*W,[[:space:]]*exec.*switcher'
+chkg "boton verde SUPER+F fullscreen" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*F,[[:space:]]*fullscreen'
+chkg "SUPER+SHIFT+F togglefloating" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*F,[[:space:]]*togglefloating'
+if grep -hiE '^[[:space:]]*bind[^#=]*=[^#]*ctrl' "$ROOT/nimbus-overlay/etc/skel/.config/hypr/"*.conf >/dev/null 2>&1; then
+  bad "Task workflow-mac: cero CTRL en Spaces/Mission Control (Control intacto)"
+else
+  ok "Task workflow-mac: cero CTRL en Spaces/Mission Control (Control intacto)"
+fi
+
 # --- Sintaxis: hyprland --verify-config si disponible --------------------------
 # Hyprland 0.56: --check-config no existe, es --verify-config. El source=
 # usa ~, asi que se fusiona en un HOME temporal para no dar falso globbing.
