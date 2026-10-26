@@ -80,10 +80,13 @@ hl.config({
     general = {
         gaps_in     = 8,
         gaps_out    = 16,
-        border_size = 2,
+        -- Task ui-win: SIN borde azul (era rgba(007affee)): borde sutil gris
+        -- 1px estilo macOS; la sombra suave de `decoration.shadow` da la
+        -- separacion (el acento #007AFF queda solo en marca/botones).
+        border_size = 1,
         col = {
-            active_border   = "rgba(007affee)",
-            inactive_border = "rgba(1d1d1f33)",
+            active_border   = "rgba(0000004d)",
+            inactive_border = "rgba(00000033)",
         },
         layout       = "dwindle",
         allow_tearing = false,
@@ -163,6 +166,12 @@ hl.config({
             bar_text_font         = "Inter",
             bar_padding           = 10,
             bar_button_padding    = 6,
+            -- Task ui-win: la barra MUEVE la ventana al arrastrar de forma
+            -- nativa (upstream barDeco.cpp: pulsar en la barra arma drag-pending
+            -- y mover el raton inicia drag MBIND_MOVE; no hay opcion que
+            -- activar). bar_part_of_window explicito (= defecto upstream): la
+            -- sombra envuelve barra+ventana en una sola silueta macOS.
+            bar_part_of_window    = true,
             on_double_click       = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" })']],
         },
     },

@@ -219,6 +219,30 @@ else
   ok "hyprbars: cero QML MacShell modificado (MacBar/shell pristine)"
 fi
 
+# --- Task ui-win: ventanas indistinguibles de macOS ---------------------------
+# 1) Sin borde AZUL (era col.active_border rgba(007affee)): borde sutil gris
+#    1px estilo macOS + sombra suave (decoration:shadow). 2) La barra hyprbars
+#    MUEVE la ventana al arrastrar de forma nativa (upstream barDeco.cpp:
+#    pulsar en barra -> drag-pending -> drag MBIND_MOVE; sin opcion que
+#    activar) y los bordes REDIMENSIONAN (resize_on_border +
+#    extend_border_grab_area en .conf y sesion Lua).
+if grep -qiE 'active_border.*007aff' "$HYPR" "$HLUA" 2>/dev/null; then
+  bad "ui-win: cero borde azul 007aff (conf+lua)"
+else
+  ok "ui-win: cero borde azul 007aff (conf+lua)"
+fi
+chkg "ui-win: conf border_size 1 (minimo macOS)" "$HYPR" 'border_size[[:space:]]*=[[:space:]]*1'
+chkg "ui-win: lua border_size 1 (minimo macOS)" "$HLUA" 'border_size *= *1,'
+chkg "ui-win: conf borde activo gris sutil" "$HYPR" 'col\.active_border[[:space:]]*=[[:space:]]*rgba\(0000004d\)'
+chkg "ui-win: conf borde inactivo gris sutil" "$HYPR" 'col\.inactive_border[[:space:]]*=[[:space:]]*rgba\(00000033\)'
+chkg "ui-win: lua borde activo gris sutil" "$HLUA" 'active_border *= *"rgba\(0000004d\)"'
+chkg "ui-win: lua borde inactivo gris sutil" "$HLUA" 'inactive_border *= *"rgba\(00000033\)"'
+chkg "ui-win: conf sombra intacta" "$HYPR" 'shadow[[:space:]]*\{'
+chkg "ui-win: lua sombra intacta" "$HLUA" 'shadow *= *\{'
+chkg "ui-win: lua resize_on_border (redimension con borde)" "$HLUA" 'resize_on_border *= *true'
+chkg "ui-win: lua extend_border_grab_area 25" "$HLUA" 'extend_border_grab_area *= *25'
+chkg "ui-win: lua hyprbars bar_part_of_window (sombra unica)" "$HLUA" 'bar_part_of_window *= *true'
+
 # --- Task resize-teclado: redimensionar con teclado (SUPER+SHIFT+flechas) ------
 chkg "resize-teclado: SUPER+SHIFT+LEFT resizeactive -40" "$SHORT" 'binde?[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*LEFT,[[:space:]]*resizeactive,[[:space:]]*-40 0'
 chkg "resize-teclado: SUPER+SHIFT+RIGHT resizeactive +40" "$SHORT" 'binde?[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*RIGHT,[[:space:]]*resizeactive,[[:space:]]*40 0'
