@@ -170,6 +170,37 @@ else
   ok "Task workflow-mac: cero CTRL en Spaces/Mission Control (Control intacto)"
 fi
 
+# --- Task ventanas-raton: mover/redimensionar con raton + semaforos ------------
+chkg "ventanas-raton: resize_on_border" "$HYPR" 'resize_on_border[[:space:]]*=[[:space:]]*true'
+chkg "ventanas-raton: extend_border_grab_area 25" "$HYPR" 'extend_border_grab_area[[:space:]]*=[[:space:]]*25'
+chkg "ventanas-raton: bloque snap" "$HYPR" 'snap[[:space:]]*\{'
+_SNAPBLK="$(awk '/snap *\{/{f=1} f{print} f&&/\}/{exit}' "$HYPR")"
+if printf '%s\n' "$_SNAPBLK" | grep -qE 'enabled[[:space:]]*=[[:space:]]*true'; then
+  ok "ventanas-raton: snap enabled"
+else
+  bad "ventanas-raton: snap enabled"
+fi
+if printf '%s\n' "$_SNAPBLK" | grep -qE 'window_gap[[:space:]]*=[[:space:]]*10'; then
+  ok "ventanas-raton: snap window_gap 10"
+else
+  bad "ventanas-raton: snap window_gap 10"
+fi
+if printf '%s\n' "$_SNAPBLK" | grep -qE 'monitor_gap[[:space:]]*=[[:space:]]*10'; then
+  ok "ventanas-raton: snap monitor_gap 10"
+else
+  bad "ventanas-raton: snap monitor_gap 10"
+fi
+chkg "ventanas-raton: bindm SUPER mouse:272 movewindow" "$SHORT" 'bindm[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*mouse:272,[[:space:]]*movewindow'
+chkg "ventanas-raton: bindm SUPER mouse:273 resizewindow" "$SHORT" 'bindm[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*mouse:273,[[:space:]]*resizewindow'
+WINBAR="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/WindowBar.qml"
+[ -f "$WINBAR" ] && ok "ventanas-raton: WindowBar.qml existe" || bad "ventanas-raton: WindowBar.qml existe"
+chkg "ventanas-raton: WindowBar activo por defecto" "$WINBAR" 'readonly property bool enabled: bar \? bar\.windowBar : true'
+if grep -rn 'windowBar' "$OVL" 2>/dev/null | grep -vE 'bar\.windowBar(Title)? : true' | grep -q .; then
+  bad "ventanas-raton: nada en overlay desactiva windowBar"
+else
+  ok "ventanas-raton: nada en overlay desactiva windowBar"
+fi
+
 # --- Sintaxis: hyprland --verify-config si disponible --------------------------
 # Hyprland 0.56: --check-config no existe, es --verify-config. El source=
 # usa ~, asi que se fusiona en un HOME temporal para no dar falso globbing.
