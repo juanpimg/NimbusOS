@@ -138,6 +138,42 @@ chkg "menu-tienda pamac tema WhiteSur (gtk-3.0)" "$MT_GTK3" '^gtk-theme-name *= 
 chkg "menu-tienda live-setup flathub remote-add" "$MT_LIVE" 'flatpak remote-add --if-not-exists flathub'
 chkg "menu-tienda ruling Qt skip documentado" "$APP" 'appmenu-qt5'
 
+# --- Task ui-flows: flujos macOS (bloqueo, centro de control, OSD, hostname) --
+UF_LOCK="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacLock/lock-via-ipc.sh"
+UF_HYPRLOCK="$ROOT/nimbus-overlay/etc/skel/.config/hypr/hyprlock.conf"
+UF_LUA="$ROOT/nimbus-overlay/etc/skel/.config/hypr/hyprland.lua"
+UF_HOST="$ROOT/nimbus-overlay/etc/hostname"
+# Bloqueo: el bind SUPER+L (hyprland.conf + hyprland.lua) y MacBar.lockScreen
+# llaman a MacLock/lock-via-ipc.sh; el skel solo vendorea MacShell, asi que el
+# shim debe existir, ser ejecutable y delegar en hyprlock.
+chk "ui-flows shim MacLock existe" test -f "$UF_LOCK"
+chk "ui-flows shim MacLock ejecutable" test -x "$UF_LOCK"
+chkg "ui-flows shim MacLock delega en hyprlock" "$UF_LOCK" 'exec hyprlock'
+chkg "ui-flows hyprlock blur screenshot" "$UF_HYPRLOCK" 'path = screenshot'
+chkg "ui-flows hyprlock hora grande" "$UF_HYPRLOCK" 'text = \$TIME'
+chkg "ui-flows hyprlock input-field password" "$UF_HYPRLOCK" 'input-field'
+# OSD/teclas hardware: XF86 -> ipc hardware de MacBar (su OSD interno pinta
+# volumen/brillo; sin swayosd/avizo que duplicarian el popup).
+for _k in "XF86AudioRaiseVolume.*hardware volumeUp" "XF86AudioLowerVolume.*hardware volumeDown" "XF86AudioMute.*hardware mute" "XF86MonBrightnessUp.*hardware brightnessUp" "XF86MonBrightnessDown.*hardware brightnessDown"; do
+  chkg "ui-flows bind XF86 .conf: $_k" "$SHORT" "$_k"
+  chkg "ui-flows bind XF86 lua: $_k" "$UF_LUA" "$_k"
+done
+if grep -qx 'swayosd' "$APP" 2>/dev/null || grep -qx 'avizo' "$APP" 2>/dev/null; then
+  bad "ui-flows sin OSD externo (MacBar pinta su OSD)"
+else
+  ok "ui-flows sin OSD externo (MacBar pinta su OSD)"
+fi
+# Backends para que los controles ACTUEN (verificados pacman -Si 2026-10-26).
+for _p in brightnessctl bluez bluez-utils; do
+  chkg "ui-flows append: $_p" "$APP" "^${_p}$"
+done
+chkg "ui-flows append seccion ui-flows" "$APP" 'Task ui-flows'
+chkg "ui-flows wifi sin paquete (nmcli upstream)" "$APP" 'nmcli via networkmanager upstream'
+# Hostname live: el prompt era liveuser@CachyOS (airootfs/etc/hostname
+# upstream); el overlay lo fija a nimbus. Prohibido etc/passwd (Task 5).
+chkg "ui-flows hostname live nimbus" "$UF_HOST" '^nimbus$'
+[ ! -e "$ROOT/nimbus-overlay/etc/passwd" ] && ok "ui-flows overlay sin etc/passwd" || bad "ui-flows overlay sin etc/passwd"
+
 # --- Sintaxis -------------------------------------------------------------------------------
 chk "verify-store supera bash -n" bash -n "$ROOT/scripts/verify-store.sh"
 if command -v hyprland >/dev/null 2>&1; then

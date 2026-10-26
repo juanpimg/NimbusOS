@@ -220,6 +220,15 @@ hl.bind("SUPER + L", hl.dsp.exec_cmd("sh ~/.config/quickshell/MacLock/lock-via-i
 hl.bind("SUPER + Q", hl.dsp.window.close())
 hl.bind("SUPER + T", hl.dsp.exec_cmd("kitty"))
 
+-- Task ui-flows: teclas hardware (volumen/brillo) -> OSD interno de MacBar.
+-- Sin swayosd/avizo (duplicarian el OSD). `repeating` = repite al mantener.
+hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd(qs .. "hardware volumeUp"), { repeating = true })
+hl.bind("XF86AudioLowerVolume",  hl.dsp.exec_cmd(qs .. "hardware volumeDown"), { repeating = true })
+hl.bind("XF86AudioMute",         hl.dsp.exec_cmd(qs .. "hardware mute"))
+hl.bind("XF86AudioMicMute",      hl.dsp.exec_cmd(qs .. "hardware micMute"))
+hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(qs .. "hardware brightnessUp"), { repeating = true })
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(qs .. "hardware brightnessDown"), { repeating = true })
+
 -- Task workflow-mac: Spaces / Mission Control / fullscreen.
 -- Sin atajos con Control (macOS usa Control+flechas; aqui SUPER+LEFT/RIGHT).
 for i = 1, 9 do

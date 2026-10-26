@@ -213,3 +213,22 @@ qt6ct
 # gtk-3.0/settings.ini (sin config propia de tema pamac en overlay);
 # Flathub ya lo anade nimbus-live-setup (flatpak remote-add --if-not-exists).
 appmenu-gtk-module
+
+# --- Task ui-flows (2026-10-26): controles del centro de control ACTUAN -----
+# Backends que los tiles/sliders de MacBar (Control Center) invocan y que NO
+# trae el perfil CachyOS-Live-ISO (audit packages_desktop.x86_64 2026-10-26:
+# networkmanager + pipewire/wireplumber SI estan; estos tres NO):
+# brightnessctl (extra 0.5.1-3, `pacman -Si` 2026-10-26): slider de brillo
+#   (MacBar brightProc/brightApply: `brightnessctl -m` / `brightnessctl set`).
+# bluez + bluez-utils (extra 5.87-2, `pacman -Si` 2026-10-26): tile Bluetooth
+#   (MacBar usa `bluetoothctl show|devices|info|power|connect`; el daemon va
+#   en `bluez`, el CLI en `bluez-utils`; `rfkill` ya lo da util-linux/core).
+# wifi/volumen: SIN paquete (nmcli via networkmanager upstream; audio via
+#   PipeWire+wireplumber upstream, MacBar habla al servicio Quickshell).
+# Ruling OSD: SIN swayosd/avizo — MacBar ya pinta su propio OSD de
+#   volumen/brillo (showOsd) al recibir `hardware volumeUp|...`; un OSD
+#   externo duplicaria el popup. Las teclas XF86 se bindean en
+#   10-shortcuts.conf + hyprland.lua hacia `hardware ...`.
+brightnessctl
+bluez
+bluez-utils

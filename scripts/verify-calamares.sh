@@ -122,6 +122,11 @@ else
 fi
 chk "verify-calamares supera bash -n" bash -n "$ROOT/scripts/verify-calamares.sh"
 
+# --- Task ui-flows: Hello primero + erase por defecto (flujo Setup Assistant --
+# El slideshow debe ABRIR con "Hello." (no basta con que exista en algun slide).
+_first_hello="$(awk '/^[[:space:]]*Slide[[:space:]]*\{/{n++} /Hello\./{if(!f){f=n} } END{print f+0}' "$QML" 2>/dev/null)"
+if [ "${_first_hello:-0}" = "1" ]; then ok "ui-flows Hello es el primer slide"; else bad "ui-flows Hello es el primer slide (esta en slide ${_first_hello:-?})"; fi
+
 # --- QML render -------------------------------------------------------------------------------
 # Requiere qmlscene + imports calamares.slideshow instalados (paquete calamares
 # en live/ISO). Sin ellos: SKIP explicito, no FAIL.
