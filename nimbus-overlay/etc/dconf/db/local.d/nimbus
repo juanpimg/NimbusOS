@@ -1,0 +1,21 @@
+# NimbusOS — Nautilus estilo Finder (vista iconos + barra lateral).
+# Base de datos dconf del sistema: `dconf update` la compila en el arranque.
+# No cambia de app (Nautilus se tematiza, no se sustituye).
+
+[org/gnome/nautilus/preferences]
+default-folder-viewer='icon-view'
+show-hidden-files=false
+sort-directories-first=true
+default-sort-order='name'
+search-filter-time-type='last_modified'
+show-create-link=true
+
+[org/gnome/nautilus/icon-view]
+default-zoom-level='standard'
+captions=['size', 'date_modified', 'none']
+
+[org/gnome/nautilus/window-state]
+sidebar-width=200
+side-pane-visible=true
+maximized=false
+geometry='880x600'

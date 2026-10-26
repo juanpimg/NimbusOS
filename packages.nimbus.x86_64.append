@@ -183,3 +183,12 @@ desktop-file-utils
 # rust provee cargo (paquete `cargo` pide elegir proveedor rust vs rustup;
 # fijar `rust` evita el prompt interactivo que cuelga pacstrap).
 rust
+
+# --- Workflow Mac piel total Task 2 (2026-10-26): Qt6 hereda WhiteSur+Inter --
+# qt6ct en repos oficiales (extra + cachyos-extra-v3, verificado
+# `pacman -Si qt6ct` 2026-10-26). Su config va en
+# nimbus-overlay/etc/skel/.config/qt6ct/qt6ct.conf (style=gtk2).
+# Plymouth: OMITIDO (Ruling: esta en repos pero el perfil CachyOS-Live-ISO no
+# lo soporta — HOOKS de archiso.conf sin plymouth, sin config en airootfs;
+# solo el paquete sin hook initramfs no pinta splash y arriesga el live).
+qt6ct
