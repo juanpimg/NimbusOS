@@ -1,5 +1,5 @@
 /* NimbusOS Calamares slideshow — estilo Setup Assistant.
- * slideshowAPI 2: Presentation con 3 slides ("Hello").
+ * slideshowAPI 2: Presentation con 4 slides ("Hello").
  * Reutiliza la paleta #F5F5F7/#1D1D1F/#007AFF + Inter y el wallpaper
  * canonico de Task 1 (/usr/share/backgrounds/nimbus/sequoia-light.jpg,
  * aprovisionado por Task 5; si falta, el fondo liso lo sustituye).
@@ -64,6 +64,33 @@ Presentation {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: "Hyprland con estética Mac, dock y atajos Super."
+                    font.family: "Inter"
+                    font.pixelSize: 22
+                    color: "#007AFF"
+                }
+            }
+        }
+    }
+
+    Slide {
+        Rectangle {
+            anchors.fill: parent
+            color: "#F5F5F7"
+
+            Column {
+                anchors.centerIn: parent
+                spacing: 12
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Spaces y Spotlight."
+                    font.family: "Inter"
+                    font.pixelSize: 48
+                    color: "#1D1D1F"
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Varios escritorios y búsqueda al instante."
                     font.family: "Inter"
                     font.pixelSize: 22
                     color: "#007AFF"

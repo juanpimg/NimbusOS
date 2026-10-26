@@ -63,12 +63,13 @@ else
   ok "desc sin referencias PNG inexistentes"
 fi
 
-# --- show.qml: 3 slides, Hello, slideshowAPI 2 -----------------------------------
+# --- show.qml: 4 slides, Hello, slideshowAPI 2 -----------------------------------
 nslides="$(grep -cE '^[[:space:]]*Slide[[:space:]]*\{' "$QML" 2>/dev/null || echo 0)"
-if [ "$nslides" -eq 3 ]; then ok "qml 3 slides"; else bad "qml 3 slides (hallados: $nslides)"; fi
+if [ "$nslides" -eq 4 ]; then ok "qml 4 slides"; else bad "qml 4 slides (hallados: $nslides)"; fi
 chkg "qml import calamares.slideshow" "$QML" 'import calamares\.slideshow'
 chkg "qml Presentation" "$QML" 'Presentation'
 chkg "qml Hello" "$QML" 'Hello\.'
+chkg "qml slide Spaces/Spotlight" "$QML" 'Spaces'
 
 # --- QSS: fondo, radio 12, botones #007AFF ---------------------------------------
 chkg "qss fondo #F5F5F7" "$QSS" '#F5F5F7'
@@ -144,6 +145,21 @@ if [ -d "$ROOT/nimbus-overlay/etc/skel/.config/hypr" ]; then
 else
   bad "skel hypr/ intacto"
 fi
+
+# --- customize_airootfs.sh: piel total (plan workflow-mac-piel-total Task 3) ------------
+# Los 4 ficheros de piel de Task 2 deben instalarse via install -Dm644 con
+# guards [ -f ] (idempotente, set -u safe; no falla si Task 2 aun no los trae).
+CUST="$OVL/root/customize_airootfs.sh"
+chk "customize presente" test -f "$CUST"
+chk "customize supera bash -n" bash -n "$CUST"
+for _skin in "etc/skel/.config/hypr/hyprlock.conf" \
+             "etc/skel/.config/qt6ct/qt6ct.conf" \
+             "etc/dconf/db/local.d/nimbus" \
+             "etc/default/grub.d/nimbus.cfg"; do
+  chkg "customize instala piel: $_skin" "$CUST" "$_skin"
+done
+chkg "customize install -Dm644 piel" "$CUST" 'install -Dm644'
+chkg "customize guards [ -f ]" "$CUST" '\[ -f '
 
 echo "-------------------------------------------------------------"
 echo "RESULT: PASS=$PASS FAIL=$FAIL SKIP=$SKIP"

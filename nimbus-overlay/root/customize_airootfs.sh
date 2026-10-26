@@ -27,3 +27,35 @@ for rel in "${FILES[@]}"; do
         echo "customize_airootfs AVISO: falta staging $src (omitido)" >&2
     fi
 done
+
+# Piel total (plan workflow-mac-piel-total Task 2): estos ficheros no los posee
+# ningun paquete, asi que cp -a del overlay ya los deja en su destino; aqui se
+# asegura presencia y permisos 644 de forma idempotente. Si algun build los
+# difiriera a staging, se reinstalan desde ahi. Guards [ -f ]; seguro con
+# `set -u`; nunca falla aunque un fichero falte.
+SKIN_FILES=(
+    "etc/skel/.config/hypr/hyprlock.conf"
+    "etc/skel/.config/qt6ct/qt6ct.conf"
+    "etc/dconf/db/local.d/nimbus"
+    "etc/default/grub.d/nimbus.cfg"
+)
+
+for rel in "${SKIN_FILES[@]}"; do
+    src="$STAGING/$rel"
+    dst="/$rel"
+    if [ -f "$src" ]; then
+        install -Dm644 "$src" "$dst"
+        echo "customize_airootfs: instalado $dst (piel, desde staging)"
+    elif [ -f "$dst" ]; then
+        chmod 644 "$dst"
+        echo "customize_airootfs: piel ya presente $dst (permisos 644)"
+    else
+        echo "customize_airootfs AVISO: falta piel $dst (omitido)" >&2
+    fi
+done
+
+# Compilar la base dconf si el override existe (idempotente; no falla si
+# dconf no esta instalado en este punto del build):
+if [ -f /etc/dconf/db/local.d/nimbus ] && command -v dconf >/dev/null 2>&1; then
+    dconf update || echo "customize_airootfs AVISO: dconf update fallo (omitido)" >&2
+fi
