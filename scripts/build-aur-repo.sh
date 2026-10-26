@@ -22,8 +22,12 @@ pipe_sudo pacman -Sy --needed --noconfirm --asdeps \
     || { echo "FAIL pre-instalar deps" >&2; exit 1; }
 
 mkdir -p work/aur-build && cd work/aur-build || exit 1
+# Mapeo paquete -> directorio de fuentes (los split packages como
+# hyprland-plugin-hyprbars viven en el pkgbase hyprland-plugins).
+srcdir_of() { case "$1" in hyprland-plugin-hyprbars) echo hyprland-plugins;; *) echo "$1";; esac; }
 for p in whitesur-gtk-theme whitesur-icon-theme hyprshell libpamac-aur pamac-aur hyprland-plugin-hyprbars; do
-    if [ ! -d "$p" ]; then
+    d="$(srcdir_of "$p")"
+    if [ ! -d "$d" ]; then
         _ok=0
         for _try in 1 2 3 4 5; do
             if paru -G "$p"; then _ok=1; break; fi
@@ -31,14 +35,14 @@ for p in whitesur-gtk-theme whitesur-icon-theme hyprshell libpamac-aur pamac-aur
         done
         [ "$_ok" = "1" ] || { echo "FAIL fetch $p" >&2; exit 1; }
     fi
-    if ls "$p"/*.pkg.tar.zst >/dev/null 2>&1; then
+    if ls "$d/$p"-*.pkg.tar.zst >/dev/null 2>&1; then
         echo "OK $p ya compilado, reutilizo binario"
     else
-        ( cd "$p" && makepkg -s --noconfirm ) || { echo "FAIL build $p" >&2; exit 1; }
+        ( cd "$d" && makepkg -s --noconfirm --pkg "$p" ) || { echo "FAIL build $p" >&2; exit 1; }
     fi
     # Instalar en el host (necesario para encadenar deps AUR: pamac-aur
     # requiere libpamac-aur en la DB; --asdeps para no contaminar):
-    pipe_sudo pacman -U --noconfirm --asdeps "$p"/*.pkg.tar.zst || { echo "FAIL install $p" >&2; exit 1; }
+    pipe_sudo pacman -U --noconfirm --asdeps "$d/$p"-*.pkg.tar.zst || { echo "FAIL install $p" >&2; exit 1; }
     echo "OK built+installed $p"
 done
 mkdir -p ../nimbus-repo
