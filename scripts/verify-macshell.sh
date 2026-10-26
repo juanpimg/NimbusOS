@@ -243,6 +243,42 @@ chkg "ui-win: lua resize_on_border (redimension con borde)" "$HLUA" 'resize_on_b
 chkg "ui-win: lua extend_border_grab_area 25" "$HLUA" 'extend_border_grab_area *= *25'
 chkg "ui-win: lua hyprbars bar_part_of_window (sombra unica)" "$HLUA" 'bar_part_of_window *= *true'
 
+# --- Task ui-desktop2: escritorio live indistinguible de macOS -----------------
+# Checklist: fondo al arrancar (hyprpaper ejecutandose, no solo configurado),
+# barra translucida + blur, dock flotante, Spotlight, Inter, WhiteSur,
+# capitaine, modo claro coherente. QML MacShell = upstream pristine (no se
+# reescribe: solo se verifica presencia + autostart + theming que lo viste).
+HYPAPER="$ROOT/nimbus-overlay/etc/skel/.config/hypr/hyprpaper.conf"
+chkg "ui-desktop2: hyprpaper.conf existe" "$HYPAPER" 'preload[[:space:]]*=[[:space:]]*/usr/share/backgrounds/nimbus/sequoia-light.jpg'
+chkg "ui-desktop2: conf ejecuta hyprpaper (fondo al arrancar)" "$HYPR" 'exec-once[[:space:]]*=[[:space:]]*hyprpaper'
+chkg "ui-desktop2: lua arranca hyprpaper (fondo al arrancar)" "$HLUA" 'exec_cmd\("hyprpaper"\)'
+chkg "ui-desktop2: wallpaper canonico en overlay" "$OVL/usr/share/backgrounds/nimbus/sequoia-light.jpg" '.*'
+[ -s "$OVL/usr/share/backgrounds/nimbus/sequoia-light.jpg" ] && ok "ui-desktop2: wallpaper no vacio" || bad "ui-desktop2: wallpaper no vacio"
+for _qml in MacBar MacDock shell; do
+  [ -f "$OVL/etc/skel/.config/quickshell/MacShell/${_qml}.qml" ] && ok "ui-desktop2: ${_qml}.qml upstream presente" || bad "ui-desktop2: ${_qml}.qml upstream presente"
+done
+chkg "ui-desktop2: spotlight SUPER+ESPACIO (.conf via shortcuts)" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*SPACE.*spotlight toggle'
+chkg "ui-desktop2: spotlight SUPER+Space (lua)" "$HLUA" 'SUPER \+ Space.*spotlight toggle'
+chkg "ui-desktop2: Inter en qt6ct (apps Qt)" "$OVL/etc/skel/.config/qt6ct/qt6ct.conf" 'general="Inter'
+chkg "ui-desktop2: WhiteSur iconos en qt6ct" "$OVL/etc/skel/.config/qt6ct/qt6ct.conf" 'icon_theme=WhiteSur'
+chkg "ui-desktop2: Inter en hyprbars (titlebars)" "$HLUA" 'bar_text_font *= *"Inter"'
+chkg "ui-desktop2: cursor capitaine en conf" "$HYPR" 'XCURSOR_THEME,capitaine-cursors'
+chkg "ui-desktop2: cursor capitaine en lua" "$HLUA" 'XCURSOR_THEME", "capitaine-cursors'
+chkg "ui-desktop2: cursor capitaine en gtk" "$OVL/etc/skel/.config/gtk-3.0/settings.ini" 'gtk-cursor-theme-name[[:space:]]*=[[:space:]]*capitaine-cursors'
+chkg "ui-desktop2: modo claro coherente gtk3" "$OVL/etc/skel/.config/gtk-3.0/settings.ini" 'gtk-application-prefer-dark-theme[[:space:]]*=[[:space:]]*false'
+chkg "ui-desktop2: modo claro coherente gtk4" "$OVL/etc/skel/.config/gtk-4.0/settings.ini" 'gtk-application-prefer-dark-theme[[:space:]]*=[[:space:]]*false'
+# Reloj: MacShell usa el locale del sistema (Qt.locale); el live CachyOS es
+# C.UTF-8 (dia/mes en ingles). Ruling: sin locale es_ES en la ISO no hay
+# reloj espanol; upstream MacShell solo trae traduccion ru (lang/ru.js, sin
+# es.js): traducir el shell seria bifurcar upstream (prohibido). Se verifica
+# que el wiring existe (I18n lee Qt.locale) y se deja el gap documentado.
+chkg "ui-desktop2: I18n usa locale del sistema (reloj sigue LANG)" "$OVL/etc/skel/.config/quickshell/MacShell/I18n.js" 'Qt\.locale\(\)'
+if grep -qE '^LANG=es_ES' "$OVL/etc/locale.conf" 2>/dev/null; then
+  ok "ui-desktop2: locale.conf es_ES (reloj espanol)"
+else
+  skip "ui-desktop2: reloj espanol (live C.UTF-8; sin es.js upstream ni locale es_ES)"
+fi
+
 # --- Task resize-teclado: redimensionar con teclado (SUPER+SHIFT+flechas) ------
 chkg "resize-teclado: SUPER+SHIFT+LEFT resizeactive -40" "$SHORT" 'binde?[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*LEFT,[[:space:]]*resizeactive,[[:space:]]*-40 0'
 chkg "resize-teclado: SUPER+SHIFT+RIGHT resizeactive +40" "$SHORT" 'binde?[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*RIGHT,[[:space:]]*resizeactive,[[:space:]]*40 0'
