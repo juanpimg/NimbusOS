@@ -4,6 +4,7 @@
 # Uso: ./build-aur-repo.sh  (pide sudo una vez al inicio; keep-alive interno)
 set -u
 cd "$(dirname "$0")/.." || exit 1
+ROOT="$PWD"
 
 printf '%s\n' '1216' | sudo -S -v || { echo "sin sudo, abortar" >&2; exit 1; }
 ( while sleep 240; do sudo -n -v 2>/dev/null || true; done ) & KA=$!
@@ -50,13 +51,14 @@ done
 mkdir -p ../nimbus-repo
 # Copiar SOLO los paquetes del manifest (un pkgbase split puede haber
 # compilado hermanos que no queremos en la ISO).
+[ -f "$ROOT/packages.nimbus-aur.txt" ] || { echo "FAIL sin manifest $ROOT/packages.nimbus-aur.txt" >&2; exit 1; }
 while IFS= read -r _aur || [ -n "$_aur" ]; do
     case "$_aur" in ''|\#*) continue ;; esac
     _found="$(ls ./*/"$_aur"-*.pkg.tar.zst 2>/dev/null || true)"
     [ -n "$_found" ] || { echo "FAIL falta binario $_aur" >&2; exit 1; }
     # shellcheck disable=SC2086
     cp $_found ../nimbus-repo/ || exit 1
-done < ../packages.nimbus-aur.txt
+done < "$ROOT/packages.nimbus-aur.txt"
 cd ../nimbus-repo || exit 1
 repo-add nimbus.db.tar.gz *.pkg.tar.zst || exit 1
 ls -lh
