@@ -39,13 +39,16 @@ chkg "Task1 intacto (seccion Task 1)" "$APP" '--- Task 1'
 chkg "Task2 intacto (seccion Task2 power)" "$APP" '--- Task2 power'
 for p in hyprland quickshell hyprlock kitty inter-font whitesur-gtk-theme \
   whitesur-icon-theme capitaine-cursors auto-cpufreq thermald zram-generator \
-  nvidia-dkms mpv vlc; do
+  mpv vlc; do
   chkg "Task1/2 intacto: $p" "$APP" "^${p}$"
 done
+# Task5: nvidia-dkms fuera del append (lo aporta el pin upstream linux-cachyos-*-nvidia-open).
+if grep -qx 'nvidia-dkms' "$APP" 2>/dev/null; then bad "Task5: sin nvidia-dkms duplicado (lo aporta upstream)"; else ok "Task5: sin nvidia-dkms duplicado (lo aporta upstream)"; fi
 
 # --- Paquetes Task3 (brief, verbatim) --------------------------------------------
 chkg "append seccion Task3" "$APP" '--- Task3 store\+USB'
-for p in pamac-gtk libpamac-flatpak-plugin appstream archlinux-appstream-data \
+# Task5: pamac-gtk / libpamac-flatpak-plugin NO existen en AUR (paquete real: pamac-aur).
+for p in pamac-aur appstream archlinux-appstream-data \
   flatpak xdg-desktop-portal xdg-desktop-portal-hyprland base-devel git \
   polkit-gnome udisks2 udiskie gvfs gvfs-mtp ntfs-3g exfatprogs dosfstools \
   mtools nautilus hyprshell; do
@@ -116,9 +119,13 @@ if [ "$n_alt" -eq 1 ]; then ok "ALT TAB definido una sola vez (activo)"; else ba
 # --- Sintaxis -------------------------------------------------------------------------------
 chk "verify-store supera bash -n" bash -n "$ROOT/scripts/verify-store.sh"
 if command -v hyprland >/dev/null 2>&1; then
-  chk "live: hyprland --check-config" hyprland --check-config -c "$HYPR"
+  _tmpd="$(mktemp -d)"
+  mkdir -p "$_tmpd/.config/hypr"
+  cp "$ROOT/nimbus-overlay/etc/skel/.config/hypr/"*.conf "$_tmpd/.config/hypr/" 2>/dev/null || true
+  if HOME="$_tmpd" hyprland --verify-config -c "$_tmpd/.config/hypr/hyprland.conf" >/dev/null 2>&1; then ok "live: hyprland --verify-config"; else bad "live: hyprland --verify-config"; fi
+  rm -rf "$_tmpd"
 else
-  skip "hyprland --check-config (hyprland no instalado en host)"
+  skip "hyprland --verify-config (hyprland no instalado en host)"
 fi
 
 echo "-------------------------------------------------------------"

@@ -43,13 +43,16 @@ for p in hyprland quickshell hyprlock kitty inter-font whitesur-gtk-theme whites
 done
 chkg "Task2 seccion power presente" "$APP" '--- Task2 power'
 
-# --- Paquetes Task2 (exactos del brief) ------------------------------------------
-for p in auto-cpufreq thermald zram-generator nvidia-dkms nvidia-utils \
+# --- Paquetes Task2 (exactos del brief, menos Task5: nvidia-dkms/utils los aporta upstream) ---
+for p in auto-cpufreq thermald zram-generator \
   lib32-nvidia-utils nvidia-prime switcheroo-control nvtop mesa vulkan-radeon \
   vulkan-intel vulkan-mesa-layers lib32-vulkan-mesa-layers libva libva-utils \
   vdpauinfo libvdpau-va-gl intel-media-driver libva-intel-driver libvpl \
   vpl-gpu-rt libva-nvidia-driver ffmpeg gst-plugins-bad mpv vlc; do
   chkg "append: $p" "$APP" "^${p}$"
+done
+for p in nvidia-dkms nvidia-utils; do
+  if grep -qx "$p" "$APP" 2>/dev/null; then bad "Task5: sin $p duplicado (lo aporta upstream)"; else ok "Task5: sin $p duplicado (lo aporta upstream)"; fi
 done
 chkg "append marca seccion AUR" "$APP" 'AUR'
 

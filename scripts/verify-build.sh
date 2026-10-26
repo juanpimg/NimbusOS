@@ -191,7 +191,7 @@ if [ -f "$ROOT/scripts/test-qemu.sh" ]; then
     chkg "qemu pre-check x86-64-v3" "$ROOT/scripts/test-qemu.sh" 'x86-64-v|avx2|AVX2'
 fi
 [ -f "$ROOT/docs/qemu.md" ] && ok "existe docs/qemu.md" || bad "existe docs/qemu.md"
-chkg "qemu.md checklist hyprland --check-config pre-release" "$ROOT/docs/qemu.md" 'hyprland --check-config'
+chkg "qemu.md checklist hyprland --verify-config pre-release" "$ROOT/docs/qemu.md" 'hyprland --verify-config'
 
 # --- DM (I4): greetd sin probar E2E; alertar si el upstream cambia de DM ----
 # Nimbus V1 asume greetd+Hyprland (displaymanager.conf del overlay). El perfil

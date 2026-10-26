@@ -30,7 +30,7 @@ qemu-system-x86_64 -enable-kvm -M q35,accel=kvm -cpu host -smp 4 -m 4096 \
 
 ## Checklist obligatorio pre-release (no bloquea --check-only)
 
-- En el guest live, antes de declarar la release: `hyprland --check-config`
+- En el guest live, antes de declarar la release: `hyprland --verify-config`
   debe pasar sin errores (valida hyprland.conf + 10-shortcuts.conf tras la
   fusion del overlay). `--check-only`/`verify-build.sh` NO lo ejecutan
   (requiere Hyprland instalado + sesion live); este paso es manual en QEMU.

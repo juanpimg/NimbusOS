@@ -40,14 +40,15 @@ echo "== Task 1 verify: macshell + hyprland flotante + theming =="
 [ -f "$MDOCK" ] && ok "macdock/settings.json existe" || bad "settings.json existe"
 
 # --- hyprland.conf: flotante + blur + binds -----------------------------------
-chkg "flotante global windowrulev2" "$HYPR" 'windowrulev2[[:space:]]*=[[:space:]]*float,[[:space:]]*class:\^\(\.\*\)\$'
+# Hyprland >= 0.53: windowrulev2 -> window_rule / layerrule -> layer_rule.
+chkg "flotante global window_rule" "$HYPR" 'window_rule[[:space:]]*=[[:space:]]*float,[[:space:]]*class:\^\(\.\*\)\$'
 chkg "rounding 12-14px" "$HYPR" 'rounding[[:space:]]*=[[:space:]]*1[234]'
 chkg "blur enabled" "$HYPR" 'blur[[:space:]]*\{'
 chkg "blur Dual-Kawase (passes)" "$HYPR" 'passes[[:space:]]*=[[:space:]]*[0-9]+'
-chkg "layerrule blur macdock"  "$HYPR" 'layerrule[[:space:]]*=[[:space:]]*blur,[[:space:]]*macdock'
-chkg "layerrule blur macspot"  "$HYPR" 'layerrule[[:space:]]*=[[:space:]]*blur,[[:space:]]*macspot'
-chkg "layerrule blur macbarbg" "$HYPR" 'layerrule[[:space:]]*=[[:space:]]*blur,[[:space:]]*macbarbg'
-chkg "layerrule ignorealpha presente" "$HYPR" 'layerrule[[:space:]]*=[[:space:]]*ignorealpha'
+chkg "layer_rule blur macdock"  "$HYPR" 'layer_rule[[:space:]]*=[[:space:]]*blur,[[:space:]]*macdock'
+chkg "layer_rule blur macspot"  "$HYPR" 'layer_rule[[:space:]]*=[[:space:]]*blur,[[:space:]]*macspot'
+chkg "layer_rule blur macbarbg" "$HYPR" 'layer_rule[[:space:]]*=[[:space:]]*blur,[[:space:]]*macbarbg'
+chkg "layer_rule ignorealpha presente" "$HYPR" 'layer_rule[[:space:]]*=[[:space:]]*ignorealpha'
 chkg "exec-once = macshell" "$HYPR" 'exec-once[[:space:]]*=[[:space:]]*macshell'
 chkg "SUPER+ESPACIO spotlight" "$HYPR" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*SPACE.*spotlight toggle'
 chkg "ALT+TAB switcher" "$HYPR" 'bind[[:space:]]*=[[:space:]]*ALT,[[:space:]]*TAB.*switcher next'
@@ -150,11 +151,17 @@ done
 chkg "manifest: pin MacShell + SHA" "$MAN" '0-ss/MacShell'
 chkg "manifest: SHA 2026-10-23" "$MAN" 'bef9fc4'
 
-# --- Sintaxis: hyprland --check-config si disponible ------------------------------
+# --- Sintaxis: hyprland --verify-config si disponible --------------------------
+# Hyprland 0.56: --check-config no existe, es --verify-config. El source=
+# usa ~, asi que se fusiona en un HOME temporal para no dar falso globbing.
 if command -v hyprland >/dev/null 2>&1; then
-  if hyprland --check-config -c "$HYPR" >/dev/null 2>&1; then ok "hyprland --check-config"; else bad "hyprland --check-config"; fi
+  _tmpd="$(mktemp -d)"
+  mkdir -p "$_tmpd/.config/hypr"
+  cp "$ROOT/nimbus-overlay/etc/skel/.config/hypr/"*.conf "$_tmpd/.config/hypr/" 2>/dev/null || true
+  if HOME="$_tmpd" hyprland --verify-config -c "$_tmpd/.config/hypr/hyprland.conf" >/dev/null 2>&1; then ok "hyprland --verify-config"; else bad "hyprland --verify-config"; fi
+  rm -rf "$_tmpd"
 else
-  skip "hyprland --check-config (hyprland no instalado en host)"
+  skip "hyprland --verify-config (hyprland no instalado en host)"
 fi
 chk "wrapper supera sh -n" sh -n "$WRAP"
 if command -v luac >/dev/null 2>&1; then

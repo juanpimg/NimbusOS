@@ -11,7 +11,7 @@
 # Producen: out/nimbus-YYYY.MM.DD-x86_64.iso + .sha256 + build.log
 # Reproducibilidad: SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) (pin repo).
 # Checklist obligatorio pre-release (solo live, no --check-only):
-#   hyprland --check-config en el guest live antes de declarar la release
+#   hyprland --verify-config en el guest live antes de declarar la release
 #   (valida hyprland.conf + 10-shortcuts.conf fusionados; ver docs/qemu.md).
 #   Ni --check-only ni verify-build.sh lo ejecutan (requieren sesion live).
 # =============================================================================
