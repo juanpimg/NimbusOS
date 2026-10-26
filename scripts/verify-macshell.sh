@@ -171,7 +171,7 @@ else
   ok "Task workflow-mac: cero CTRL en Spaces/Mission Control (Control intacto)"
 fi
 
-# --- Task ventanas-raton: mover/redimensionar con raton + semaforos ------------
+# --- Task ventanas-raton: mover/redimensionar con raton ------------------------
 chkg "ventanas-raton: resize_on_border" "$HYPR" 'resize_on_border[[:space:]]*=[[:space:]]*true'
 chkg "ventanas-raton: extend_border_grab_area 25" "$HYPR" 'extend_border_grab_area[[:space:]]*=[[:space:]]*25'
 chkg "ventanas-raton: bloque snap" "$HYPR" 'snap[[:space:]]*\{'
@@ -193,36 +193,31 @@ else
 fi
 chkg "ventanas-raton: bindm SUPER mouse:272 movewindow" "$SHORT" 'bindm[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*mouse:272,[[:space:]]*movewindow'
 chkg "ventanas-raton: bindm SUPER mouse:273 resizewindow" "$SHORT" 'bindm[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*mouse:273,[[:space:]]*resizewindow'
-WINBAR="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/WindowBar.qml"
-[ -f "$WINBAR" ] && ok "ventanas-raton: WindowBar.qml existe" || bad "ventanas-raton: WindowBar.qml existe"
-chkg "ventanas-raton: WindowBar activo por defecto" "$WINBAR" 'readonly property bool enabled: bar \? bar\.windowBar : true'
-if grep -rnE '"?windowBar(Title)?"?:? *=? *false' "$OVL" 2>/dev/null | grep -q .; then
-  bad "ventanas-raton: nada en overlay desactiva windowBar"
-else
-  ok "ventanas-raton: nada en overlay desactiva windowBar"
-fi
 
-# --- Task semaforos: traffic lights en todas las ventanas (sesion Lua) ---------
-# WindowBar.qml lee bar.windowBar/windowBarTitle/tlAlwaysSymbols/tlColorOnHover:
-# si MacBar no las define son undefined -> enabled falsy -> no se dibuja nada.
-# El fix las declara en MacBar (defaults ON, persistidas en settings.json),
-# instancia WindowBar en shell.qml y le da feed de geometria (winBarWantsGeo).
+# --- Task hyprbars: titlebars NATIVAS (plugin oficial, sin overlay) -----------
+# Reemplaza a WindowBar.qml (revertido: MacShell queda pristine, sin
+# bifurcar). hyprbars vive en hyprland.lua: hl.plugin.load del .so +
+# hl.config(plugin.hyprbars) + 3 add_button macOS a la izquierda +
+# no_bar para apps con CSD propio (sin doble barra).
 MBAR="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/MacBar.qml"
 SHELLQML="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/shell.qml"
-chkg "semaforos: MacBar define windowBar (default true)" "$MBAR" 'property bool windowBar: true'
-chkg "semaforos: MacBar define windowBarTitle (default true)" "$MBAR" 'property bool windowBarTitle: true'
-chkg "semaforos: MacBar define tlAlwaysSymbols" "$MBAR" 'property bool tlAlwaysSymbols: false'
-chkg "semaforos: MacBar define tlColorOnHover" "$MBAR" 'property bool tlColorOnHover: false'
-chkg "semaforos: windowBar persiste en settings.json" "$MBAR" '"windowBar", "windowBarTitle", "tlAlwaysSymbols", "tlColorOnHover"'
-chkg "semaforos: resetSettings restaura windowBar" "$MBAR" 'windowBar = true; windowBarTitle = true;'
-chkg "semaforos: shell.qml instancia WindowBar con hub" "$SHELLQML" 'WindowBar \{ id: winBar; hub: sharedHub \}'
-chkg "semaforos: hub tiene winBarWantsGeo" "$SHELLQML" 'property bool winBarWantsGeo: false'
-chkg "semaforos: geo fallback incluye winBarWantsGeo" "$SHELLQML" 'winBarWantsGeo\) && !sharedHub\.ipcOk'
-chkg "semaforos: geo rapido incluye winBarWantsGeo" "$SHELLQML" 'winBarWantsGeo\) && !sharedHub\.ipcBroken'
-chkg "semaforos: WindowBar pide geo via winBarWantsGeo" "$WINBAR" 'property: "winBarWantsGeo"'
-chkg "semaforos: close usa hl.dsp.window.close (sesion Lua)" "$WINBAR" 'hl\.dsp\.window\.close'
-chkg "semaforos: minimize usa special:minimized" "$WINBAR" 'special:minimized'
-chkg "semaforos: zoom usa fullscreen_state" "$WINBAR" 'fullscreen_state'
+MANAUR="$ROOT/packages.nimbus-aur.txt"
+chkg "hyprbars: manifest AUR" "$MANAUR" '^hyprland-plugin-hyprbars$'
+chkg "hyprbars: append declaracion canonica" "$APP" '^hyprland-plugin-hyprbars$'
+chkg "hyprbars: build-aur-repo.sh lo compila al repo [nimbus]" "$ROOT/scripts/build-aur-repo.sh" 'hyprland-plugin-hyprbars'
+chkg "hyprbars: plugin load /usr/lib/libhyprbars.so" "$HLUA" 'hl\.plugin\.load\("/usr/lib/libhyprbars\.so"\)'
+chkg "hyprbars: bar_height 28" "$HLUA" 'bar_height *= *28'
+chkg "hyprbars: botones a la izquierda" "$HLUA" 'bar_buttons_alignment *= *"left"'
+chkg "hyprbars: boton rojo cerrar window.close" "$HLUA" 'bg_color = "rgb\(FF5F57\)".*window\.close'
+chkg "hyprbars: boton amarillo minimizar special:minimized" "$HLUA" 'bg_color = "rgb\(FEBE2E\)".*special:minimized'
+chkg "hyprbars: boton verde fullscreen toggle" "$HLUA" 'bg_color = "rgb\(28C840\)".*window\.fullscreen'
+chkg "hyprbars: no_bar Nautilus (CSD GTK propio)" "$HLUA" 'Nautilus.*hyprbars:no_bar'
+chkg "hyprbars: no_bar Firefox (tabs propios)" "$HLUA" 'firefox.*hyprbars:no_bar'
+if grep -qE 'windowBar|WindowBar|winBarWantsGeo|tlAlwaysSymbols|tlColorOnHover' "$MBAR" "$SHELLQML" 2>/dev/null; then
+  bad "hyprbars: cero QML MacShell modificado (MacBar/shell pristine)"
+else
+  ok "hyprbars: cero QML MacShell modificado (MacBar/shell pristine)"
+fi
 
 # --- Task resize-teclado: redimensionar con teclado (SUPER+SHIFT+flechas) ------
 chkg "resize-teclado: SUPER+SHIFT+LEFT resizeactive -40" "$SHORT" 'binde?[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*LEFT,[[:space:]]*resizeactive,[[:space:]]*-40 0'

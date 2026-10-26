@@ -2,4 +2,5 @@ whitesur-gtk-theme
 whitesur-icon-theme
 pamac-aur
 hyprshell
+hyprland-plugin-hyprbars
 # libpamac-aur viene como dependencia de pamac-aur (no listar aparte)

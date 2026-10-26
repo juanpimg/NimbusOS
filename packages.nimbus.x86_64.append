@@ -119,6 +119,11 @@ nautilus
 # hyprshell (switcher preview ALT+TAB): https://github.com/H3rmt/hyprshell
 # Fallback si no disponible: cyclenext comentado en 10-shortcuts.conf (built-in, sin paquete).
 hyprshell
+# hyprbars (titlebars NATIVAS con semaforos macOS, plugin oficial):
+# https://github.com/hyprwm/hyprland-plugins/tree/main/hyprbars
+# (AUR hyprland-plugin-hyprbars 0.56.2-3.1, x70b1, depende hyprland>=0.56.0,<0.57.0;
+# binario /usr/lib/libhyprbars.so via repo local [nimbus], AUR defer live-setup).
+hyprland-plugin-hyprbars
 
 # --- Task5 fusion (2026-10-23): atestacion final, CERO paquetes nuevos -------
 # Deduplicado verificado 2026-10-23: 69 entradas no-comentario, 0 duplicados

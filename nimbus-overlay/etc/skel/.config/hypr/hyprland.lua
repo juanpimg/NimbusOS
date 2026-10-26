@@ -132,6 +132,51 @@ hl.config({
     },
 })
 
+-- --- hyprbars: titlebars NATIVAS (plugin oficial hyprwm/hyprland-plugins) -----
+-- Sustituye al overlay WindowBar.qml (revertido: MacShell queda pristine,
+-- sin bifurcar; shell.qml upstream nunca instanciaba WindowBar).
+-- Plugin: hyprland-plugin-hyprbars (AUR -> repo local [nimbus]).
+-- Carga explicita OBLIGATORIA y PRIMERA: sin el .so, `hl.plugin.hyprbars.*`
+-- y el efecto `hyprbars:no_bar` son desconocidos y --verify-config falla.
+-- Path verificado en el PKGBUILD AUR (x70b1, split hyprland-plugins):
+-- package_hyprbars instala hyprbars.so en /usr/lib/libhyprbars.so.
+hl.plugin.load("/usr/lib/libhyprbars.so")
+-- Sintaxis Lua verificada contra el README del monorepo (tag v0.56.0) y el
+-- codigo fuente (main.cpp newLuaButton, barDeco.cpp):
+--   * `hl.config({ plugin = { hyprbars = { ... } } })` para opciones.
+--   * `hl.plugin.hyprbars.add_button({...})` por boton. ORDEN = de fuera
+--     hacia dentro desde el borde: con alignment "left" el primero es el
+--     mas a la izquierda (close, minimize, fullscreen como en macOS).
+--   * fg_color OBLIGATORIO en Lua (el parser falla sin el); icon = ""
+--     dibuja el circulo liso estilo macOS (sin glifo).
+--   * `["hyprbars:no_bar"] = true` en window_rule desactiva la barra
+--     (efecto dinamico registrado por el plugin; el bool Lua viaja como
+--     "true" y truthy() lo oculta). Sin el plugin cargado, verify-config
+--     rechaza el campo desconocido -> el plugin es requisito (ver commit).
+hl.config({
+    plugin = {
+        hyprbars = {
+            bar_height            = 28,
+            bar_buttons_alignment = "left",
+            bar_title_enabled     = true,
+            bar_text_size         = 11,
+            bar_text_font         = "Inter",
+            bar_padding           = 10,
+            bar_button_padding    = 6,
+            on_double_click       = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" })']],
+        },
+    },
+})
+-- Rojo cerrar / amarillo minimizar a special:minimized / verde fullscreen.
+hl.plugin.hyprbars.add_button({ bg_color = "rgb(FF5F57)", fg_color = "rgb(FF5F57)", size = 13, icon = "", action = [[hyprctl dispatch 'hl.dsp.window.close()']] })
+hl.plugin.hyprbars.add_button({ bg_color = "rgb(FEBE2E)", fg_color = "rgb(FEBE2E)", size = 13, icon = "", action = [[hyprctl dispatch 'hl.dsp.window.move({ workspace = "special:minimized", follow = false })']] })
+hl.plugin.hyprbars.add_button({ bg_color = "rgb(28C840)", fg_color = "rgb(28C840)", size = 13, icon = "", action = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" })']] })
+
+-- Sin doble barra en apps con CSD propio bueno (headerbar/tabs nativos):
+-- Nautilus (GTK4 headerbar) y Firefox (tabs en la barra de titulo).
+hl.window_rule({ name = "nimbus-hyprbars-no-bar-nautilus", match = { class = "^(org.gnome.Nautilus)$" }, ["hyprbars:no_bar"] = true })
+hl.window_rule({ name = "nimbus-hyprbars-no-bar-firefox",  match = { class = "^(firefox)$" },              ["hyprbars:no_bar"] = true })
+
 -- --- Animaciones: curvas Bezier suaves estilo macOS ---------------------------
 hl.curve("nimbus",    { type = "bezier", points = { { 0.25, 0.1 }, { 0.25, 1 } } })
 hl.curve("nimbusOut", { type = "bezier", points = { { 0.4, 0.0 },  { 0.2, 1 } } })
