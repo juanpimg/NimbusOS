@@ -1,8 +1,16 @@
-# NimbusOS (línea macshell + Hyprland)
+# NimbusOS
 
 Distribución Linux booteable basada en **CachyOS**, con escritorio **Hyprland**
-en modo flotante y capa visual **MacShell** (Quickshell/QML) estilo macOS:
+en modo flotante y capa visual estilo macOS sobre
+**[MacShell](https://github.com/0-ss/MacShell)** (Quickshell/QML, MIT):
 barra superior, dock con aumento, Spotlight y centro de control.
+
+> **Filosofía: respeto y colaboración con MacShell.** No reinventamos ni
+> opacamos su trabajo: MacShell es la capa visual y la citamos como tal
+> (ver `iso.manifest` con repo, rama y commit pineado). NimbusOS va un paso
+> más allá: lleva esa experiencia a **todo el SO** (arranque, bloqueo, apps,
+> ajustes) y la entrega como **distro Linux fácil de instalar y usar**, sin
+> terminal. Toda mejora reutilizable se propone aguas arriba a MacShell.
 
 Pensada para quien no quiere tocar la terminal: atajos `Ctrl` intactos
 (copiar/pegar/guardar como en Windows), `Alt+Tab` con previsualización,
