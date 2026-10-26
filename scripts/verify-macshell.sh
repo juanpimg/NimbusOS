@@ -202,6 +202,18 @@ else
   ok "ventanas-raton: nada en overlay desactiva windowBar"
 fi
 
+# --- Task resize-teclado: redimensionar con teclado (SUPER+SHIFT+flechas) ------
+chkg "resize-teclado: SUPER+SHIFT+LEFT resizeactive -40" "$SHORT" 'binde?[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*LEFT,[[:space:]]*resizeactive,[[:space:]]*-40 0'
+chkg "resize-teclado: SUPER+SHIFT+RIGHT resizeactive +40" "$SHORT" 'binde?[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*RIGHT,[[:space:]]*resizeactive,[[:space:]]*40 0'
+chkg "resize-teclado: SUPER+SHIFT+UP resizeactive -40" "$SHORT" 'binde?[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*UP,[[:space:]]*resizeactive,[[:space:]]*0 -40'
+chkg "resize-teclado: SUPER+SHIFT+DOWN resizeactive +40" "$SHORT" 'binde?[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*DOWN,[[:space:]]*resizeactive,[[:space:]]*0 40'
+chkg "resize-teclado: lua SUPER+SHIFT+left relative" "$HLUA" 'SUPER \+ SHIFT \+ left.*window\.resize.*x = -40.*relative = true'
+chkg "resize-teclado: lua SUPER+SHIFT+right relative" "$HLUA" 'SUPER \+ SHIFT \+ right.*window\.resize.*x = 40.*relative = true'
+chkg "resize-teclado: lua SUPER+SHIFT+up relative" "$HLUA" 'SUPER \+ SHIFT \+ up.*window\.resize.*y = -40.*relative = true'
+chkg "resize-teclado: lua SUPER+SHIFT+down relative" "$HLUA" 'SUPER \+ SHIFT \+ down.*window\.resize.*y = 40.*relative = true'
+chkg "resize-teclado: lua bindm mouse drag { mouse = true }" "$HLUA" 'mouse:272.*window\.drag.*mouse = true'
+chkg "resize-teclado: lua bindm mouse resize { mouse = true }" "$HLUA" 'mouse:273.*window\.resize.*mouse = true'
+
 # --- Task sesion-lua: hyprland.lua canonico, sin binds duplicados --------------
 [ -f "$HLUA" ] && ok "hyprland.lua existe" || bad "hyprland.lua existe"
 chkg "lua: SUPER+Space toggle" "$HLUA" 'SUPER \+ Space.*spotlight toggle'

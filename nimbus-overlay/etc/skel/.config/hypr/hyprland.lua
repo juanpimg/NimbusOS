@@ -188,10 +188,22 @@ hl.bind("SUPER + F",         hl.dsp.window.fullscreen({ mode = "fullscreen", act
 hl.bind("SUPER + SHIFT + F", hl.dsp.window.float({ action = "toggle" }))
 
 -- Task ventanas-raton: mover/redimensionar con raton (estilo Mac/Windows).
--- (bindm: la tecla ya codifica el boton; sin campo `mouse` — no existe en
--- HL.BindOptions de 0.56, el dispatcher drag/resize lleva la semantica.)
-hl.bind("SUPER + mouse:272", hl.dsp.window.drag())
-hl.bind("SUPER + mouse:273", hl.dsp.window.resize())
+-- (bindm: la tecla ya codifica el boton + `{ mouse = true }` lo registra como
+-- bind de raton — forma del ejemplo upstream hyprwm/Hyprland example/hyprland.lua;
+-- `hl.dsp.window.drag/resize` lleva la semantica movewindow/resizewindow.)
+hl.bind("SUPER + mouse:272", hl.dsp.window.drag(), { mouse = true })
+hl.bind("SUPER + mouse:273", hl.dsp.window.resize(), { mouse = true })
+
+-- Task resize-teclado: redimensionar con teclado (sin raton).
+-- Equivalente Lua del `resizeactive ±40px` del .conf (`binde` repetible):
+-- `hl.dsp.window.resize({ relative = true })` + `{ repeating = true }`
+-- (forma documentada en wiki Binds Lua + ejemplo real macroexpansion/hypr).
+-- SUPER+SHIFT+LEFT/RIGHT/UP/DOWN estan libres (Spaces usa SUPER+LEFT/RIGHT y
+-- SUPER+SHIFT+1..9; sin Control en ningun atajo).
+hl.bind("SUPER + SHIFT + left",  hl.dsp.window.resize({ x = -40, y = 0, relative = true }), { repeating = true })
+hl.bind("SUPER + SHIFT + right", hl.dsp.window.resize({ x = 40,  y = 0, relative = true }), { repeating = true })
+hl.bind("SUPER + SHIFT + up",    hl.dsp.window.resize({ x = 0, y = -40, relative = true }), { repeating = true })
+hl.bind("SUPER + SHIFT + down",  hl.dsp.window.resize({ x = 0, y = 40,  relative = true }), { repeating = true })
 
 -- --- MacShell: autostart + layer rules (sin binds: todos viven arriba) -------
 dofile(os.getenv("HOME") .. "/.config/hypr/macshell.lua")
