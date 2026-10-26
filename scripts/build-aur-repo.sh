@@ -38,7 +38,9 @@ for p in whitesur-gtk-theme whitesur-icon-theme hyprshell libpamac-aur pamac-aur
     if ls "$d/$p"-*.pkg.tar.zst >/dev/null 2>&1; then
         echo "OK $p ya compilado, reutilizo binario"
     else
-        ( cd "$d" && makepkg -s --noconfirm --pkg "$p" ) || { echo "FAIL build $p" >&2; exit 1; }
+        # Sin --pkg (makepkg antiguo): compila todos los splits del pkgbase
+        # e instalamos/copiamos solo el nuestro ($p-*.pkg.tar.zst).
+        ( cd "$d" && makepkg -s --noconfirm ) || { echo "FAIL build $p" >&2; exit 1; }
     fi
     # Instalar en el host (necesario para encadenar deps AUR: pamac-aur
     # requiere libpamac-aur en la DB; --asdeps para no contaminar):
@@ -46,7 +48,15 @@ for p in whitesur-gtk-theme whitesur-icon-theme hyprshell libpamac-aur pamac-aur
     echo "OK built+installed $p"
 done
 mkdir -p ../nimbus-repo
-cp ./*/*.pkg.tar.zst ../nimbus-repo/ 2>/dev/null || true
+# Copiar SOLO los paquetes del manifest (un pkgbase split puede haber
+# compilado hermanos que no queremos en la ISO).
+while IFS= read -r _aur || [ -n "$_aur" ]; do
+    case "$_aur" in ''|\#*) continue ;; esac
+    _found="$(ls ./*/"$_aur"-*.pkg.tar.zst 2>/dev/null || true)"
+    [ -n "$_found" ] || { echo "FAIL falta binario $_aur" >&2; exit 1; }
+    # shellcheck disable=SC2086
+    cp $_found ../nimbus-repo/ || exit 1
+done < ../packages.nimbus-aur.txt
 cd ../nimbus-repo || exit 1
 repo-add nimbus.db.tar.gz *.pkg.tar.zst || exit 1
 ls -lh
