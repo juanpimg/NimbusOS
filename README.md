@@ -1,70 +1,52 @@
 # NimbusOS
 
-Distribución Linux booteable basada en **CachyOS**, con escritorio **Hyprland**
-(sesión canónica Lua) en modo flotante y capa visual estilo macOS sobre
-**[MacShell](https://github.com/0-ss/MacShell)** (Quickshell/QML, MIT):
-barra superior, dock con aumento, Spotlight y centro de control.
+**Distribución Linux instalable con estética y flujo de trabajo estilo macOS: basada en CachyOS, con el shell MacShell sobre Hyprland.**
 
-> **Filosofía: respeto y colaboración con MacShell.** No reinventamos ni
-> opacamos su trabajo: MacShell es la capa visual y la citamos como tal
-> (ver `iso.manifest` con repo, rama y commit pineado). NimbusOS va un paso
-> más allá: lleva esa experiencia a **todo el SO** (arranque, bloqueo, apps,
-> ajustes) y la entrega como **distro Linux fácil de instalar y usar**, sin
-> terminal. Toda mejora reutilizable se propone aguas arriba a MacShell.
+> **English:** NimbusOS is a bootable Linux distro with a macOS look and feel, based on CachyOS with the MacShell shell on Hyprland. This project is documented primarily in Spanish.
 
-Pensada para quien no quiere tocar la terminal: atajos `Ctrl` intactos
-(copiar/pegar/guardar como en Windows), `Alt+Tab` con previsualización,
-todo arrastrable y redimensionable con el ratón.
+> **Aviso importante — sin afiliación.** NimbusOS es un proyecto independiente y **no está afiliado, respaldado ni patrocinado** por CachyOS, Apple Inc. (macOS/Mac), ni por el proyecto MacShell. macOS y Mac son marcas de Apple Inc. Usamos los siguientes proyectos de terceros, cada uno con su licencia: [CachyOS](https://cachyos.org) (base del sistema), [MacShell](https://github.com/0-ss/MacShell) (capa visual, MIT), [Hyprland](https://hyprland.org) (compositor), [WhiteSur](https://github.com/vinceliuice/WhiteSur-gtk-theme) (temas GTK) y Calamares (instalador, GPL).
 
-## Estado actual (2026-10-26, rama `main`)
+## Qué es
 
-- **ISO instalable**: `out/nimbus-2026.10.26-x86_64.iso` (3,7 GB), reproducible
-  vía `./build_iso.sh` sobre el perfil `CachyOS-Live-ISO` pineado.
-- **Ventanas nativas macOS**: titlebars vía plugin oficial `hyprbars`
-  (semáforos 🔴🟡🟢 parte de la ventana, cero latencia), borde gris fino 1px,
-  arrastre desde la barra, redimensión por bordes (`resize_on_border` + imán),
-  y por teclado (`Super+Shift+flechas`). GTK usa sus CSD WhiteSur propios.
-- **Workflow Mac**: ventanas flotantes centradas, Spaces (`Super+1..9`,
-  `Super+←/→`), Mission Control (vista del switcher), pantalla completa con
-  `Super+F`, minimizar al dock.
-- **Piel macOS total**: WhiteSur GTK + iconos, Inter, cursores capitaine,
-  terminal Kitty oscura translúcida, bloqueo `hyprlock` cristal, Qt heredando
-  GTK, Nautilus vista iconos, tema GRUB Whitesur, fondo Sequoia al arrancar
-  (hyprpaper autostart), hostname `nimbus`.
-- **Teclas hardware**: volumen/brillo con OSD propio de MacBar; backends
-  `brightnessctl` + `bluez`/`bluez-utils` incluidos.
-- **Menú global**: módulo `appmenu-gtk-module` en la imagen (base D-Bus lista).
-- **Entrada directa**: greetd con autologin a Hyprland (sin pantalla de login).
-- **Tienda**: `pamac-aur` tematizado + Flathub (remote-add al primer arranque);
-  AUR (`whitesur-*`, `pamac-aur`, `hyprshell`, `hyprland-plugin-hyprbars`)
-  precompilados en repo local `[nimbus]` dentro de la ISO.
-- **Portátil**: `auto-cpufreq`, ZRAM `zstd`, gestión NVIDIA híbrida, VA-API.
-- **Instalador**: Calamares estilo "Hello" (abre en Hello), borrado de disco
-  por defecto.
-- **Suite en verde**: macshell 177/0, power 77/0, store 106/0,
-  calamares 84/0 (+1 skip), build 130/0, más `--check-only`.
+Una ISO booteable que instala un escritorio listo para usar **sin tocar la terminal**: ventanas flotantes con semáforos nativos, dock con aumento, Spotlight, Spaces y Mission Control, tienda de software gráfica y asistente de instalación estilo "Hello".
 
-Pendiente conocido: texto del menú GRUB aún dice CachyOS; batería virtual no
-disponible en QEMU 11 (opcional, no bloquea); reloj del live en inglés
-(falta locale + `lang/es.js` upstream); sin pruebas en hardware real.
+## Estado
 
-## Probar en VM
+ISO `nimbus-2026.10.27` verificada en QEMU (arranque UEFI → escritorio live → instalador). Suite de verificación en verde (`scripts/verify-*.sh` + `./build_iso.sh --check-only`). El manifiesto [`iso.manifest`](iso.manifest) registra el SHA de cada build.
+
+## Probarlo
 
 ```bash
-./scripts/test-qemu.sh
+./scripts/test-qemu.sh   # arranca la última ISO en QEMU/KVM (UEFI, 20 GB, red)
 ```
 
-Arranca la última ISO con UEFI, disco de 20 GB y red. Dentro: escritorio con
-barra, abrir el instalador "Hello" e instalar en `/dev/vda`.
+Dentro: escritorio con barra y dock, instalador "Hello" e instalación en `/dev/vda`.
+
+## Construir la ISO
+
+```bash
+./build_iso.sh                 # build reproducible sobre el perfil CachyOS-Live-ISO pineado
+./build_iso.sh --check-only    # validación sin root ni red pesada
+./scripts/build-aur-repo.sh    # precompila los paquetes AUR al repo local [nimbus]
+```
+
+Requiere Arch/CachyOS + root + KVM para la VM. Detalles en [`docs/qemu.md`](docs/qemu.md).
 
 ## Estructura
 
-- `nimbus-overlay/` — capa Nimbus sobre el perfil upstream (`etc/skel`, Calamares, greetd, theming).
-- `packages.nimbus.x86_64.append` — paquetes extra (solo repos oficiales).
-- `packages.nimbus-aur.txt` — AUR precompilados al repo local.
-- `build_iso.sh` — build reproducible (7 pasos).
-- `scripts/verify-*.sh` — suite de verificación; `scripts/test-qemu.sh` — VM;
-  `scripts/build-aur-repo.sh` — precompila AUR al repo local.
-- `docs/qemu.md` — checklist live; `docs/ESTADO.md` — estado y huecos;
-  `docs/superpowers/plans/` — planes.
-- `INICIO.txt` — especificación original (autoridad).
+| Ruta | Qué es |
+|---|---|
+| `nimbus-overlay/` | Capa Nimbus sobre el perfil upstream (`etc/skel`, Calamares, greetd, theming) |
+| `packages.nimbus.x86_64.append` | Paquetes extra (solo repos oficiales) |
+| `packages.nimbus-aur.txt` | AUR precompilados al repo local `[nimbus]` |
+| `build_iso.sh` | Build reproducible en 7 pasos |
+| `scripts/verify-*.sh` | Suite de verificación · `test-qemu.sh` VM · `build-aur-repo.sh` repo AUR local |
+| `docs/` | `ESPECIFICACION.md` (diseño original), `ESTADO.md`, `qemu.md`, planes e informes |
+
+## Filosofía
+
+Respeto y colaboración con los proyectos que nos sostienen: **no reinventamos** lo que ya existe (cero desarrollo desde cero pudiendo reutilizar) y **no opacamos** a nadie — citamos cada fuente con repo, rama y commit en `iso.manifest`. Las mejoras reutilizables se proponen aguas arriba. Nuestro aporte: llevar esa experiencia a **todo el SO** y entregarla como **distro fácil de instalar y usar**.
+
+## Licencia
+
+El código propio de NimbusOS (scripts, overlay, configs, docs) se publica bajo **GPL-3.0-or-later** (ver `LICENSE`). Los componentes de terceros conservan sus licencias: MacShell (MIT), temas WhiteSur (GPL-3.0), Calamares (GPL-3.0), GRUB themes (GPL-3.0).

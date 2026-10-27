@@ -8,7 +8,7 @@
 
 **Tech Stack:** CachyOS (`linux-cachyos` BORE), Hyprland >=0.55 (Lua), Quickshell MacShell (`0-ss/MacShell`), pamac-gtk, auto-cpufreq, zram-generator, Calamares (base `cachyos-calamares`), archiso/mkarchiso, QEMU/KVM validación.
 
-**Spec:** `INICIO.txt` en repo raíz (paso 0 + regla no-reinventar + ergonomía + specs técnicas + 5 subagentes + 4 fases).
+**Spec:** `docs/ESPECIFICACION.md` (antes `INICIO.txt` en raíz) (paso 0 + regla no-reinventar + ergonomía + specs técnicas + 5 subagentes + 4 fases).
 
 ## Global Constraints
 

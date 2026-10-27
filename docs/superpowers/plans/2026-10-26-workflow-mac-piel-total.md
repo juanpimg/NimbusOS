@@ -8,7 +8,7 @@
 
 **Tech Stack:** Hyprland 0.56 hyprlang .conf, Quickshell MacShell, GTK3/4 WhiteSur, Qt6, greetd, Calamares, archiso.
 
-**Spec:** `INICIO.txt` (autoridad) + decisiones usuario 2026-10-26: workflow Mac completo validado, piel total automática, entrada directa sin login.
+**Spec:** `docs/ESPECIFICACION.md` (autoridad) + decisiones usuario 2026-10-26: workflow Mac completo validado, piel total automática, entrada directa sin login.
 
 ## Global Constraints
 
