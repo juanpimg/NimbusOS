@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Instalar NimbusOS
+Name[es]=Instalar NimbusOS
+Comment=Asistente de instalación del sistema
+Comment[es]=Asistente de instalación del sistema
+Exec=sh -c 'sudo -E calamares'
+Icon=calamares
+Terminal=false
+Categories=System;Settings;
+StartupNotify=true
+# NimbusOS: lanzador directo al instalador. Debe correr con el ENTORNO del
+# usuario (sudo -E conserva Wayland/X11): `sudo calamares` a secas NO abre
+# ventana (Qt sin display) y `calamares` sin sudo no puede instalar.
+# CachyOS Hello lanza /usr/bin/calamares; esto es la vía explícita y robusta.

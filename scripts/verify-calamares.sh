@@ -167,6 +167,12 @@ chkg "customize install -Dm644 piel" "$CUST" 'install -Dm644'
 chkg "customize guards [ -f ]" "$CUST" '\[ -f '
 
 # --- Task instalado-p0: el INSTALADO funciona igual que el live -----------------
+# 0) Lanzador robusto del instalador: `sudo -E calamares` (conserva Wayland/X11
+#    del usuario; `sudo` a secas NO abre ventana y `calamares` sin sudo no
+#    puede instalar). En Escritorio (skel) y en /usr/share/applications.
+[ -f "$OVL/etc/skel/Desktop/Instalar NimbusOS.desktop" ] && ok "instalado-p0 launcher Escritorio existe" || bad "instalado-p0 launcher Escritorio existe"
+[ -f "$OVL/usr/share/applications/nimbus-installer.desktop" ] && ok "instalado-p0 launcher en applications existe" || bad "instalado-p0 launcher en applications existe"
+chkg "instalado-p0 launcher usa sudo -E (no sudo a secas)" "$OVL/usr/share/applications/nimbus-installer.desktop" 'sudo -E calamares'
 # 1) greetd con el usuario REAL (nunca liveuser hardcodeado): %post via
 #    instancia shellprocess@nimbus_installed (dontChroot: false = en target),
 #    declarada en instances: y secuenciada tras displaymanager (el usuario ya
