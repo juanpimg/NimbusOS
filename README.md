@@ -41,7 +41,8 @@ Requiere Arch/CachyOS + root + KVM para la VM. Detalles en [`docs/qemu.md`](docs
 | `packages.nimbus-aur.txt` | AUR precompilados al repo local `[nimbus]` |
 | `build_iso.sh` | Build reproducible en 7 pasos |
 | `scripts/verify-*.sh` | Suite de verificación · `test-qemu.sh` VM · `build-aur-repo.sh` repo AUR local |
-| `docs/` | `ESPECIFICACION.md` (diseño original), `ESTADO.md`, `qemu.md`, planes e informes |
+| `docs/` | `ESPECIFICACION.md` (diseño original), `ARQUITECTURA.md`, `FILOSOFIA.md`, `ESTADO.md`, `qemu.md`, planes e informes |
+| `AGENTS.md` | Instrucciones obligatorias para sesiones de IA |
 
 ## Filosofía
 
