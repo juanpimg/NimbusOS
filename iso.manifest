@@ -154,3 +154,8 @@ SHA256=e1f6b4efee43241376001bb407e64cff1e752386daa8dd668e1eee8ee0958a3d
 SIZE=3,7G
 DATE=2026-10-27T04:32Z
 NOTA=compat symlink boost 1.91->1.92 (Calamares arranca); I3
+ISO=nimbus-2026.10.27-x86_64.iso
+SHA256=36f43490c1cfb9a36bb24bf1cc015abab0b33e0d52bd89e29352b2649de69694
+SIZE=3,7G
+DATE=2026-10-27T05:04Z
+NOTA=P0+P1 completo (GRUB tema, wallpaper real, upower/dconf, verde=maximizar); I6
