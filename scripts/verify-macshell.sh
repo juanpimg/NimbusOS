@@ -213,6 +213,7 @@ chkg "hyprbars: boton amarillo minimizar special:minimized" "$HLUA" 'bg_color = 
 chkg "hyprbars: boton verde fullscreen toggle" "$HLUA" 'bg_color = "rgb\(28C840\)".*window\.fullscreen'
 chkg "hyprbars: no_bar Nautilus (CSD GTK propio)" "$HLUA" 'Nautilus.*hyprbars:no_bar'
 chkg "hyprbars: no_bar Firefox (tabs propios)" "$HLUA" 'firefox.*hyprbars:no_bar'
+chkg "hyprbars: no_bar pamac (CSD GTK propio, Wayland+X11)" "$HLUA" 'pamac-manager.*hyprbars:no_bar'
 if grep -qE 'windowBar|WindowBar|winBarWantsGeo|tlAlwaysSymbols|tlColorOnHover' "$MBAR" "$SHELLQML" 2>/dev/null; then
   bad "hyprbars: cero QML MacShell modificado (MacBar/shell pristine)"
 else

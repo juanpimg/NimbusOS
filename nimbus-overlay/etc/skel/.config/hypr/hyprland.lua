@@ -257,8 +257,9 @@ hl.plugin.hyprbars.add_button({ bg_color = "rgb(28C840)", fg_color = "rgba(00000
 
 -- Sin doble barra en apps con CSD propio bueno (headerbar/tabs nativos):
 -- Nautilus (GTK4 headerbar) y Firefox (tabs en la barra de titulo).
-hl.window_rule({ name = "nimbus-hyprbars-no-bar-nautilus", match = { class = "^(org.gnome.Nautilus)$" }, ["hyprbars:no_bar"] = true })
-hl.window_rule({ name = "nimbus-hyprbars-no-bar-firefox",  match = { class = "^(firefox)$" },              ["hyprbars:no_bar"] = true })
+hl.window_rule({ name = "nimbus-hyprbars-no-bar-nautilus", match = { class = "^(org.gnome.Nautilus)$" },              ["hyprbars:no_bar"] = true })
+hl.window_rule({ name = "nimbus-hyprbars-no-bar-firefox",  match = { class = "^(firefox)$" },                           ["hyprbars:no_bar"] = true })
+hl.window_rule({ name = "nimbus-hyprbars-no-bar-pamac",    match = { class = "^(org.manjaro.pamac.manager|pamac-manager)$" }, ["hyprbars:no_bar"] = true })
 -- P1 no_bar ampliado (2026-10-27, corregido Task noobar2 2026-10-27):
 -- ventanas con CSD propio que duplicarian la barra de hyprbars:
 --   * pamac: DOS clases reales (fallback XWayland + nativo Wayland).
