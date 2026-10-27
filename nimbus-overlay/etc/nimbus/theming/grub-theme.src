@@ -1,10 +1,25 @@
-# NimbusOS — pin GRUB theme (PLACEHOLDER, no se aplica en Task 1)
-# Proposito: dejar auditada la URL elegida sin romper la base CachyOS.
-# Elegido: vinceliuice/grub-themes, variante Whitesur (coherente con
-# GTK WhiteSur del sistema).
-UPSTREAM_URL=https://github.com/vinceliuice/grub-themes
-UPSTREAM_REF=master
+# NimbusOS — pin GRUB theme (VENDOREADO en P1, 2026-10-27)
+# Repo original auditado (2026-10-23): vinceliuice/grub-themes -> 404
+# (repo renombrado/movido por upstream). Repo real verificado via
+# `git ls-remote` 2026-10-27:
+UPSTREAM_URL=https://github.com/vinceliuice/grub2-themes
+UPSTREAM_REF=4c5a77125b93f833edc9bf7d14a899faa8ac79c6
+UPSTREAM_DATE=2026-09-01
 THEME_VARIANT=whitesur
-STATUS=placeholder-audited
-# Task 5: clonar, copiar themes/whitesur al overlay GRUB y fijar
-# GRUB_THEME en /etc/default/grub durante el build (no en Task 1).
+# install.sh upstream admite themes=(tela vimix stylish whitesur); se usa
+# whitesur (coherente con GTK WhiteSur del sistema), screen 1080p,
+# icon-variant whitesur.
+SCREEN_VARIANT=1080p
+ICON_VARIANT=whitesur
+LICENSE=GPL-3.0 (LICENSE del repo upstream)
+STATUS=vendored
+# Vendoreo (replica install.sh: install_theme whitesur whitesur 1080p):
+#   common/*.pf2 + config/theme-1080p.txt->theme.txt +
+#   backgrounds/1080p/background-whitesur.jpg->background.jpg +
+#   assets/assets-whitesur/icons-1080p->icons +
+#   assets/assets-select/select-1080p/*.png + assets/info-1080p.png->info.png
+# Destino en overlay: usr/share/grub/themes/whitesur/ (GRUB_THEME en
+# etc/default/grub.d/nimbus.cfg apunta ahi).
+# Entradas: GRUB_DISTRIBUTOR="NimbusOS" en el mismo nimbus.cfg renombra los
+# menuentries (10_linux usa $GRUB_DISTRIBUTOR); no se toca /etc/default/grub
+# (paquete grub upstream).

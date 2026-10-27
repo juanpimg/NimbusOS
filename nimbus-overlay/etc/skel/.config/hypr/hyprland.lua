@@ -217,21 +217,37 @@ hl.config({
             -- will be around the bar"). Sin cambio visual: solo fija por
             -- escrito el defecto auditado.
             bar_precedence_over_border = false,
-            on_double_click       = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" })']],
+            on_double_click       = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "maximize", action = "toggle" })']],
         },
     },
 })
 -- Rojo cerrar / amarillo minimizar a special:minimized (RESTAURA con SUPER+M
 -- o click en el Dock: ver binds abajo y nimbus-minimize-toggle) / verde
--- fullscreen.
+-- ZOOM macOS = maximizar (mode="maximize": ocupa el escritorio sin tapar
+-- barra/dock; P1 2026-10-26: antes era fullscreen real). Pantalla completa
+-- real queda SOLO en SUPER+F (ver binds workflow-mac).
 hl.plugin.hyprbars.add_button({ bg_color = "rgb(FF5F57)", fg_color = "rgb(FF5F57)", size = 13, icon = "", action = [[hyprctl dispatch 'hl.dsp.window.close()']] })
 hl.plugin.hyprbars.add_button({ bg_color = "rgb(FEBE2E)", fg_color = "rgb(FEBE2E)", size = 13, icon = "", action = [[hyprctl dispatch 'hl.dsp.window.move({ workspace = "special:minimized", follow = false })']] })
-hl.plugin.hyprbars.add_button({ bg_color = "rgb(28C840)", fg_color = "rgb(28C840)", size = 13, icon = "", action = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" })']] })
+hl.plugin.hyprbars.add_button({ bg_color = "rgb(28C840)", fg_color = "rgb(28C840)", size = 13, icon = "", action = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "maximize", action = "toggle" })']] })
 
 -- Sin doble barra en apps con CSD propio bueno (headerbar/tabs nativos):
 -- Nautilus (GTK4 headerbar) y Firefox (tabs en la barra de titulo).
 hl.window_rule({ name = "nimbus-hyprbars-no-bar-nautilus", match = { class = "^(org.gnome.Nautilus)$" }, ["hyprbars:no_bar"] = true })
 hl.window_rule({ name = "nimbus-hyprbars-no-bar-firefox",  match = { class = "^(firefox)$" },              ["hyprbars:no_bar"] = true })
+-- P1 no_bar ampliado (2026-10-27): ventanas con CSD propio que duplicarian
+-- la barra de hyprbars:
+--   * pamac-manager: clase REAL verificada en el .desktop instalado
+--     (/usr/share/applications/org.manjaro.pamac.manager.desktop:
+--     StartupWMClass=pamac-manager; GTK3 headerbar propia con semaforos).
+--   * dialogos modales (modal=true, propiedad real de Hyprland ya usada en
+--     nimbus-dialog-modal): polkit, autenticacion, filechoosers GTK — todos
+--     traen su headerbar/botones propios.
+--   * Ruling calamares: SKIP clase explicita. El instalador no esta en el
+--     host de build y su app_id Qt (CALAMARES_APPLICATION_NAME="Calamares"
+--     en el fork CachyOS) no fija la clase Wayland de forma verificable sin
+--     ejecutarlo; los dialogos de Calamares caen en la regla modal=true.
+hl.window_rule({ name = "nimbus-hyprbars-no-bar-pamac", match = { class = "^(pamac-manager)$" }, ["hyprbars:no_bar"] = true })
+hl.window_rule({ name = "nimbus-hyprbars-no-bar-modal", match = { modal = true },                 ["hyprbars:no_bar"] = true })
 
 -- --- Animaciones: curvas Bezier suaves estilo macOS ---------------------------
 hl.curve("nimbus",    { type = "bezier", points = { { 0.25, 0.1 }, { 0.25, 1 } } })
@@ -296,7 +312,7 @@ hl.bind("XF86AudioMicMute",      hl.dsp.exec_cmd(qs .. "hardware micMute"))
 hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(qs .. "hardware brightnessUp"), { repeating = true })
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(qs .. "hardware brightnessDown"), { repeating = true })
 
--- Task workflow-mac: Spaces / Mission Control / fullscreen.
+-- Task workflow-mac: Spaces / Mission Control / zoom+fullscreen.
 -- Sin atajos con Control (macOS usa Control+flechas; aqui SUPER+LEFT/RIGHT).
 for i = 1, 9 do
     hl.bind("SUPER + " .. i,         hl.dsp.focus({ workspace = i }))
@@ -304,7 +320,7 @@ for i = 1, 9 do
 end
 hl.bind("SUPER + left",  hl.dsp.focus({ workspace = -1 }))
 hl.bind("SUPER + right", hl.dsp.focus({ workspace = 1 }))
--- Boton verde = pantalla completa; SUPER+SHIFT+F = flotante.
+-- Boton verde = zoom macOS (maximizar); SUPER+F = pantalla completa real.
 hl.bind("SUPER + F",         hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" }))
 hl.bind("SUPER + SHIFT + F", hl.dsp.window.float({ action = "toggle" }))
 

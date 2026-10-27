@@ -232,3 +232,15 @@ appmenu-gtk-module
 brightnessctl
 bluez
 bluez-utils
+
+# --- Task p1-visibles (2026-10-27): bateria + dconf --------------------------
+# upower (extra 1.91.5-1 + cachyos-extra-v3 1.91.5-1.1, verificado
+# `pacman -Si upower` 2026-10-27): backend de bateria del live/instalado
+# (MacBar muestra porcentaje/estado; `upower -d` en checklist docs/qemu.md).
+# dconf (extra 51.0-1 + cachyos-extra-v3 51.0-1.1, verificado
+# `pacman -Si dconf` 2026-10-27): provee `dconf update` que
+# customize_airootfs.sh ya invoca con guard (compila
+# etc/dconf/db/local.d/nimbus de Nautilus; sin el binario el override
+# quedaria sin compilar).
+upower
+dconf

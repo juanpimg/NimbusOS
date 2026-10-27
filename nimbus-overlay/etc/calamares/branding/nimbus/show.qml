@@ -125,4 +125,31 @@ Presentation {
             }
         }
     }
+
+    Slide {
+        Rectangle {
+            anchors.fill: parent
+            color: "#F5F5F7"
+
+            Column {
+                anchors.centerIn: parent
+                spacing: 12
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Atajos de teclado."
+                    font.family: "Inter"
+                    font.pixelSize: 48
+                    color: "#1D1D1F"
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Super+Espacio: buscar   Super+W: ventanas   Super+1..9: escritorios"
+                    font.family: "Inter"
+                    font.pixelSize: 22
+                    color: "#007AFF"
+                }
+            }
+        }
+    }
 }

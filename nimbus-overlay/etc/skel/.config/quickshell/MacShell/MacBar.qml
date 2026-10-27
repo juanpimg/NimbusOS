@@ -526,7 +526,12 @@ Scope {
         sh('sh ~/.config/quickshell/MacLock/lock-via-ipc.sh');
     }
     function sleepMachine() {
-        sh('sh ~/.config/quickshell/MacLock/lock-via-ipc.sh; sleep 0.5; systemctl suspend');
+        // Ruling P1 sleep-seguro (2026-10-27): QML no habla D-Bus a logind,
+        // asi que la guarda se delega en busctl(1) (systemd, siempre en la
+        // imagen): solo suspende si logind anuncia CanSuspend=yes; si no
+        // (VM sin S3, hardware sin soporte), avisa con notify-send en vez de
+        // lanzar un `systemctl suspend` que fallaria o colgaria.
+        sh('if [ "$(busctl get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanSuspend 2>/dev/null)" = \'s "yes"\' ]; then sh ~/.config/quickshell/MacLock/lock-via-ipc.sh; sleep 0.5; systemctl suspend; else notify-send "NimbusOS" "Suspensión no disponible (logind CanSuspend=no)"; fi');
     }
     function logOut() {
         sh('if command -v uwsm >/dev/null 2>&1 && uwsm check is-active >/dev/null 2>&1; then uwsm stop; '

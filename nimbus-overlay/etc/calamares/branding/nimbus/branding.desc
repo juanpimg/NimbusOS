@@ -19,11 +19,8 @@ strings:
   shortVersion: "1.0"
   shortProductName: NimbusOS
   bootloaderEntryName: NimbusOS
-  # TODO(Task5): sustituir URLs placeholder por las reales antes de la ISO final.
-  productUrl: https://nimbusos.example/
-  supportUrl: https://nimbusos.example/support
-  knownIssuesUrl: https://nimbusos.example/issues
-  releaseNotesUrl: https://nimbusos.example/release-notes
+  # P1 (2026-10-27): URLs de ejemplo eliminadas (nimbusos.example/ no existe;
+  # el proyecto aun no publica web/soporte; Calamares no exige estos campos).
 
 # Placeholders SVG minimos incluidos en este directorio (Task 5: arte final).
 images:

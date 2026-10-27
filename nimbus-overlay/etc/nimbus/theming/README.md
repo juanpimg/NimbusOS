@@ -39,3 +39,31 @@
 #   relevante (firefox unico con menubar, exige registrador ausente; vlc es
 #   Qt sin plugin de plataforma en repos; nautilus/pamac headerbar sin
 #   menubar; kitty/mpv sin menus).
+
+# P1 visibles (2026-10-27, rama feature/p1-visibles)
+#
+# GRUB vendoreado: el tema Whitesur vive en
+#   usr/share/grub/themes/whitesur/ (ensamblado de
+#   https://github.com/vinceliuice/grub2-themes @ 4c5a771, GPL-3.0;
+#   variante whitesur/1080p; pin en etc/nimbus/theming/grub-theme.src).
+#   El repo antiguo vinceliuice/grub-themes devuelve 404 (renombrado).
+#   etc/default/grub.d/nimbus.cfg fija GRUB_THEME a la ruta vendoreada y
+#   GRUB_DISTRIBUTOR="NimbusOS" (renombra menuentries; no toca
+#   /etc/default/grub del paquete grub).
+# Wallpaper real: usr/share/backgrounds/nimbus/sequoia-light.jpg es foto
+#   federal NPS de dominio publico (ver README.REPLACE-WITH-REAL.txt del
+#   mismo directorio: URL Commons + licencia). Ruta/nombre intactos.
+# Cursor XWayland (Ruling cursor-hypr 2026-10-27): capitaine-cursors(-light)
+#   NO trae metadatos hyprcursor (verificado: /usr/share/icons solo tiene
+#   cursors/ + index.theme, sin dir hyprcursors ni manifest.hl; en repos
+#   oficiales no hay tema hyprcursor estilo macOS). Fallback documentado:
+#   se fija XCURSOR_THEME/XCURSOR_SIZE=24 (cubre XWayland + GTK) y se
+#   mantienen HYPRCURSOR_* como declaracion de intencion (Hyprland ignora el
+#   tema ausente sin romper). Sin AUR nuevo en P1.
+# Reloj live en espanol (Ruling reloj-es 2026-10-27): SKIP en P1.
+#   Sin locale es_ES generado, LANG/LC_TIME=es_ES.UTF-8 no es viable (glibc
+#   cae a C con avisos; archiso no genera locales en el live) y, aun con
+#   locale-gen en el build, el reloj seguiria en ingles: MacShell no trae
+#   lang/es.js (solo ru.js; I18n.tr() cae al ingles) y no se bifurca upstream
+#   en P1. Requiere: (1) locale-gen es_ES en customize_airootfs + LC_TIME en
+#   la sesion, (2) lang/es.js aceptado aguas arriba en MacShell.

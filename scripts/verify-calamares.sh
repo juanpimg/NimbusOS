@@ -63,9 +63,9 @@ else
   ok "desc sin referencias PNG inexistentes"
 fi
 
-# --- show.qml: 4 slides, Hello, slideshowAPI 2 -----------------------------------
+# --- show.qml: 5 slides (P1 anade slide de atajos), Hello, slideshowAPI 2 -----
 nslides="$(grep -cE '^[[:space:]]*Slide[[:space:]]*\{' "$QML" 2>/dev/null || echo 0)"
-if [ "$nslides" -eq 4 ]; then ok "qml 4 slides"; else bad "qml 4 slides (hallados: $nslides)"; fi
+if [ "$nslides" -eq 5 ]; then ok "qml 5 slides (4 + atajos P1)"; else bad "qml 5 slides (hallados: $nslides)"; fi
 chkg "qml import calamares.slideshow" "$QML" 'import calamares\.slideshow'
 chkg "qml Presentation" "$QML" 'Presentation'
 chkg "qml Hello" "$QML" 'Hello\.'
