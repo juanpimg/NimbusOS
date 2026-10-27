@@ -496,9 +496,9 @@ skip "p2-final animaciones software rendering: Ruling (sin deteccion simple/segu
 #    reloj espanol). Sin cambios.
 # 5) Verde = maximizar coherente .conf <-> lua (no fullscreen).
 chkg "p2-final: conf verde hyprbars = fullscreen 1 (maximizar)" "$HYPR" 'hyprbars-button = rgb\(28C840\).*fullscreen 1'
-chkg "p2-final: lua verde hyprbars = mode maximize" "$HLUA" 'bg_color = "rgb\(28C840\)".*mode = "maximize"'
+chkg "p2-final: lua verde hyprbars = mode maximized" "$HLUA" 'bg_color = "rgb\(28C840\)".*mode = "maximized"'
 chkg "p2-final: conf doble-click barra = fullscreen 1 (maximizar)" "$HYPR" 'on_double_click = hyprctl dispatch fullscreen 1'
-chkg "p2-final: lua doble-click barra = mode maximize" "$HLUA" 'on_double_click.*mode = "maximize"'
+chkg "p2-final: lua doble-click barra = mode maximized" "$HLUA" 'on_double_click.*mode = "maximized"'
 chkg "p2-final: lua SUPER+F = fullscreen real (paridad .conf)" "$HLUA" 'SUPER \+ F.*mode = "fullscreen"'
 # About dice NimbusOS (no CachyOS): customize_airootfs reetiqueta NAME/
 # PRETTY_NAME de /etc/os-release (que lee about-info.sh); ID intacto.
@@ -529,6 +529,26 @@ MBT="$ROOT/nimbus-overlay/usr/bin/nimbus-minimize-toggle"
 chkg "minimize-toggle fija address en primera consulta" "$MBT" 'address'
 chkg "minimize-toggle ids special negativos caen a ws 1" "$MBT" 'cur=1'
 chkg "minimize-toggle documenta multi-monitor (restaura al foco)" "$MBT" 'multi-monitor'
+
+# --- Task noobar2: doble barra pamac + verde=maximizar (verificado VM) -----
+# Evidencia VM live ISO 10.27 (2026-10-27): dispatch lua con mode="maximize"
+# devuelve `invalid mode (expected fullscreen/maximized)` (el verde y el
+# doble-click NO hacian nada en la sesion Lua); con mode="maximized" RC=0
+# y la ventana maximiza con barra+dock visibles (no fullscreen). Pamac en
+# Wayland nativo expone app_id org.manjaro.pamac.manager (Gtk.Application
+# application_id en upstream src/manager.vala, CSD libadwaita propia);
+# StartupWMClass=pamac-manager solo cubre XWayland. Sin la regla appid,
+# pamac muestra DOBLE barra.
+chkg "noobar2: lua verde hyprbars = mode maximized" "$HLUA" 'bg_color = "rgb\(28C840\)".*mode = "maximized"'
+chkg "noobar2: lua doble-click barra = mode maximized" "$HLUA" 'on_double_click.*mode = "maximized"'
+chkg "noobar2: lua no_bar pamac XWayland (pamac-manager)" "$HLUA" 'class = "\^\(pamac-manager\)\$".*hyprbars:no_bar'
+chkg "noobar2: lua no_bar pamac Wayland (org.manjaro.pamac.manager)" "$HLUA" 'org\\\\\.manjaro\\\\\.pamac\\\\\.manager.*hyprbars:no_bar'
+chkg "noobar2: lua no_bar firefox (tabs propios)" "$HLUA" 'firefox.*hyprbars:no_bar'
+if grep -q 'mode = "maximize"' "$HLUA"; then
+  bad "noobar2: cero mode maximize invalido en lua (el valido es maximized)"
+else
+  ok "noobar2: cero mode maximize invalido en lua (el valido es maximized)"
+fi
 
 # --- Sintaxis: hyprland --verify-config si disponible --------------------------
 # Hyprland 0.56: --check-config no existe, es --verify-config. El source=

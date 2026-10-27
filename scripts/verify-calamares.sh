@@ -241,6 +241,26 @@ else
   ok "compat boost: sin symlinks (ABI incompatible, probado en VM)"
 fi
 
+# --- Task calamares-btrfs: fallo mount `btrfs subvolume create @` ---------
+# Ruling upstream/entorno (NO nuestra config), evidencia VM live ISO 10.27
+# 2026-10-27: flujo limpio erase+btrfs en /dev/vda virtio da RC=0 en TODOS
+# los pasos (parted GPT EFI512M+btrfs, mkfs.vfat/mkfs.btrfs, mount,
+# subvolume create @ + 7 de CachyOS, umount, remount subvol=@);
+# btrfs-progs 7.3 presente en la ISO; mount.conf = default CachyOS auditado
+# (sin override aqui). El non-zero solo se reproduce con @ preexistente
+# ("File exists" RC=1: disco reutilizado sin reformatear) o mount previo
+# fallido en silencio (ver session.log). Este bloque fija el estado bueno.
+chkg "calamares-btrfs: Ruling documentada en partition.conf" "$PART" 'Ruling calamares-btrfs'
+chkg "calamares-btrfs: default btrfs" "$PART" '^defaultFileSystemType:[[:space:]]*"btrfs"'
+chkg "calamares-btrfs: settings declara mount en exec" "$SET" '^[[:space:]]*-[[:space:]]*mount$'
+_CBORU="$(awk '/^[[:space:]]*-[[:space:]]*partition$/{p=NR} /^[[:space:]]*-[[:space:]]*mount$/{m=NR} END{print (p>0 && m>p) ? "si" : "no"}' "$SET")"
+if [ "$_CBORU" = "si" ]; then ok "calamares-btrfs: orden exec partition<mount"; else bad "calamares-btrfs: orden exec partition<mount"; fi
+if [ -f "$CAL/modules/mount.conf" ]; then
+  bad "calamares-btrfs: sin mount.conf propio (vale el default CachyOS auditado)"
+else
+  ok "calamares-btrfs: sin mount.conf propio (vale el default CachyOS auditado)"
+fi
+
 echo "-------------------------------------------------------------"
 echo "RESULT: PASS=$PASS FAIL=$FAIL SKIP=$SKIP"
 [ "$FAIL" -eq 0 ]

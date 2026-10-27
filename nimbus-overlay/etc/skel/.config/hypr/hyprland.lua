@@ -235,13 +235,13 @@ hl.config({
             -- will be around the bar"). Sin cambio visual: solo fija por
             -- escrito el defecto auditado.
             bar_precedence_over_border = false,
-            on_double_click       = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "maximize", action = "toggle" })']],
+            on_double_click       = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" })']],
         },
     },
 })
 -- Rojo cerrar / amarillo minimizar a special:minimized (RESTAURA con SUPER+M
 -- o click en el Dock: ver binds abajo y nimbus-minimize-toggle) / verde
--- ZOOM macOS = maximizar (mode="maximize": ocupa el escritorio sin tapar
+-- ZOOM macOS = maximizar (mode="maximized": ocupa el escritorio sin tapar
 -- barra/dock; P1 2026-10-26: antes era fullscreen real). Pantalla completa
 -- real queda SOLO en SUPER+F (ver binds workflow-mac).
 -- Task botones-nativos: los 3 botones llevan glifo ×/−/+ (fg negro 58% ~=
@@ -253,17 +253,21 @@ hl.config({
 -- FEBE2E transpuesto; el nativo es #FEBC2E en los 5 QML).
 hl.plugin.hyprbars.add_button({ bg_color = "rgb(FF5F57)", fg_color = "rgba(00000094)", size = 13, icon = "×", action = [[hyprctl dispatch 'hl.dsp.window.close()']] })
 hl.plugin.hyprbars.add_button({ bg_color = "rgb(FEBC2E)", fg_color = "rgba(00000094)", size = 13, icon = "−", action = [[hyprctl dispatch 'hl.dsp.window.move({ workspace = "special:minimized", follow = false })']] })
-hl.plugin.hyprbars.add_button({ bg_color = "rgb(28C840)", fg_color = "rgba(00000094)", size = 13, icon = "+", action = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "maximize", action = "toggle" })']] })
+hl.plugin.hyprbars.add_button({ bg_color = "rgb(28C840)", fg_color = "rgba(00000094)", size = 13, icon = "+", action = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" })']] })
 
 -- Sin doble barra en apps con CSD propio bueno (headerbar/tabs nativos):
 -- Nautilus (GTK4 headerbar) y Firefox (tabs en la barra de titulo).
 hl.window_rule({ name = "nimbus-hyprbars-no-bar-nautilus", match = { class = "^(org.gnome.Nautilus)$" }, ["hyprbars:no_bar"] = true })
 hl.window_rule({ name = "nimbus-hyprbars-no-bar-firefox",  match = { class = "^(firefox)$" },              ["hyprbars:no_bar"] = true })
--- P1 no_bar ampliado (2026-10-27): ventanas con CSD propio que duplicarian
--- la barra de hyprbars:
---   * pamac-manager: clase REAL verificada en el .desktop instalado
---     (/usr/share/applications/org.manjaro.pamac.manager.desktop:
---     StartupWMClass=pamac-manager; GTK3 headerbar propia con semaforos).
+-- P1 no_bar ampliado (2026-10-27, corregido Task noobar2 2026-10-27):
+-- ventanas con CSD propio que duplicarian la barra de hyprbars:
+--   * pamac: DOS clases reales (fallback XWayland + nativo Wayland).
+--     XWayland: WM_CLASS=pamac-manager (StartupWMClass del .desktop
+--     instalado org.manjaro.pamac.manager.desktop, verificado en live).
+--     Wayland nativo (el defecto en Hyprland): app_id =
+--     "org.manjaro.pamac.manager" (Gtk.Application application_id en
+--     upstream src/manager.vala; libadwaita CSD con headerbar propia).
+--     Sin la segunda regla pamac muestra DOBLE barra en Wayland.
 --   * dialogos modales (modal=true, propiedad real de Hyprland ya usada en
 --     nimbus-dialog-modal): polkit, autenticacion, filechoosers GTK — todos
 --     traen su headerbar/botones propios.
@@ -272,6 +276,7 @@ hl.window_rule({ name = "nimbus-hyprbars-no-bar-firefox",  match = { class = "^(
 --     en el fork CachyOS) no fija la clase Wayland de forma verificable sin
 --     ejecutarlo; los dialogos de Calamares caen en la regla modal=true.
 hl.window_rule({ name = "nimbus-hyprbars-no-bar-pamac", match = { class = "^(pamac-manager)$" }, ["hyprbars:no_bar"] = true })
+hl.window_rule({ name = "nimbus-hyprbars-no-bar-pamac-appid", match = { class = "^(org\\.manjaro\\.pamac\\.manager)$" }, ["hyprbars:no_bar"] = true })
 hl.window_rule({ name = "nimbus-hyprbars-no-bar-modal", match = { modal = true },                 ["hyprbars:no_bar"] = true })
 -- Task botones-nativos: SIN doble juego en ventanas propias de MacShell.
 -- Esas ventanas dibujan YA sus semaforos Liquid Glass nativos y hyprbars
