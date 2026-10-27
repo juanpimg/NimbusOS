@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NimbusOS — Linux con alma de Mac | Distro basada en CachyOS + MacShell</title>
+<meta name="description" content="NimbusOS es una distribución Linux instalable con estética y flujo de trabajo macOS: ventanas con semáforos nativos, dock con aumento, Spotlight, Spaces y Mission Control. Basada en CachyOS con el shell MacShell sobre Hyprland.">
+<meta property="og:title" content="NimbusOS — Linux con alma de Mac">
+<meta property="og:description" content="ISO instalable: semáforos nativos, dock, Spotlight, Spaces, tienda de software e instalador gráfico. Sin terminal.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="assets/preview.svg">
+<link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+<link rel="stylesheet" href="styles.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"NimbusOS","operatingSystem":"Linux","applicationCategory":"OperatingSystem","offers":{"@type":"Offer","price":"0"},"description":"Distribución Linux con estética y flujo macOS, basada en CachyOS con MacShell sobre Hyprland."}
+</script>
+</head>
+<body>
+<header class="topbar glass">
+  <a class="brand" href="#inicio"><img src="assets/logo.svg" alt="NimbusOS" width="22" height="22"><span>NimbusOS</span></a>
+  <nav>
+    <a href="#escritorio">Escritorio</a>
+    <a href="#flujo">Flujo</a>
+    <a href="#descargar">Descargar</a>
+    <a href="https://github.com/juanpimg/NimbusOS">GitHub</a>
+  </nav>
+</header>
+
+<main id="inicio">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="kicker">Distribución Linux · Basada en CachyOS + MacShell</p>
+      <h1>Linux con alma de&nbsp;Mac</h1>
+      <p class="lede">NimbusOS es una ISO instalable con la estética y el flujo de trabajo de macOS: ventanas con semáforos nativos, dock con aumento, Spotlight, Spaces y Mission Control. Sin tocar la terminal.</p>
+      <div class="cta-row">
+        <a class="btn primary" href="#descargar">Descargar la ISO</a>
+        <a class="btn" href="https://github.com/juanpimg/NimbusOS">Ver el código</a>
+      </div>
+      <p class="nota">Proyecto independiente. Sin afiliación con Apple, CachyOS ni MacShell.</p>
+    </div>
+    <div class="hero-shot" role="img" aria-label="Vista previa del escritorio NimbusOS">
+      <div class="mock-screen">
+        <div class="mock-bar"><span class="mock-logo"></span><span>Archivo Edición Ver Ventana Ayuda</span><span class="mock-clock">lun 27 oct 09:41</span></div>
+        <div class="mock-wall"></div>
+        <div class="mock-window glass">
+          <div class="mock-titlebar"><i class="tl r"></i><i class="tl y"></i><i class="tl g"></i><b>Terminal</b></div>
+          <div class="mock-term">liveuser@nimbus ~]$ <span class="caret"></span></div>
+        </div>
+        <div class="mock-dock glass"><i></i><i></i><i></i><i></i><i class="trash"></i></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="escritorio" class="cards">
+    <article class="card glass"><h2>Ventanas de verdad</h2><p>Titlebars nativas con semáforos 🔴🟡🟢 integrados: mover desde la barra, redimensionar desde cualquier borde, imán entre ventanas y atajos de teclado.</p></article>
+    <article class="card glass"><h2>Espacios de trabajo</h2><p>Spaces con <kbd>Super+1…9</kbd>, Mission Control con <kbd>Super+W</kbd> y cambio con gestos de 3 dedos en el trackpad.</p></article>
+    <article class="card glass"><h2>Spotlight y Dock</h2><p>Lanzador centrado con <kbd>Super+Espacio</kbd>, dock flotante con aumento, indicadores y papelera.</p></article>
+    <article class="card glass"><h2>Tienda e instalador</h2><p>Pamac con Flathub y AUR integrados, automontaje USB y asistente de instalación estilo “Hello”.</p></article>
+  </section>
+
+  <section id="flujo" class="flow glass">
+    <h2>Cero curva de aprendizaje</h2>
+    <ul>
+      <li><strong>Si vienes de Mac:</strong> semáforos, Spotlight, Spaces, Mission Control y atajos <kbd>Super</kbd>.</li>
+      <li><strong>Si vienes de Windows:</strong> <kbd>Ctrl+C</kbd> <kbd>Ctrl+V</kbd> <kbd>Ctrl+Z</kbd> <kbd>Ctrl+S</kbd> intactos, <kbd>Alt+Tab</kbd> con previsualización, todo con el ratón.</li>
+    </ul>
+  </section>
+
+  <section id="descargar" class="download glass">
+    <h2>Descargar NimbusOS</h2>
+    <p class="ver">Versión <strong>2026.10.27 beta</strong> · ISO de 3,7&nbsp;GB · Solo 64 bits (x86-64-v3)</p>
+    <a class="btn primary big" id="dl-btn" href="https://descargas.nimbusos.example/nimbus-2026.10.27-x86_64.iso">Descargar ISO</a>
+    <details>
+      <summary>Verificar la descarga (sha256)</summary>
+      <pre><code>sha256sum nimbus-2026.10.27-x86_64.iso
+# comparar con iso.manifest en GitHub:
+# https://github.com/juanpimg/NimbusOS/blob/main/iso.manifest</code></pre>
+    </details>
+    <p class="nota">¿Cómo probarla? <a href="https://github.com/juanpimg/NimbusOS/blob/main/docs/qemu.md">Guía de VM con QEMU/KVM</a>. ¿Problemas? <a href="https://github.com/juanpimg/NimbusOS/issues">Ábrelos en GitHub</a>.</p>
+  </section>
+
+  <section class="filosofia">
+    <h2>Hecho con respeto</h2>
+    <p>NimbusOS reutiliza el trabajo de <a href="https://github.com/0-ss/MacShell">MacShell</a> (MIT), <a href="https://cachyos.org">CachyOS</a>, <a href="https://hyprland.org">Hyprland</a> y <a href="https://github.com/vinceliuice/WhiteSur-gtk-theme">WhiteSur</a> en vez de reinventarlo, y propone mejoras aguas arriba. Las marcas macOS y Mac pertenecen a Apple Inc.; NimbusOS no está afiliado ni respaldado por Apple, CachyOS ni MacShell.</p>
+  </section>
+</main>
+
+<footer>
+  <span>NimbusOS · GPL-3.0-or-later</span>
+  <span><a href="https://github.com/juanpimg/NimbusOS">GitHub</a></span>
+</footer>
+<script src="script.js"></script>
+</body>
+</html>
