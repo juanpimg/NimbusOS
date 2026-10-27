@@ -12,10 +12,10 @@
 --   hyprland.conf ("Using lua config found at ..."). Sin .lua usa el .conf
 --   legacy (avisa: soporte .conf se elimina en Hyprland 0.57). El .conf queda
 --   como fallback: NO borrar (ver Ruling en el commit).
--- RULING ALT+TAB (divergencia .conf vs Lua, resuelta a UNA sola):
---   sesion Lua -> switcher de MacShell via qs ipc (`switcher next`).
---   La linea `hyprshell switch` del .conf NO se porta (hyprshell sobra en la
---   sesion Lua; el .conf queda intacto como fallback legacy).
+-- RULING ALT+TAB p2-final (2026-10-26): UNA sola definicion en ambas
+--   sesiones (.conf + Lua -> `qs -c MacShell ipc call switcher next`).
+--   hyprshell queda en el append ya precompilado (inofensivo) pero sin bind
+--   en ninguna sesion; el .conf unificado usa el switcher MacShell.
 -- RULING overview (Task ventanas-p0, 2026-10-26): Mission Control REAL via
 --   hyprexpo es IMPOSIBLE en 0.56: upstream elimino los plugins no mantenidos
 --   (hyprland-plugins commits 046be75/3aa21f2 "drop unmaintained plugins",
@@ -279,8 +279,8 @@ local qs = "qs -c MacShell ipc call "
 hl.bind("SUPER + Space",  hl.dsp.exec_cmd(qs .. "spotlight toggle"))
 hl.bind("SUPER + V",      hl.dsp.exec_cmd(qs .. "spotlight clipboard"))
 hl.bind("SUPER + period", hl.dsp.exec_cmd(qs .. "spotlight emoji"))
--- ALT+TAB = switcher con preview de MacShell (Ruling: UNA sola definicion; la
--- variante `hyprshell switch` del .conf no se porta a la sesion Lua).
+-- ALT+TAB = switcher con preview de MacShell (RULING p2-final: UNA sola
+-- definicion, identica a 10-shortcuts.conf; hyprshell sin uso en Lua).
 hl.bind("ALT + TAB", hl.dsp.exec_cmd(qs .. "switcher next"))
 -- Task ventanas-p0: SUPER+W mantiene el switcher (Ruling overview: hyprexpo
 -- muerto upstream, sin dispatcher `overview`; ver cabecera del fichero).

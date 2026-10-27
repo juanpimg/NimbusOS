@@ -85,10 +85,12 @@ fi
 chkg "hyprland conserva exec-once macshell" "$HYPR" 'exec-once[[:space:]]*=[[:space:]]*macshell'
 chkg "hyprland conserva ref Task1 comentada" "$HYPR" '10-shortcuts\.conf.*doble-disparo|canonica ACTIVA'
 
-# --- 10-shortcuts.conf: launcher + hyprshell + fallback -------------------------------
+# --- 10-shortcuts.conf: launcher + switcher MacShell + fallback ----------------------
+# RULING p2-final: ALT+TAB canonico = switcher MacShell (qs ipc, igual que la
+# sesion Lua); hyprshell queda en el append sin bind (ver Ruling en el .conf).
 chkg "shortcuts SUPER SPACE launcher" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*SPACE.*spotlight toggle'
-chkg "shortcuts ALT TAB hyprshell switch" "$SHORT" 'bind[[:space:]]*=[[:space:]]*ALT,[[:space:]]*TAB.*hyprshell switch'
-chkg "shortcuts URL hyprshell" "$SHORT" 'H3rmt/hyprshell'
+chkg "shortcuts ALT TAB switcher MacShell (canonico p2-final)" "$SHORT" 'bind[[:space:]]*=[[:space:]]*ALT,[[:space:]]*TAB.*qs -c MacShell ipc call switcher next'
+chkg "shortcuts URL hyprshell (Ruling: en append sin bind)" "$SHORT" 'H3rmt/hyprshell'
 if grep -qE '^[[:space:]]*#[[:space:]]*bind[[:space:]]*=[[:space:]]*ALT,[[:space:]]*TAB,[[:space:]]*cyclenext' "$SHORT" 2>/dev/null; then
   ok "shortcuts fallback cyclenext comentado"
 else

@@ -58,7 +58,7 @@
 # Overlay: etc/pamac.conf.d/nimbus.conf (EnableFlatpak/EnableAUR=true;
 #   fusion a /etc/pamac.conf la hace usr/bin/nimbus-live-setup, Task 5),
 #   etc/skel/.config/hypr/10-shortcuts.conf (SUPER+SPACE spotlight,
-#   ALT+TAB hyprshell switch), exec-once polkit-agent + udiskie en
+#   ALT+TAB switcher MacShell via qs ipc), exec-once polkit-agent + udiskie en
 #   hyprland.conf. Cero binds CTRL-*.
 # Paquetes USB (extra): udisks2 udiskie gvfs gvfs-mtp ntfs-3g exfatprogs
 #   dosfstools mtools nautilus.

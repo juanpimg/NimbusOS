@@ -408,6 +408,60 @@ else
   ok "ventanas-p0: conf sin efecto no_bar (rompe verify sin .so)"
 fi
 
+# --- Task p2-final: pulido final (switcher unico, layer-rules, verde) ---------
+# 1) Switcher consistente: UNA sola definicion por sesion, ambas MacShell
+#    (`qs -c MacShell ipc call switcher next`). hyprshell queda en el append
+#    (precompilado, inofensivo) pero sin bind activo en ninguna sesion.
+if grep -vE '^[[:space:]]*#' "$SHORT" | grep -qE '^[[:space:]]*bind[[:space:]]*=[[:space:]]*ALT,[[:space:]]*TAB,[[:space:]]*exec,[[:space:]]*qs -c MacShell ipc call switcher next'; then
+  ok "p2-final: .conf ALT+TAB activo = switcher MacShell (qs ipc)"
+else
+  bad "p2-final: .conf ALT+TAB activo = switcher MacShell (qs ipc)"
+fi
+if grep -vE '^[[:space:]]*#' "$SHORT" | grep -q 'hyprshell switch'; then
+  bad "p2-final: .conf sin bind activo a hyprshell (Ruling: sin uso, queda en append)"
+else
+  ok "p2-final: .conf sin bind activo a hyprshell (Ruling: sin uso, queda en append)"
+fi
+chkg "p2-final: lua ALT+TAB = switcher MacShell (qs ipc, paridad .conf)" "$HLUA" 'ALT \+ TAB.*switcher next'
+chkg "p2-final: hyprshell sigue en append (precompilado, inofensivo)" "$APP" '^hyprshell$'
+chkg "p2-final: Ruling hyprshell documentada en shortcuts" "$SHORT" 'RULING p2-final'
+# 2) Layer-rules notificaciones/OSD: investigado en MacBar.qml/MacDock.qml, NO
+#    existe namespace propio (popups NotifBody + OSD osdVisible viven en el
+#    PanelWindow "macbar"; upstream: "the bar itself needs no blur rule").
+#    Ruling: sin reglas nuevas; se bloquea cualquier namespace inventado en
+#    .conf y lua (solo namespaces reales del codigo MacShell).
+_BADNS="$(grep -vE '^[[:space:]]*#' "$HYPR" | grep -oE 'layer_rule[^,]*,[[:space:]]*[A-Za-z0-9_-]+' 2>/dev/null | grep -oE '[A-Za-z0-9_-]+$' | grep -viE '^(macbar|macbarbg|macdock|macdock-drag|macspot|macswitch|macwall|macshot|macwidgets|macdesktop|macshell-minimize|macshell-clock-alert|macwinbar)$' || true)"
+if [ -z "$_BADNS" ]; then
+  ok "p2-final: layer_rule .conf solo namespaces reales del codigo MacShell"
+else
+  bad "p2-final: layer_rule .conf con namespace inventado: $_BADNS"
+fi
+_BADLUA="$(grep -oE 'namespace = "[A-Za-z0-9_-]+"' "$LUA" 2>/dev/null | grep -oE '"[A-Za-z0-9_-]+"' | tr -d '"' | grep -viE '^(macbar|macbarbg|macdock|macdock-drag|macspot|macswitch|macwall|macshot|macwidgets|macdesktop|macshell-minimize|macshell-clock-alert|macwinbar)$' || true)"
+if [ -z "$_BADLUA" ]; then
+  ok "p2-final: layer_rule lua solo namespaces reales del codigo MacShell"
+else
+  bad "p2-final: layer_rule lua con namespace inventado: $_BADLUA"
+fi
+if grep -qiE 'namespace:[[:space:]]*"mac(notif|osd|notification)' "$OVL/etc/skel/.config/quickshell/MacShell/"*.qml 2>/dev/null; then
+  bad "p2-final: cero namespaces inventados macnotif/macosd en QML"
+else
+  ok "p2-final: cero namespaces inventados macnotif/macosd en QML"
+fi
+skip "p2-final layer-rule notif/OSD: Ruling (viven en macbar; upstream: bar needs no blur rule; sin reglas nuevas)"
+# 3) Animaciones sin aceleracion: sin via simple y segura de detectar software
+#    rendering en el arranque (requeriria hyprctl systeminfo con el compositor
+#    ya arriba o lspci/glxinfo no garantizados en la ISO). Ruling: NO se toca.
+skip "p2-final animaciones software rendering: Ruling (sin deteccion simple/segura; sin cambios)"
+# 4) Reloj espanol: SKIP confirmado (requiere locale-gen + lang/es.js
+#    upstream); el check SKIP documentado ya existe arriba (ui-desktop2:
+#    reloj espanol). Sin cambios.
+# 5) Verde = maximizar coherente .conf <-> lua (no fullscreen).
+chkg "p2-final: conf verde hyprbars = fullscreen 1 (maximizar)" "$HYPR" 'hyprbars-button = rgb\(28C840\).*fullscreen 1'
+chkg "p2-final: lua verde hyprbars = mode maximize" "$HLUA" 'bg_color = "rgb\(28C840\)".*mode = "maximize"'
+chkg "p2-final: conf doble-click barra = fullscreen 1 (maximizar)" "$HYPR" 'on_double_click = hyprctl dispatch fullscreen 1'
+chkg "p2-final: lua doble-click barra = mode maximize" "$HLUA" 'on_double_click.*mode = "maximize"'
+chkg "p2-final: lua SUPER+F = fullscreen real (paridad .conf)" "$HLUA" 'SUPER \+ F.*mode = "fullscreen"'
+
 # --- Sintaxis: hyprland --verify-config si disponible --------------------------
 # Hyprland 0.56: --check-config no existe, es --verify-config. El source=
 # usa ~, asi que se fusiona en un HOME temporal para no dar falso globbing.
