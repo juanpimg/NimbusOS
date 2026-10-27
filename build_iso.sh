@@ -49,6 +49,14 @@ BUILD_DIR="$WORKDIR/build"
 step() { echo "==> [build_iso] $1"; }
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
+# Candado anti-solape (2026-10-27: dos builds concurrentes compartiendo
+# work/build corrompieron el arbol y produjeron un BUILD PASS falso).
+BUILD_START="$(date +%s)"
+LOCK="$REPO_ROOT/.build.lock"
+[ ! -e "$LOCK" ] || fail "otro build en curso ($LOCK existe; si es resto, borrarlo a mano tras comprobar que no hay mkarchiso activo)"
+echo $$ > "$LOCK"
+trap 'rm -f "$LOCK"' EXIT
+
 # --- Paso 1: check_deps -------------------------------------------------------
 step "1/7 check_deps"
 DEPS_BIN=(git mkarchiso mkinitcpio pacman-key sha256sum isoinfo qemu-system-x86_64 qemu-img)
@@ -404,8 +412,19 @@ echo "build OK (log: $LOG)"
 
 # --- Paso 7: verify -----------------------------------------------------------
 step "7/7 verify (sha256sum + isoinfo)"
+# La imagen airootfs debe ser FRESCA de este build (no reutilizada ni ausente:
+# 2026-10-27 dos builds solapados dejaron work/build sin imagen y el paso 7
+# validaba una ISO vieja como PASS falso).
+IMG_SFS="$BUILD_DIR/iso/arch/x86_64/airootfs.sfs"
+IMG_ERO="$BUILD_DIR/iso/arch/x86_64/airootfs.erofs"
+IMG=""
+[ -f "$IMG_SFS" ] && IMG="$IMG_SFS"
+[ -f "$IMG_ERO" ] && IMG="$IMG_ERO"
+[ -n "$IMG" ] || fail "no se genero airootfs.{sfs,erofs} en $BUILD_DIR/iso/arch/x86_64/"
+[ "$IMG" -nt "$LOCK" ] || fail "airootfs es anterior al inicio del build (resto corrupto)"
 ISO="$(ls -t "$OUTDIR"/nimbus-*-x86_64.iso 2>/dev/null | head -1)"
 [ -n "$ISO" ] || fail "no se genero out/nimbus-*-x86_64.iso"
+[ "$ISO" -nt "$LOCK" ] || fail "$ISO es anterior al inicio del build (mkarchiso no produjo ISO nueva)"
 sha256sum "$ISO" | tee "$ISO.sha256"
 isoinfo -d -i "$ISO" | head -10
 isoinfo -l -i "$ISO" | head -20
