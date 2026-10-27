@@ -542,9 +542,14 @@ chkg "minimize-toggle documenta multi-monitor (restaura al foco)" "$MBT" 'multi-
 # pamac muestra DOBLE barra.
 chkg "noobar2: lua verde hyprbars = mode maximized" "$HLUA" 'bg_color = "rgb\(28C840\)".*mode = "maximized"'
 chkg "noobar2: lua doble-click barra = mode maximized" "$HLUA" 'on_double_click.*mode = "maximized"'
-chkg "noobar2: lua no_bar pamac XWayland (pamac-manager)" "$HLUA" 'class = "\^\(pamac-manager\)\$".*hyprbars:no_bar'
-chkg "noobar2: lua no_bar pamac Wayland (org.manjaro.pamac.manager)" "$HLUA" 'org\\\\\.manjaro\\\\\.pamac\\\\\.manager.*hyprbars:no_bar'
+chkg "noobar2: lua no_bar pamac UNICA (Wayland+XWayland en alternacion)" "$HLUA" 'org\.manjaro\.pamac\.manager\|pamac-manager.*hyprbars:no_bar'
 chkg "noobar2: lua no_bar firefox (tabs propios)" "$HLUA" 'firefox.*hyprbars:no_bar'
+_DUPES="$(grep -oE 'name = "nimbus-[a-z0-9-]+"' "$HLUA" | sort | uniq -d || true)"
+if [ -z "$_DUPES" ]; then
+  ok "noobar2: nombres de regla unicos (duplicar name invalida el match)"
+else
+  bad "noobar2: nombres de regla duplicados: $_DUPES"
+fi
 if grep -q 'mode = "maximize"' "$HLUA"; then
   bad "noobar2: cero mode maximize invalido en lua (el valido es maximized)"
 else

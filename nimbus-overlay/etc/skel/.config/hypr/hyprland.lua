@@ -276,8 +276,11 @@ hl.window_rule({ name = "nimbus-hyprbars-no-bar-pamac",    match = { class = "^(
 --     host de build y su app_id Qt (CALAMARES_APPLICATION_NAME="Calamares"
 --     en el fork CachyOS) no fija la clase Wayland de forma verificable sin
 --     ejecutarlo; los dialogos de Calamares caen en la regla modal=true.
-hl.window_rule({ name = "nimbus-hyprbars-no-bar-pamac", match = { class = "^(pamac-manager)$" }, ["hyprbars:no_bar"] = true })
-hl.window_rule({ name = "nimbus-hyprbars-no-bar-pamac-appid", match = { class = "^(org\\.manjaro\\.pamac\\.manager)$" }, ["hyprbars:no_bar"] = true })
+-- NOTA nombres unicos: Hyprland solo admite UN match.class por regla y las
+-- reglas Lua con el mismo `name` comparten objeto (la segunda definicion
+-- pisa o invalida la primera). Por eso pamac lleva UNA sola regla con
+-- alternacion (arriba) en vez de dos: el duplicado rompia el no_bar y la
+-- doble barra volvia. No volver a dividirla.
 hl.window_rule({ name = "nimbus-hyprbars-no-bar-modal", match = { modal = true },                 ["hyprbars:no_bar"] = true })
 -- Task botones-nativos: SIN doble juego en ventanas propias de MacShell.
 -- Esas ventanas dibujan YA sus semaforos Liquid Glass nativos y hyprbars
