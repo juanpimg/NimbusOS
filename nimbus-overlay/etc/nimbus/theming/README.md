@@ -24,5 +24,18 @@
 # Limitacion V1 (semáforos): WhiteSur + MacShell cubren GTK/CSD; las
 #   ventanas Hyprland SSD no-GTK no tienen semáforos nativos. No bloquea V1;
 #   verificar aspecto en QEMU (docs/qemu.md).
-# Global-menu V1: la top-bar muestra solo el titulo de la app activa, sin
-#   menu D-Bus appmenu (sin vala-panel-appmenu/protocolo global-menu).
+# Global-menu V1 (Ruling menu-global 2026-10-27): menu D-Bus REAL no viable
+#   en V1. MacBar no trae importer/registrador com.canonical.AppMenu.Registrar
+#   (menuModelFor() = entradas estaticas por heuristica appKind; el unico
+#   QsMenuOpener es el del system tray) y Quickshell upstream no ofrece menu
+#   global (issue #170: "huge can of worms, not planned"); el unico puente
+#   conocido exige binario externo + bus AT-SPI (cero AUR nuevo en V1).
+#   El modulo exportador SI queda instalado (appmenu-gtk-module +
+#   GTK_MODULES en hyprland.conf/.lua, Task menu-tienda): el bus queda listo
+#   para un futuro consumidor. Las entradas que enviaban atajos a ciegas
+#   (Ctrl+S/W/...) via sendshortcut se eliminaron de MacBar.qml (ver Ruling
+#   inline en menuModelFor); solo quedan acciones reales (IPC Hyprland,
+#   cierre Wayland, Spotlight, capturas). Inventario ISO: ningun exportador
+#   relevante (firefox unico con menubar, exige registrador ausente; vlc es
+#   Qt sin plugin de plataforma en repos; nautilus/pamac headerbar sin
+#   menubar; kitty/mpv sin menus).

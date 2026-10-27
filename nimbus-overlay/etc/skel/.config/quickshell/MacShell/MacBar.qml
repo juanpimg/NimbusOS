@@ -3196,6 +3196,18 @@ Scope {
         return out.slice(0,8);
     }
 
+    // ── NimbusOS Ruling menu-global (V1, 2026-10-27): NO hay menu D-Bus real ──
+    // MacBar no implementa importer/registrador com.canonical.AppMenu.Registrar
+    // (grep: cero ocurrencias en este fichero; el unico QsMenuOpener es el de
+    // los iconos del system tray) y menuModelFor() solo fabrica entradas
+    // estaticas por heuristica appKind(). Quickshell upstream no ofrece menu
+    // global (issue #170: "huge can of worms, not planned") y el unico puente
+    // conocido exige binario externo + bus AT-SPI: fuera de V1 (cero AUR nuevo,
+    // cambios QML minimos). Las entradas que enviaban atajos a ciegas via
+    // keys()/sendshortcut (Ctrl+S, Ctrl+W, ...) se ELIMINAN: solo quedan
+    // acciones reales (IPC Hyprland, cierre Wayland, Spotlight, capturas).
+    // keys() se conserva solo para pasteSoon() (pegar del historial Spotlight,
+    // automatizacion real, no menu). Proponer aguas arriba: importer AppMenu.
     function menuModelFor(name) {
         var m = [], i;
         if (name === "apple") {
@@ -3227,10 +3239,7 @@ Scope {
                     m.push(mi("Search\u2026", "", function () { root.search(); }));
                 } else {
                     m.push(mi(I18n.tr("About ") + n, "", function () { root.aboutActive(aw, n); }));
-                    if (editor || files) {
-                        m.push(msep());
-                        m.push(mi("Preferences\u2026", "Ctrl+,", keys(["ctrl"], "comma")));
-                    }
+                    // NimbusOS menu-global V1: sin "Preferences Ctrl+," (atajo ciego).
                     m.push(msep());
                     m.push(mi(I18n.tr("Hide ") + n, "", disp('hl.dsp.window.move({ workspace = "special:hidden", follow = false })')));
                     m.push(mi("Show Hidden Windows", "", disp('hl.dsp.workspace.toggle_special("hidden")')));
@@ -3244,23 +3253,9 @@ Scope {
                     m.push(mi("New Files Window", "", function () { sh(filesCmd); }));
                 } else {
                     m.push(mi("New Window", "", function () { root.launchActive(); }));
-                    if (browser) {
-                        var ff = /firefox|librewolf|floorp|zen|waterfox/.test(id);
-                        m.push(mi("New Private Window", ff ? "Ctrl+Shift+P" : "Ctrl+Shift+N", keys(["ctrl", "shift"], ff ? "p" : "n")));
-                    }
-                    if (browser || files) m.push(mi("New Tab", "Ctrl+T", keys(["ctrl"], "t")));
-                    if (term) m.push(mi("New Tab", "Ctrl+Shift+T", keys(["ctrl", "shift"], "t")));
-                    if (browser) m.push(mi("Reopen Closed Tab", "Ctrl+Shift+T", keys(["ctrl", "shift"], "t")));
-                    if (!term && !files) m.push(mi("Open\u2026", "Ctrl+O", keys(["ctrl"], "o")));
-                    if (!term && !files) {
-                        m.push(msep());
-                        m.push(mi(browser ? "Save Page As\u2026" : "Save", "Ctrl+S", keys(["ctrl"], "s")));
-                        if (!browser) m.push(mi("Save As\u2026", "Ctrl+Shift+S", keys(["ctrl", "shift"], "s")));
-                        m.push(mi("Print\u2026", "Ctrl+P", keys(["ctrl"], "p")));
-                    }
+                    // NimbusOS menu-global V1: sin atajos ciegos (New Private
+                    // Window, New/Reopen Tab, Open, Save, Print, Close Tab).
                     m.push(msep());
-                    if (browser || files || editor) m.push(mi("Close Tab", "Ctrl+W", keys(["ctrl"], "w")));
-                    if (term) m.push(mi("Close Tab", "Ctrl+Shift+W", keys(["ctrl", "shift"], "w")));
                     m.push(mi("Close Window", "", disp('hl.dsp.window.close()')));
                 }
                 m.push(msep());
@@ -3270,22 +3265,8 @@ Scope {
                 m.push(mi(root.recording ? "Stop Screen Recording" : "Start Screen Recording", "", function () { root.toggleRecording(); }));
                 m.push(mi("Pick Color", "", function () { root.pickColor(); }));
             } else if (name === "edit") {
-                if (has && term) {
-                    m.push(mi("Copy", "Ctrl+Shift+C", keys(["ctrl", "shift"], "c")));
-                    m.push(mi("Paste", "Ctrl+Shift+V", keys(["ctrl", "shift"], "v")));
-                } else if (has) {
-                    m.push(mi("Undo", "Ctrl+Z", keys(["ctrl"], "z")));
-                    m.push(mi("Redo", "Ctrl+Shift+Z", keys(["ctrl", "shift"], "z")));
-                    m.push(msep());
-                    m.push(mi("Cut", "Ctrl+X", keys(["ctrl"], "x")));
-                    m.push(mi("Copy", "Ctrl+C", keys(["ctrl"], "c")));
-                    m.push(mi("Paste", "Ctrl+V", keys(["ctrl"], "v")));
-                    if (browser || editor) m.push(mi("Paste and Match Style", "Ctrl+Shift+V", keys(["ctrl", "shift"], "v")));
-                    m.push(mi("Select All", "Ctrl+A", keys(["ctrl"], "a")));
-                    m.push(msep());
-                    m.push(mi("Find\u2026", "Ctrl+F", keys(["ctrl"], "f")));
-                }
-                if (has) m.push(msep());
+                // NimbusOS menu-global V1: sin atajos ciegos (Undo/Redo/Cut/
+                // Copy/Paste/Select All/Find). Solo acciones reales Spotlight.
                 m.push(mi("Clipboard History\u2026", "", function () { root.spotOpen("clip"); }));
                 m.push(mi("Emoji & Symbols", "", function () { root.spotOpen("emoji"); }));
             } else if (name === "view") {
@@ -3296,20 +3277,8 @@ Scope {
                     m.push(dis(mchk("Pin to All Workspaces", "", aw && aw.pinned === true, disp('hl.dsp.window.pin({ action = "toggle" })')), !floating));
                     m.push(dis(mi("Center Window", "", disp('hl.dsp.window.center()')), !floating));
                     m.push(dis(mi("Toggle Split Direction", "", disp('hl.dsp.layout("togglesplit")')), floating));
-                    if (!term) {
-                        m.push(msep());
-                        m.push(mi("Actual Size", "Ctrl+0", keys(["ctrl"], "0")));
-                        m.push(mi("Zoom In", "Ctrl+=", keys(["ctrl"], "equal")));
-                        m.push(mi("Zoom Out", "Ctrl+-", keys(["ctrl"], "minus")));
-                    }
-                    if (browser || files) {
-                        m.push(msep());
-                        m.push(mi("Reload", "F5", keys([], "F5")));
-                        if (browser) {
-                            m.push(mi("Reload Ignoring Cache", "Ctrl+Shift+R", keys(["ctrl", "shift"], "r")));
-                            m.push(mi("Developer Tools", "F12", keys([], "F12")));
-                        }
-                    }
+                    // NimbusOS menu-global V1: sin atajos ciegos
+                    // (Zoom, Reload, DevTools). Solo controles del compositor.
                     m.push(msep());
                 }
                 m.push(mchk("Dark Mode", "", root.darkMode, function () { root.setAppearance(root.darkMode ? "light" : "dark"); }));

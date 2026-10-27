@@ -174,6 +174,45 @@ chkg "ui-flows wifi sin paquete (nmcli upstream)" "$APP" 'nmcli via networkmanag
 chkg "ui-flows hostname live nimbus" "$UF_HOST" '^nimbus$'
 [ ! -e "$ROOT/nimbus-overlay/etc/passwd" ] && ok "ui-flows overlay sin etc/passwd" || bad "ui-flows overlay sin etc/passwd"
 
+# --- Task menu-global: menu global REAL via D-Bus o Ruling (V1: Ruling) ------
+MB_QML="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/MacBar.qml"
+MT_README="$ROOT/nimbus-overlay/etc/nimbus/theming/README.md"
+# Base exportadora intacta (Task menu-tienda): modulo + env.
+chkg "menu-global base: modulo en append" "$APP" '^appmenu-gtk-module$'
+chkg "menu-global base: GTK_MODULES en hyprland.conf" "$HYPR" '^env *= *GTK_MODULES,appmenu-gtk-module'
+# MacBar V1: sin importer/registrador D-Bus (sin imports Quickshell.DBus/DBusMenu;
+# el unico QsMenuOpener es el del system tray). Ruling: menu real no viable en V1.
+if grep -qE 'Quickshell\.DBus|DBusMenu' "$MB_QML" 2>/dev/null; then
+  bad "menu-global V1: MacBar sin importer D-Bus (Ruling: no viable en V1)"
+else
+  ok "menu-global V1: MacBar sin importer D-Bus (Ruling: no viable en V1)"
+fi
+# Sin atajos a ciegas en los menus: cero llamadas keys([...]) en menuModelFor.
+_MG_BODY="$(awk '/function menuModelFor\(/,/return m;/' "$MB_QML" 2>/dev/null)"
+if [ -z "$_MG_BODY" ]; then
+  bad "menu-global: menuModelFor localizable en MacBar.qml"
+elif echo "$_MG_BODY" | grep -qE 'keys\(\['; then
+  bad "menu-global: menuModelFor sin atajos ciegos keys([...])"
+else
+  ok "menu-global: menuModelFor sin atajos ciegos keys([...])"
+fi
+# keys() se conserva solo para pasteSoon (automatizacion real del portapapeles).
+chkg "menu-global keys() reservada a pasteSoon" "$MB_QML" 'pasteFn = appKind'
+# Ruling documentada (README theming + comentario inline en menuModelFor).
+chkg "menu-global Ruling en theming/README.md" "$MT_README" 'Ruling menu-global'
+chkg "menu-global Ruling inline en MacBar.qml" "$MB_QML" 'Ruling menu-global'
+# qmllint Qt6 al QML tocado (skip si ausente o si es el qmllint de Qt5,
+# que no parsea QML Qt6/Quickshell y falla 255 en silencio).
+if command -v qmllint >/dev/null 2>&1 && qmllint --version 2>/dev/null | grep -qE ' 6\.[0-9]'; then
+  if (cd "$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell" && qmllint MacBar.qml >/dev/null 2>&1); then
+    ok "menu-global qmllint MacBar.qml"
+  else
+    bad "menu-global qmllint MacBar.qml"
+  fi
+else
+  skip "menu-global qmllint Qt6 (no instalado; el de Qt5 no vale)"
+fi
+
 # --- Sintaxis -------------------------------------------------------------------------------
 chk "verify-store supera bash -n" bash -n "$ROOT/scripts/verify-store.sh"
 if command -v hyprland >/dev/null 2>&1; then
