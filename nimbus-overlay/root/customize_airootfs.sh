@@ -60,13 +60,28 @@ if [ -f /etc/dconf/db/local.d/nimbus ] && command -v dconf >/dev/null 2>&1; then
     dconf update || echo "customize_airootfs AVISO: dconf update fallo (omitido)" >&2
 fi
 
-# NOTA Calamares/boost (desync upstream 2026-10-26/27, verificado en VM):
-# cachyos-calamares-next 3.4.2-13 (2026-08-13) enlaza libboost_python314.so.1.91.0
-# pero los repos sirven boost-libs 1.92.0. Se probó un symlink 1.91->1.92:
-# NO vale (símbolo _ZN5boost6python6detail11init_module... ausente en 1.92,
-# error en VM). Sin puente posible desde nuestra capa: hay que esperar a que
-# CachyOS reconstruya Calamares contra 1.92; el próximo build lo recoge solo.
-# NO crear el symlink: solo enmascara el error real.
+# Puente temporal con la libreria REAL 1.91 (no symlink: ABI incompatible).
+# Se instala SOLO si algun binario de Calamares la sigue pidiendo (grep sobre
+# las entradas NEEDED del ELF; sin readelf). Cuando upstream reconstruya
+# contra 1.92, el guard no se cumple y la compat deja de instalarse sola.
+# Ruling out: symlink a 1.92 (simbolo init_module ausente, probado en VM) e
+# inyectar el .so sin condicion (basura permanente).
+_CAL_NEED_191=0
+for _cb in /usr/bin/calamares /usr/lib/calamares/libcalamares.so /usr/lib/libcalamares.so; do
+    if [ -f "$_cb" ] && grep -q 'libboost_python314\.so\.1\.91\.0' "$_cb" 2>/dev/null; then
+        _CAL_NEED_191=1; break
+    fi
+done
+if [ "$_CAL_NEED_191" = "1" ]; then
+    if [ -f /usr/share/nimbus/compat/libboost_python314.so.1.91.0 ]; then
+        install -Dm644 /usr/share/nimbus/compat/libboost_python314.so.1.91.0 /usr/lib/libboost_python314.so.1.91.0
+        echo "customize_airootfs: compat boost 1.91 instalada (Calamares la pide)"
+    else
+        echo "customize_airootfs AVISO: Calamares pide 1.91 pero falta staging (revisar build)" >&2
+    fi
+else
+    echo "customize_airootfs: Calamares ya no pide boost 1.91 (compat innecesaria, omitida)"
+fi
 
 # Branding del SO (derivado honesto, como Ubuntu hace con Debian):
 # /etc/os-release lo pone el paquete base (dice CachyOS) y about-info.sh de

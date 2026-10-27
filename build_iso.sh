@@ -400,6 +400,30 @@ EOF
 else
     echo "apply_overlay: sin repo local (work/nimbus-repo/nimbus.db.tar.gz ausente); AUR via live-setup"
 fi
+# 5d-ter. Compat Calamares/boost (desync upstream 2026-10-27): cachyos-calamares
+# necesita libboost_python314.so.1.91.0 y los repos solo dan 1.92 (ABI
+# incompatible: NO vale symlink). Puente temporal con la libreria REAL 1.91
+# desde el archivo historico de Arch (solo el .so versionado, sin symlinks
+# dev para no secuestrar -lboost_python). Se auto-desactiva: customize solo
+# la instala si algun binario de Calamares la sigue pidiendo.
+COMPAT_URL="https://archive.archlinux.org/packages/b/boost-libs/boost-libs-1.91.0-2-x86_64.pkg.tar.zst"
+COMPAT_PKG="$WORKDIR/compat/$(basename "$COMPAT_URL")"
+COMPAT_SO="usr/lib/libboost_python314.so.1.91.0"
+COMPAT_STAGE="$AIROOTFS/usr/share/nimbus/compat/libboost_python314.so.1.91.0"
+if [ "$CHECK_ONLY" = "1" ]; then
+    echo "check-only: compat boost 1.91 (URL + staging simulados) OK"
+else
+    mkdir -p "$WORKDIR/compat"
+    if [ ! -f "$COMPAT_PKG" ]; then
+        curl -sSL -o "$COMPAT_PKG" "$COMPAT_URL" || fail "no se pudo descargar $COMPAT_URL"
+    fi
+    [ -s "$COMPAT_PKG" ] || fail "compat tarball vacio: $COMPAT_PKG"
+    mkdir -p "$(dirname "$COMPAT_STAGE")"
+    tar -xOf "$COMPAT_PKG" "$COMPAT_SO" > "$COMPAT_STAGE" 2>/dev/null \
+        || fail "el tarball no trae $COMPAT_SO"
+    [ -s "$COMPAT_STAGE" ] || fail "compat staging vacio"
+    echo "apply_overlay: compat boost 1.91 en staging ($(du -h "$COMPAT_STAGE" | cut -f1))"
+fi
 echo "apply_overlay OK"
 
 # --- Paso 6: build ------------------------------------------------------------

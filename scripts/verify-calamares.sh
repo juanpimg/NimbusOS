@@ -228,10 +228,18 @@ else
 fi
 
 # Calamares/boost (desync upstream 2026-10-27): cachyos-calamares-next 3.4.2-13
-# (2026-08-13) pide libboost_python 1.91.0, repos dan 1.92.0. Se probó symlink
-# en VM: falla por símbolo ausente (ABI incompatible). Sin puente posible:
-# esperar rebuild upstream (el build lo recoge solo). customize NO lo crea.
-chkg "sin symlink boost en customize (probado incompatible en VM)" "$ROOT/nimbus-overlay/root/customize_airootfs.sh" 'NO crear el symlink'
+# pide libboost_python 1.91.0, repos dan 1.92.0. Se probó symlink en VM: falla
+# (ABI incompatible). Puente V2 con la libreria REAL 1.91 del archivo de Arch:
+# tarball pineado en build, staging en apply_overlay, instalacion CONDICIONAL
+# en customize (auto-expira cuando upstream reconstruya).
+chkg "compat boost: pin tarball 1.91.0-2 archive.archlinux" "$ROOT/build_iso.sh" 'archive\.archlinux\.org/packages/b/boost-libs/boost-libs-1\.91'
+chkg "compat boost: staging del .so versionado" "$ROOT/build_iso.sh" 'libboost_python314\.so\.1\.91\.0'
+chkg "compat boost: customize solo si Calamares lo pide (auto-expira)" "$ROOT/nimbus-overlay/root/customize_airootfs.sh" 'CAL_NEED_191'
+if grep -q 'ln -s.*libboost_python' "$ROOT/nimbus-overlay/root/customize_airootfs.sh" "$ROOT/build_iso.sh" 2>/dev/null; then
+  bad "compat boost: sin symlinks (ABI incompatible, probado en VM)"
+else
+  ok "compat boost: sin symlinks (ABI incompatible, probado en VM)"
+fi
 
 echo "-------------------------------------------------------------"
 echo "RESULT: PASS=$PASS FAIL=$FAIL SKIP=$SKIP"
