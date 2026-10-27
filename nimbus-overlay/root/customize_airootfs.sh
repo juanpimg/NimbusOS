@@ -67,3 +67,15 @@ fi
 # error en VM). Sin puente posible desde nuestra capa: hay que esperar a que
 # CachyOS reconstruya Calamares contra 1.92; el próximo build lo recoge solo.
 # NO crear el symlink: solo enmascara el error real.
+
+# Branding del SO (derivado honesto, como Ubuntu hace con Debian):
+# /etc/os-release lo pone el paquete base (dice CachyOS) y about-info.sh de
+# MacShell lo lee en vivo para "About This Linux". Se reetiqueta SOLO el nombre
+# visible (NAME/PRETTY_NAME); ID/ID_LIKE/URLs se conservan para no romper
+# tooling que detecta la base. Idempotente y con guards.
+if [ -f /etc/os-release ]; then
+    sed -i 's/^NAME=.*/NAME="NimbusOS"/; s/^PRETTY_NAME=.*/PRETTY_NAME="NimbusOS"/' /etc/os-release
+    echo "customize_airootfs: os-release reetiquetado a NimbusOS (ID intacto)"
+else
+    echo "customize_airootfs AVISO: sin /etc/os-release (omitido)" >&2
+fi

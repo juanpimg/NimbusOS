@@ -500,6 +500,14 @@ chkg "p2-final: lua verde hyprbars = mode maximize" "$HLUA" 'bg_color = "rgb\(28
 chkg "p2-final: conf doble-click barra = fullscreen 1 (maximizar)" "$HYPR" 'on_double_click = hyprctl dispatch fullscreen 1'
 chkg "p2-final: lua doble-click barra = mode maximize" "$HLUA" 'on_double_click.*mode = "maximize"'
 chkg "p2-final: lua SUPER+F = fullscreen real (paridad .conf)" "$HLUA" 'SUPER \+ F.*mode = "fullscreen"'
+# About dice NimbusOS (no CachyOS): customize_airootfs reetiqueta NAME/
+# PRETTY_NAME de /etc/os-release (que lee about-info.sh); ID intacto.
+chkg "about: customize reetiqueta os-release a NimbusOS" "$ROOT/nimbus-overlay/root/customize_airootfs.sh" 'PRETTY_NAME="NimbusOS"'
+if grep -q 'ID=cachyos\|ID_LIKE=arch' "$ROOT/nimbus-overlay/root/customize_airootfs.sh" 2>/dev/null; then
+  bad "about: customize NO debe tocar ID/ID_LIKE (compat tooling)"
+else
+  ok "about: customize NO toca ID/ID_LIKE (compat tooling)"
+fi
 # 6) Sleep post-chequeo (auditoria 2026-10-27: el pre-chequeo busctl
 #    get-property era INVALIDO — CanSuspend es METODO, no propiedad — y dejaba
 #    Sleep muerto siempre. Post-chequeo sin carrera: suspender, y si falla avisar).

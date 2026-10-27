@@ -51,7 +51,7 @@ fail() { echo "FAIL: $1" >&2; exit 1; }
 
 # Candado anti-solape (2026-10-27: dos builds concurrentes compartiendo
 # work/build corrompieron el arbol y produjeron un BUILD PASS falso).
-BUILD_START="$(date +%s)"
+# La frescura se comprueba contra $LOCK (creado al inicio del build).
 LOCK="$REPO_ROOT/.build.lock"
 [ ! -e "$LOCK" ] || fail "otro build en curso ($LOCK existe; si es resto, borrarlo a mano tras comprobar que no hay mkarchiso activo)"
 echo $$ > "$LOCK"

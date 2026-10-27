@@ -97,9 +97,16 @@ chkg "p1-11: conf verde maximiza" "$HYPR" 'hyprbars-button = rgb\(28C840\), 13, 
 chkg "p1-11: conf SUPER+F fullscreen 0" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*F,[[:space:]]*fullscreen, 0'
 if grep -qE '^[[:space:]]*bind[^=]*=[[:space:]]*CTRL' "$SHORT" "$HLUA" 2>/dev/null; then bad "p1-11: cero binds CTRL"; else ok "p1-11: cero binds CTRL"; fi
 
-# --- Task p1 item 12: sleep solo si CanSuspend ----------------------------------
-chkg "p1-12: sleep guarda CanSuspend" "$OVL/etc/skel/.config/quickshell/MacShell/MacBar.qml" 'CanSuspend'
-chkg "p1-12: sleep via busctl logind" "$OVL/etc/skel/.config/quickshell/MacShell/MacBar.qml" 'busctl get-property org\.freedesktop\.login1'
+# --- Task p1 item 12: sleep con post-chequeo (auditoria 2026-10-28: el
+# pre-chequeo busctl get-property era INVALIDO — CanSuspend es METODO, no
+# propiedad — y dejaba Sleep muerto siempre. Post-chequeo: suspender, y si
+# falla avisar con notify-send. Ruling documentada inline en MacBar.qml.
+if grep -q 'get-property.*CanSuspend' "$OVL/etc/skel/.config/quickshell/MacShell/MacBar.qml" 2>/dev/null; then
+  bad "p1-12: sin pre-chequeo busctl get-property (siempre fallaba)"
+else
+  ok "p1-12: sin pre-chequeo busctl get-property (siempre fallaba)"
+fi
+chkg "p1-12: sleep post-chequeo avisa si falla" "$OVL/etc/skel/.config/quickshell/MacShell/MacBar.qml" 'systemctl suspend || notify-send'
 
 # --- Task p1 item 13: reloj es_ES (Ruling skip documentado) ---------------------
 chkg "p1-13: Ruling reloj-es documentado" "$OVL/etc/nimbus/theming/README.md" '[Rr]uling reloj-es'
