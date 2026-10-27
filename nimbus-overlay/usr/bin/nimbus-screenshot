@@ -1,0 +1,25 @@
+#!/bin/sh
+# NimbusOS — nimbus-screenshot (Task fidelidad-macos, 2026-10-27)
+# Capturas estilo macOS (SUPER+SHIFT+3/4/5 en 10-shortcuts.conf y hyprland.lua):
+#   full   = pantalla completa (Shift+Cmd+3 del Mac)
+#   area   = seleccion con slurp (Shift+Cmd+4 del Mac)
+#   window = ventana activa (Shift+Cmd+5 del Mac -> captura de ventana)
+# Guarda en ~/Pictures/captura-YYYYMMDD-HHMMSS.png (el Mac guarda en Desktop;
+# aqui Pictures, que existe en el skel). Solo necesita grim (+ slurp para area,
+# hyprctl+python3 para window, patron de nimbus-minimize-toggle).
+set -u
+MODE="${1:-full}"
+mkdir -p "$HOME/Pictures"
+OUT="$HOME/Pictures/captura-$(date +%Y%m%d-%H%M%S).png"
+case "$MODE" in
+    full)
+        grim "$OUT"
+        ;;
+    area)
+        GEOM="$(slurp 2>/dev/null)" && [ -n "$GEOM" ] && grim -g "$GEOM" "$OUT"
+        ;;
+    window)
+        GEOM="$(hyprctl activewindow -j 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print("%d,%d %dx%d" % (d["at"][0], d["at"][1], d["size"][0], d["size"][1]))' 2>/dev/null)"
+        [ -n "$GEOM" ] && grim -g "$GEOM" "$OUT"
+        ;;
+esac

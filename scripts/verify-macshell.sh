@@ -43,7 +43,7 @@ echo "== Task 1 verify: macshell + hyprland flotante + theming =="
 # --- hyprland.conf: flotante + blur + binds -----------------------------------
 # Hyprland >= 0.53: windowrulev2 -> window_rule / layerrule -> layer_rule.
 chkg "flotante global window_rule" "$HYPR" 'window_rule[[:space:]]*=[[:space:]]*float,[[:space:]]*class:\^\(\.\*\)\$'
-chkg "rounding 12-14px" "$HYPR" 'rounding[[:space:]]*=[[:space:]]*1[234]'
+chkg "rounding 10px (fidelidad-macos)" "$HYPR" 'rounding[[:space:]]*=[[:space:]]*10'
 chkg "blur enabled" "$HYPR" 'blur[[:space:]]*\{'
 chkg "blur Dual-Kawase (passes)" "$HYPR" 'passes[[:space:]]*=[[:space:]]*[0-9]+'
 chkg "layer_rule blur macdock"  "$HYPR" 'layer_rule[[:space:]]*=[[:space:]]*blur,[[:space:]]*macdock'
@@ -158,6 +158,9 @@ chkg "ventana centrada window_rule center" "$HYPR" 'window_rule[[:space:]]*=[[:s
 chkg "ventana tamano Mac window_rule size 1100 700" "$HYPR" 'window_rule[[:space:]]*=[[:space:]]*size 1100 700,'
 for n in 1 2 3 4 5 6 7 8 9; do
   chkg "Spaces SUPER+$n workspace $n" "$SHORT" "bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*${n},[[:space:]]*workspace,[[:space:]]*${n}"
+done
+# RULING fidelidad-macos: SUPER+SHIFT+3/4/5 = capturas (no movetoworkspace).
+for n in 1 2 6 7 8 9; do
   chkg "Spaces SUPER+SHIFT+$n movetoworkspace $n" "$SHORT" "bind[[:space:]]*=[[:space:]]*SUPER SHIFT,[[:space:]]*${n},[[:space:]]*movetoworkspace,[[:space:]]*${n}"
 done
 chkg "Spaces anterior SUPER+LEFT" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*LEFT,[[:space:]]*workspace,[[:space:]]*-1'
@@ -250,9 +253,9 @@ if grep -vE '^[[:space:]]*(--|#)' "$HLUA" "$HYPR" 2>/dev/null | grep -q 'FEBE2E'
 else
   ok "botones-nativos: cero FEBE2E transpuesto (nativo #FEBC2E en 5 QML)"
 fi
-chkg "botones-nativos: conf botones con iconos ×/−/+" "$HYPR" 'hyprbars-button = rgb\(FF5F57\), 13, ×'
-chkg "botones-nativos: conf amarillo FEBC2E con −" "$HYPR" 'hyprbars-button = rgb\(FEBC2E\), 13, −'
-chkg "botones-nativos: conf verde con +" "$HYPR" 'hyprbars-button = rgb\(28C840\), 13, \+'
+chkg "botones-nativos: conf botones con iconos ×/−/+" "$HYPR" 'hyprbars-button = rgb\(FF5F57\), 12, ×'
+chkg "botones-nativos: conf amarillo FEBC2E con −" "$HYPR" 'hyprbars-button = rgb\(FEBC2E\), 12, −'
+chkg "botones-nativos: conf verde con +" "$HYPR" 'hyprbars-button = rgb\(28C840\), 12, \+'
 chkg "botones-nativos: conf icon_on_hover paridad Lua" "$HYPR" 'icon_on_hover[[:space:]]*=[[:space:]]*true'
 chkg "botones-nativos: About titulo This Linux (no Mac)" "$ABOUT" 'title: "About This Linux"'
 chkg "botones-nativos: About specs dinamicas de os-release" "$ASH" 'os-release'
@@ -556,6 +559,53 @@ else
   ok "noobar2: cero mode maximize invalido en lua (el valido es maximized)"
 fi
 
+# --- Task fidelidad-macos: oleada de fidelidad macOS (un check por item) -------
+MBAR="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/MacBar.qml"
+MDOCK="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/MacDock.qml"
+SHORT="$ROOT/nimbus-overlay/etc/skel/.config/hypr/10-shortcuts.conf"
+APPEND="$ROOT/packages.nimbus.x86_64.append"
+GRUBT="$ROOT/nimbus-overlay/usr/share/grub/themes/whitesur/theme.txt"
+SHOWQ="$ROOT/nimbus-overlay/etc/calamares/branding/nimbus/show.qml"
+chkg "fidelidad-1: barLogoMode custom con logo N propio" "$MBAR" 'barLogoMode: "custom"'
+chkg "fidelidad-1: barCustomLogoPath apunta al branding N" "$MBAR" 'barCustomLogoPath: "/usr/share/nimbus/branding/nimbus-logo.svg"'
+chk "fidelidad-1: logo N existe (cero activos Apple)" test -f "$ROOT/nimbus-overlay/usr/share/nimbus/branding/nimbus-logo.svg"
+chkg "fidelidad-1: MacBar fontFamily Inter" "$MBAR" 'property string fontFamily: "Inter"'
+chkg "fidelidad-1: MacDock fontFamily Inter" "$MDOCK" 'property string fontFamily: "Inter"'
+if grep -q 'fontFamily.indexOf("Inter").*Open Runde' "$MBAR" "$MDOCK" 2>/dev/null; then bad "fidelidad-1: reconversion a Open Runde eliminada"; else ok "fidelidad-1: reconversion a Open Runde eliminada"; fi
+chkg "fidelidad-2: barHeight 24" "$MBAR" 'property int barHeight: 24'
+chkg "fidelidad-2: barBgOpacity 0.45" "$MBAR" 'property real barBgOpacity: 0.45'
+chkg "fidelidad-3: lua gaps 4/8" "$HLUA" 'gaps_in     = 4'
+chkg "fidelidad-3: conf gaps 4/8" "$HYPR" 'gaps_in = 4'
+chkg "fidelidad-3: lua rounding 10 + opacity 1.0" "$HLUA" 'rounding         = 10'
+chkg "fidelidad-3: conf rounding 10 + opacity 1.0" "$HYPR" 'rounding = 10'
+chkg "fidelidad-3: lua blur vibrancy" "$HLUA" 'vibrancy           = 0.1696'
+chkg "fidelidad-3: conf blur vibrancy" "$HYPR" 'vibrancy = 0.1696'
+chkg "fidelidad-3: lua botones 12px" "$HLUA" 'size = 12, icon = "×"'
+chkg "fidelidad-3: conf botones 12px" "$HYPR" 'hyprbars-button = rgb\(FF5F57\), 12, ×'
+chkg "fidelidad-4: dockDark sigue bar.darkMode" "$MDOCK" 'dockDark: bar \? bar.darkMode : darkMode'
+chkg "fidelidad-5: conf captura pantalla SUPER+SHIFT+3" "$SHORT" 'SUPER SHIFT, 3, exec, nimbus-screenshot full'
+chkg "fidelidad-5: conf captura seleccion SUPER+SHIFT+4" "$SHORT" 'SUPER SHIFT, 4, exec, nimbus-screenshot area'
+chkg "fidelidad-5: conf captura ventana SUPER+SHIFT+5" "$SHORT" 'SUPER SHIFT, 5, exec, nimbus-screenshot window'
+chkg "fidelidad-5: lua capturas 3/4/5" "$HLUA" 'nimbus-screenshot window'
+chkg "fidelidad-5: grim+slurp en append" "$APPEND" '^slurp$'
+chkg "fidelidad-5: wf-recorder en append (repo oficial)" "$APPEND" '^wf-recorder$'
+chk "fidelidad-5: helper nimbus-screenshot ejecutable" test -x "$ROOT/nimbus-overlay/usr/bin/nimbus-screenshot"
+chkg "fidelidad-6: conf gesto arriba = switcher" "$HYPR" 'gesture = 3, up, dispatcher, exec, qs -c MacShell ipc call switcher next'
+chkg "fidelidad-6: conf gesto abajo = switcher" "$HYPR" 'gesture = 3, down, dispatcher, exec, qs -c MacShell ipc call switcher next'
+chkg "fidelidad-6: lua gesto vertical nativo (Ruling: sin dispatcher en Lua)" "$HLUA" 'direction = "up", action = "workspace"'
+skip "fidelidad-6: pellizco mostrar-escritorio SKIP (Ruling: sin API verificada en .conf ni Lua)"
+chkg "fidelidad-7: conf SUPER+H oculta a special:hidden" "$SHORT" 'SUPER, H, movetoworkspace, special:hidden'
+chkg "fidelidad-7: conf SUPER+grave cicla (cyclenext)" "$SHORT" 'SUPER, grave, cyclenext'
+chkg "fidelidad-7: lua SUPER+H + SUPER+grave" "$HLUA" 'SUPER \+ grave.*cyclenext'
+# (GRUB autocarga todo .pf2 del dir del tema: theme.txt cita la familia, no el fichero.)
+if grep -q 'DejaVu' "$GRUBT" 2>/dev/null; then bad "fidelidad-8: sin DejaVu en theme.txt (Inter lo sustituye)"; else ok "fidelidad-8: sin DejaVu en theme.txt (Inter lo sustituye)"; fi
+chk "fidelidad-8: pf2 Inter existe" test -f "$ROOT/nimbus-overlay/usr/share/grub/themes/whitesur/inter_variable_16.pf2"
+chkg "fidelidad-8: item_font Inter" "$GRUBT" 'item_font = "Inter Variable Regular 16"'
+chkg "fidelidad-8: item_color #F5F5F7" "$GRUBT" 'item_color = "#F5F5F7"'
+chkg "fidelidad-9: show.qml fondo Sequoia" "$SHOWQ" 'sequoia-light.jpg'
+chkg "fidelidad-9: show.qml logo N sobre Hello" "$SHOWQ" 'source: "nimbus-logo.svg"'
+skip "fidelidad-10: hyprexpo SKIP (Ruling: fork hyprexpose-git r0-1, 0 votos, -git sin pin; se mantiene switcher)"
+
 # --- Sintaxis: hyprland --verify-config si disponible --------------------------
 # Hyprland 0.56: --check-config no existe, es --verify-config. El source=
 # usa ~, asi que se fusiona en un HOME temporal para no dar falso globbing.
@@ -565,14 +615,35 @@ if command -v hyprland >/dev/null 2>&1; then
   cp "$ROOT/nimbus-overlay/etc/skel/.config/hypr/"*.conf "$_tmpd/.config/hypr/" 2>/dev/null || true
   if HOME="$_tmpd" hyprland --verify-config -c "$_tmpd/.config/hypr/hyprland.conf" >/dev/null 2>&1; then ok "hyprland --verify-config"; else bad "hyprland --verify-config"; fi
   rm -rf "$_tmpd"
+  # Sesion Lua canonica: se verifica con hyprland.lua presente (precedencia Lua).
+  # RULING plugin-verify (AGENTS.md): --verify-config NO carga plugins, asi que
+  # las claves plugin.hyprbars/* + hl.plugin.hyprbars.* fallan SIEMPRE sin el
+  # .so cargado en el compositor real; si el log SOLO trae hyprbars|plugin|nil
+  # es SKIP documentado, no FAIL.
+  _tmpd="$(mktemp -d)"
+  mkdir -p "$_tmpd/.config/hypr"
+  cp "$ROOT/nimbus-overlay/etc/skel/.config/hypr/hyprland.lua" "$ROOT/nimbus-overlay/etc/skel/.config/hypr/macshell.lua" "$_tmpd/.config/hypr/" 2>/dev/null || true
+  _lualog="$(mktemp)"
+  if HOME="$_tmpd" hyprland --verify-config >"$_lualog" 2>&1; then
+    ok "hyprland --verify-config (sesion Lua)"
+  elif grep -iE 'error|ERR' "$_lualog" | grep -viE 'hyprbars|plugin|nil value' | grep -qiE 'error|ERR'; then
+    bad "hyprland --verify-config (sesion Lua)"
+    grep -iE 'error|ERR' "$_lualog" | grep -viE 'hyprbars|plugin|nil value' | head -5
+  else
+    skip "hyprland --verify-config (sesion Lua) solo-falla-hyprbars-sin-so (Ruling plugin-verify)"
+  fi
+  rm -rf "$_tmpd" "$_lualog"
 else
   skip "hyprland --verify-config (hyprland no instalado en host)"
 fi
 chk "wrapper supera sh -n" sh -n "$WRAP"
+chk "nimbus-screenshot supera sh -n" sh -n "$ROOT/nimbus-overlay/usr/bin/nimbus-screenshot"
 if command -v luac >/dev/null 2>&1; then
   chk "macshell.lua supera luac -p" luac -p "$LUA"
+  chk "hyprland.lua supera luac -p" luac -p "$HLUA"
 elif command -v luac5.4 >/dev/null 2>&1; then
   chk "macshell.lua supera luac5.4 -p" luac5.4 -p "$LUA"
+  chk "hyprland.lua supera luac5.4 -p" luac5.4 -p "$HLUA"
 else
   skip "macshell.lua sintaxis (luac no instalado)"
 fi

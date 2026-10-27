@@ -39,6 +39,9 @@ wl-clipboard
 cliphist
 grim
 slurp
+# Task fidelidad-macos: grabacion de pantalla (futura barra de captura estilo
+# Shift+Cmd+5; verificado `pacman -Si wf-recorder`: cachyos-extra-v3 0.6.0).
+wf-recorder
 libnotify
 # --- AUR/chaotic-AUR (los instala Task 5 via helper; verificados 2026-10-23):
 whitesur-gtk-theme

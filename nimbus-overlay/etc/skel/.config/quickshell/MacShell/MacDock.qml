@@ -162,8 +162,9 @@ Scope {
     readonly property real uiS: bar ? bar.uiScale : 1      // UI scale (Settings → Menu Bar): Settings / About windows follow it
     property int margin: 6
     property bool darkMode: true
-    // the dock keeps one fixed look (dark): switching the system between Light and Dark does not change its colours
-    readonly property bool dockDark: true
+    // NimbusOS Ruling fidelidad-macos: el Dock sigue al bar (claro/oscuro unificados
+    // estilo macOS); upstream lo fijaba en dark fijo (dockDark: true).
+    readonly property bool dockDark: bar ? bar.darkMode : darkMode
     property string appearanceMode: "dark"      // light | dark | auto (kept in step with the Menu Bar, see setAppearance)
     property string dockStyle: "blur"   // "blur" = Normal Blur, "liquid" = Apple Liquid Glass
     // Liquid Glass tuning (settings.json): rim = edge highlight, grain = noise, liquid = refraction depth
@@ -183,11 +184,10 @@ Scope {
     // "always" = always auto-hide, "never" = always visible and reserves space
     property string hideMode: "smart"
     property bool showTrash: true
-    property string fontFamily: "Open Runde"  // bundled in assets/fonts (shell.qml loads it); falls back to the system font if missing
+    property string fontFamily: "Inter"  // NimbusOS Ruling fidelidad-macos: Inter repo-nativa (era Open Runde upstream); sin reconversion (ver MacBar.qml)
     readonly property string boldFontFamily: hub && hub.boldFontFamily ? hub.boldFontFamily : "Open Runde Semibold"
-    // Open Runde: bold text uses its Semibold face; another selected font keeps its own family (and real bold weight)
+    // Open Runde: bold text uses its Semibold face; Inter (default) keeps its own family (and real bold weight)
     function fontForWeight(weight, regularFamily) { return (Number(weight) >= Font.DemiBold && regularFamily === "Open Runde") ? boldFontFamily : regularFamily; }
-    onFontFamilyChanged: if (fontFamily.indexOf("Inter") === 0) fontFamily = "Open Runde"
     property bool magnificationEnabled: true
     property bool showLabels: true       // hover tooltips
     property bool showIndicators: true   // dots under running apps
@@ -4209,7 +4209,7 @@ Scope {
         Quickshell.execDetached(["sh", "-c", "rm -f \"$HOME/.config/maclock/settings.json\""]);
         iconSize = 52; magnification = 1.7; magnificationEnabled = true;
         spacing = 6; margin = 6; cornerRadius = 18;
-        darkMode = true; appearanceMode = "dark"; glassOpacity = 0.42; glassBlur = 5; glassLiquid = 1.0; dockStyle = "blur"; accent = "#0a84ff"; fontFamily = "Open Runde";
+        darkMode = true; appearanceMode = "dark"; glassOpacity = 0.42; glassBlur = 5; glassLiquid = 1.0; dockStyle = "blur"; accent = "#0a84ff"; fontFamily = "Inter";
         iconTint = false; iconTintColor = "#0a84ff"; iconTintStrength = 1.0;
         hideMode = "smart"; hideDelay = 450; monitor = "";
         showTrash = true; showLabels = true; showIndicators = true; bounceOnLaunch = true; showThumbs = true; windowCapture = true; glassLive = true;

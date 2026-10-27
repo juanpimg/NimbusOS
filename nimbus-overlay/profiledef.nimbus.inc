@@ -14,6 +14,7 @@
 #      ["/usr/bin/macshell"]="0:0:755"
 #      ["/usr/bin/nimbus-live-setup"]="0:0:755"
 #      ["/usr/bin/nimbus-minimize-toggle"]="0:0:755"
+#      ["/usr/bin/nimbus-screenshot"]="0:0:755" (Task fidelidad-macos)
 #      ["/usr/bin/nimbus-installed-setup"]="0:0:755" (%post instalado P0)
 #    El array upstream ya declara /root/.automated_script.sh y /usr/local/bin/*
 #    con 0755; estas tres entradas son las unicas que aporta NimbusOS.
@@ -36,5 +37,6 @@ NIMBUS_FILE_PERMISSIONS_ADD=(
   '["/usr/bin/macshell"]="0:0:755"'
   '["/usr/bin/nimbus-live-setup"]="0:0:755"'
   '["/usr/bin/nimbus-minimize-toggle"]="0:0:755"'
+  '["/usr/bin/nimbus-screenshot"]="0:0:755"'
   '["/usr/bin/nimbus-installed-setup"]="0:0:755"'
 )

@@ -114,12 +114,12 @@ for f in etc/passwd etc/shadow etc/gshadow etc/group; do
 done
 echo "overlay: sin overwrite passwd/shadow/group OK"
 # Binarios con permiso: deben existir + estar declarados en el .inc:
-for b in usr/bin/macshell usr/bin/nimbus-live-setup usr/bin/nimbus-minimize-toggle usr/bin/nimbus-installed-setup; do
+for b in usr/bin/macshell usr/bin/nimbus-live-setup usr/bin/nimbus-minimize-toggle usr/bin/nimbus-installed-setup usr/bin/nimbus-screenshot; do
     [ -f "$OVERLAY/$b" ] || fail "falta binario overlay $b"
     grep -q "\"/$b\"" "$INC" || fail "$INC no declara file_permissions para /$b"
 done
 grep -qE '\["/(etc/(passwd|shadow|gshadow|group)|root)"\]' "$INC" && fail "$INC declara passwd/shadow (prohibido)"
-echo "file_permissions declara macshell + nimbus-live-setup + nimbus-minimize-toggle + nimbus-installed-setup 0755 OK"
+echo "file_permissions declara macshell + nimbus-live-setup + nimbus-minimize-toggle + nimbus-installed-setup + nimbus-screenshot 0755 OK"
 # Append sin duplicados (ignora comentarios/lineas vacias):
 DUPES="$(grep -vE '^\s*#|^\s*$' "$APPEND" | sort | uniq -d || true)"
 [ -z "$DUPES" ] || fail "duplicados en $APPEND: $DUPES"
@@ -177,6 +177,7 @@ if [ "$CHECK_ONLY" = "1" ]; then
     grep -q '/usr/bin/nimbus-live-setup' "$INC" || fail ".inc sin nimbus-live-setup"
     grep -q '/usr/bin/nimbus-minimize-toggle' "$INC" || fail ".inc sin nimbus-minimize-toggle"
     grep -q '/usr/bin/nimbus-installed-setup' "$INC" || fail ".inc sin nimbus-installed-setup"
+    grep -q '/usr/bin/nimbus-screenshot' "$INC" || fail ".inc sin nimbus-screenshot"
     # 5b. pamac.conf fusion: nimbus.conf aporta ambos flags:
     grep -q '^EnableFlatpak=true' "$OVERLAY/etc/pamac.conf.d/nimbus.conf" || fail "nimbus.conf sin EnableFlatpak"
     grep -q '^EnableAUR=true' "$OVERLAY/etc/pamac.conf.d/nimbus.conf" || fail "nimbus.conf sin EnableAUR"
@@ -328,6 +329,7 @@ path = sys.argv[1]
 add = ['  ["/usr/bin/macshell"]="0:0:755"',
        '  ["/usr/bin/nimbus-live-setup"]="0:0:755"',
        '  ["/usr/bin/nimbus-minimize-toggle"]="0:0:755"',
+       '  ["/usr/bin/nimbus-screenshot"]="0:0:755"',
        '  ["/usr/bin/nimbus-installed-setup"]="0:0:755"']
 src = open(path).read()
 assert '"/usr/bin/macshell"' not in src, "file_permissions ya contiene macshell"

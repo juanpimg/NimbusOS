@@ -4,7 +4,7 @@
 -- Requiere: Hyprland >= 0.55, Quickshell >= 0.3.2, Qt 6.8+.
 -- Upstream shell: https://github.com/0-ss/MacShell (main @ 2026-10-23, MIT).
 -- Reglas globales: todo flotante, sin atajos con la tecla Control,
---   Alt+Tab=switcher MacShell, esquinas 12-14px, blur Dual-Kawase.
+--   Alt+Tab=switcher MacShell, esquinas 10px, blur Dual-Kawase.
 -- Paleta canonica NimbusOS: #F5F5F7 (claro) / #1D1D1F (oscuro) / #007AFF.
 --
 -- PRECEDENCIA (Hyprland 0.56.2, verificada con HOME temporal + --verify-config):
@@ -84,12 +84,22 @@ hl.config({
 })
 -- Swipe 3 dedos horizontal = cambiar workspace.
 hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+-- RULING gestos-verticales fidelidad-macos (2026-10-27): la API Lua 0.56.2
+-- solo admite actions nativas (workspace/fullscreen): `dispatcher`/`exec`
+-- responden `unknown action` (verificado con --verify-config), asi que el
+-- gesto NO puede invocar el switcher como en el .conf. Fallback nativo mas
+-- cercano: swipe vertical 3 dedos = cambiar workspace (macOS: Mission Control).
+-- Pellizco (mostrar escritorio): sin action valida en NINGUNA sesion (.conf
+-- rechaza directions in/out: `Invalid direction`; Lua acepta "pinch" pero su
+-- semantica no es verificable) -> SKIP documentado.
+hl.gesture({ fingers = 3, direction = "up", action = "workspace" })
+hl.gesture({ fingers = 3, direction = "down", action = "workspace" })
 
 -- --- General: flotante por defecto -------------------------------------------
 hl.config({
     general = {
-        gaps_in     = 8,
-        gaps_out    = 16,
+        gaps_in     = 4,   -- NimbusOS Ruling fidelidad-macos: 4/8 (eran 8/16), mas compacto estilo Mac
+        gaps_out    = 8,
         -- Task ui-win: SIN borde azul (era rgba(007affee)): borde sutil gris
         -- 1px estilo macOS; la sombra suave de `decoration.shadow` da la
         -- separacion (el acento #007AFF queda solo en marca/botones).
@@ -135,10 +145,10 @@ hl.window_rule({ name = "nimbus-dialog-titles", match = { title = "^([Oo]pen|[Ss
 -- --- Decoracion macOS: esquinas 12-14px, sombras suaves, blur ----------------
 hl.config({
     decoration = {
-        rounding         = 13,
+        rounding         = 10,   -- NimbusOS Ruling fidelidad-macos: 10 (era 13), radio Mac
         rounding_power   = 2,
         active_opacity   = 1.0,
-        inactive_opacity = 0.98,
+        inactive_opacity = 1.0,   -- NimbusOS Ruling fidelidad-macos: 1.0 (era 0.98): ventanas inactivas opacas como en Mac
         fullscreen_opacity = 1.0,
 
         shadow = {
@@ -154,6 +164,11 @@ hl.config({
             passes             = 3,
             new_optimizations  = true,
             xray               = false,
+            -- NimbusOS Ruling fidelidad-macos: vibrancy estilo Mac (valores
+            -- espejo de hyprlock.conf: vibrancy 0.1696, darkness 0.0;
+            -- hyprlock no define `saturation`: no existe tal campo, SKIP).
+            vibrancy           = 0.1696,
+            vibrancy_darkness  = 0.0,
         },
     },
 })
@@ -251,9 +266,9 @@ hl.config({
 -- "sans" fija (barDeco.cpp) y U+2197 puede faltar en el fallback, mientras
 -- ×/−/+ tienen cobertura universal. Amarillo CORREGIDO a FEBC2E (era
 -- FEBE2E transpuesto; el nativo es #FEBC2E en los 5 QML).
-hl.plugin.hyprbars.add_button({ bg_color = "rgb(FF5F57)", fg_color = "rgba(00000094)", size = 13, icon = "×", action = [[hyprctl dispatch 'hl.dsp.window.close()']] })
-hl.plugin.hyprbars.add_button({ bg_color = "rgb(FEBC2E)", fg_color = "rgba(00000094)", size = 13, icon = "−", action = [[hyprctl dispatch 'hl.dsp.window.move({ workspace = "special:minimized", follow = false })']] })
-hl.plugin.hyprbars.add_button({ bg_color = "rgb(28C840)", fg_color = "rgba(00000094)", size = 13, icon = "+", action = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" })']] })
+hl.plugin.hyprbars.add_button({ bg_color = "rgb(FF5F57)", fg_color = "rgba(00000094)", size = 12, icon = "×", action = [[hyprctl dispatch 'hl.dsp.window.close()']] })
+hl.plugin.hyprbars.add_button({ bg_color = "rgb(FEBC2E)", fg_color = "rgba(00000094)", size = 12, icon = "−", action = [[hyprctl dispatch 'hl.dsp.window.move({ workspace = "special:minimized", follow = false })']] })
+hl.plugin.hyprbars.add_button({ bg_color = "rgb(28C840)", fg_color = "rgba(00000094)", size = 12, icon = "+", action = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" })']] })
 
 -- Sin doble barra en apps con CSD propio bueno (headerbar/tabs nativos):
 -- Nautilus (GTK4 headerbar) y Firefox (tabs en la barra de titulo).
@@ -349,6 +364,21 @@ hl.bind("SUPER + A", hl.dsp.exec_cmd(qs .. "spotlight apps"))
 -- con la ventana activa: `tl.activate()` ~= `focuswindow`).
 hl.bind("SUPER + M", hl.dsp.exec_cmd("nimbus-minimize-toggle"))
 hl.bind("PRINT",     hl.dsp.exec_cmd(qs .. "screenshot region"))
+-- Task fidelidad-macos: capturas estilo Mac (nimbus-screenshot: grim+slurp).
+-- CONFLICTO documentado: SUPER+SHIFT+3/4/5 eran "llevar ventana al workspace
+-- N". macOS los reserva a capturas, asi que capturas GANAN y el loop de
+-- movetoworkspace abajo salta 3/4/5 (SUPER+3/4/5 = ir al workspace intacto;
+-- mover a 3/4/5 por teclado no disponible, por raton si).
+hl.bind("SUPER + SHIFT + 3", hl.dsp.exec_cmd("nimbus-screenshot full"))
+hl.bind("SUPER + SHIFT + 4", hl.dsp.exec_cmd("nimbus-screenshot area"))
+hl.bind("SUPER + SHIFT + 5", hl.dsp.exec_cmd("nimbus-screenshot window"))
+-- Task fidelidad-macos: SUPER+H oculta la ventana (dispatcher real
+-- `movetoworkspace special:hidden`, verificado con --verify-config; via
+-- exec passthrough porque el nombre del dsp Lua no es introspectable).
+hl.bind("SUPER + H", hl.dsp.exec_cmd("hyprctl dispatch movetoworkspace special:hidden"))
+-- Task fidelidad-macos: SUPER+` cicla ventanas (dispatcher real `cyclenext`,
+-- verificado; "grave" sigue el precedente de "period"/"Space" en este fichero).
+hl.bind("SUPER + grave", hl.dsp.exec_cmd("hyprctl dispatch cyclenext"))
 
 -- MacLock (pantalla de bloqueo Liquid Glass, proceso separado).
 hl.bind("SUPER + L", hl.dsp.exec_cmd("sh ~/.config/quickshell/MacLock/lock-via-ipc.sh"))
@@ -368,7 +398,10 @@ hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(qs .. "hardware brightnessDown"
 -- Sin atajos con Control (macOS usa Control+flechas; aqui SUPER+LEFT/RIGHT).
 for i = 1, 9 do
     hl.bind("SUPER + " .. i,         hl.dsp.focus({ workspace = i }))
-    hl.bind("SUPER + SHIFT + " .. i, hl.dsp.window.move({ workspace = i }))
+    -- (fidelidad-macos: 3/4/5 reservados a capturas, ver arriba)
+    if i ~= 3 and i ~= 4 and i ~= 5 then
+        hl.bind("SUPER + SHIFT + " .. i, hl.dsp.window.move({ workspace = i }))
+    end
 end
 hl.bind("SUPER + left",  hl.dsp.focus({ workspace = -1 }))
 hl.bind("SUPER + right", hl.dsp.focus({ workspace = 1 }))

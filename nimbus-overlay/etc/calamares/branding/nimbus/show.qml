@@ -23,10 +23,23 @@ Presentation {
             anchors.fill: parent
             color: "#F5F5F7"
 
+            // Task fidelidad-macos: fondo Sequoia + logo N sobre el "Hello".
+            Image {
+                anchors.fill: parent
+                fillMode: Image.PreserveAspectCrop
+                source: "file:///usr/share/backgrounds/nimbus/sequoia-light.jpg"
+            }
+
             Column {
                 anchors.centerIn: parent
                 spacing: 12
 
+                Image {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    source: "nimbus-logo.svg"
+                    width: 96; height: 96
+                    fillMode: Image.PreserveAspectFit
+                }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: "Hello."

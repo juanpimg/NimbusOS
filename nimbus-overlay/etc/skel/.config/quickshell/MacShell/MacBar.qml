@@ -109,13 +109,14 @@ Scope {
     readonly property bool panelDarkMode: darkMode
     readonly property bool panelTextWhite: (autoContrast && panelTone !== 0) ? (panelTone === -1) : darkMode
     property color accent: "#0A84FF"
-    // The UI font is Open Runde (bundled in assets/fonts, loaded by shell.qml). Settings that still say Inter move over to it.
-    property string fontFamily: "Open Runde"
+    // The UI font is Inter (repo-native: inter-font). NimbusOS Ruling fidelidad-macos:
+    // upstream default "Open Runde" (bundled in assets/fonts) replaced — no Apple-proprietary
+    // lookalike rebuild needed, Inter is the canonical NimbusOS font (Task 1 palette).
+    property string fontFamily: "Inter"
     readonly property string boldFontFamily: hub && hub.boldFontFamily ? hub.boldFontFamily : "Open Runde Semibold"
-    // Open Runde: bold text uses its Semibold face; another selected font keeps its own family (and real bold weight)
+    // Open Runde: bold text uses its Semibold face; another selected font (Inter by default) keeps its own family (and real bold weight)
     function fontForWeight(weight, regularFamily) { return (Number(weight) >= Font.DemiBold && regularFamily === "Open Runde") ? boldFontFamily : regularFamily; }
-    onFontFamilyChanged: if (fontFamily.indexOf("Inter") === 0) fontFamily = "Open Runde"
-    property int barHeight: 28
+    property int barHeight: 24              // NimbusOS Ruling fidelidad-macos: 24px (era 28 upstream), mas fiel al Mac
     // ── UI scale (small screens / laptops) ──
     // uiScaleAuto: shrink everything automatically on screens smaller than 1920x1080 (logical pixels, i.e. after the compositor's own
     // scaling). uiScaleManual: the user's own multiplier from Settings, applied on top. barH is the bar's real height in px.
@@ -144,8 +145,10 @@ Scope {
             if (pass < 2) restart(); else pass = 0;      // a second pass ~0.5 s later, after the windows finished re-tiling
         }
     }
-    property string barLogoMode: "arch"       // "arch", "apple", or "custom"
-    property string barCustomLogoPath: ""     // absolute path, ~/path, or file URL for the custom menu-bar logo
+    // NimbusOS Ruling fidelidad-macos: default "custom" con la N propia de
+    // /usr/share/nimbus/branding/nimbus-logo.svg (cero activos Apple: ni SF ni logos).
+    property string barLogoMode: "custom"     // "arch", "apple", or "custom"
+    property string barCustomLogoPath: "/usr/share/nimbus/branding/nimbus-logo.svg"     // absolute path, ~/path, or file URL for the custom menu-bar logo
     // The bar-size slider scales its widget groups while the left/right groups stay pinned to their corners.
     readonly property real barWidgetScale: Math.max(0.45, Math.min(1.55, barHeight / 28 * uiScale))
     // popovers and the Control Center scale with the same slider (smaller bar -> smaller panels, down to 70 %)
@@ -345,7 +348,7 @@ Scope {
     readonly property bool gaming: gamingMode || gamingAutoActive
     property bool ccMigGame: false            // one-time: add the Game Mode tile to an existing Control Center layout
     property bool barGlass: true              // the bar strip itself is Liquid Glass (needs barStyle "liquid")
-    property real barBgOpacity: 0.10          // fill of the separate "macbarbg" layer (0 = layer hidden). Must stay above the layerrule's ignore_alpha (0.05) for Hyprland to blur it
+    property real barBgOpacity: 0.45          // NimbusOS Ruling fidelidad-macos: 0.45 (era 0.10 upstream). Must stay above the layerrule's ignore_alpha (0.05) for Hyprland to blur it
     property bool glassRealtime: false        // live-capture every window all the time; off by default now that popovers refract a screen snapshot       // keep every window capture live all the time (no wallpaper-first delay when a popover opens)
     // Animated wallpaper inside the Liquid Glass (bar, Dock, widgets, Settings): OFF by default. Off = no video decoder exists at all and the
     // glass refracts a still frame of the wallpaper (the wallpaper itself still plays through mpvpaper). On = the glass plays a small
@@ -3770,7 +3773,7 @@ Scope {
     }
     function resetSettings() {
         barEnabled = true;
-        darkMode = true; appearanceMode = "dark"; accent = "#0a84ff"; fontFamily = "Open Runde"; glassOpacity = 0.42; glassBlur = 5; barBgOpacity = 0.10; glassRealtime = false; liveWallGlass = false;
+        darkMode = true; appearanceMode = "dark"; accent = "#0a84ff"; fontFamily = "Inter"; glassOpacity = 0.42; glassBlur = 5; barBgOpacity = 0.45; glassRealtime = false; liveWallGlass = false;
         barStyle = "liquid"; use24h = true; showDate = true; showSeconds = false; showBatteryPercent = true;
         showTray = true; showSearch = true;
         spotlightEnabled = true; ccEnabled = true; notificationsEnabled = true; clockAppEnabled = true; ccStyle = "tiles";
