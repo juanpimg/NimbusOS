@@ -60,14 +60,10 @@ if [ -f /etc/dconf/db/local.d/nimbus ] && command -v dconf >/dev/null 2>&1; then
     dconf update || echo "customize_airootfs AVISO: dconf update fallo (omitido)" >&2
 fi
 
-# Compatibilidad Calamares/boost (desync upstream 2026-10-26/27):
-# cachyos-calamares-next enlaza libboost_python314.so.1.91.0 pero los repos ya
-# sirven boost-libs 1.92.0 (verificado en sfs: consumidores piden 1.91.0,
-# solo existe 1.92.0) y Calamares no arranca. Puente temporal con symlink
-# (la ABI de libboost_python entre 1.91 y 1.92 es compatible para este uso;
-# se valida lanzando Calamares en QEMU). QUITAR cuando upstream reconstruya
-# Calamares contra 1.92: el guard solo actua si falta 1.91.0 y existe 1.92.0.
-if [ ! -e /usr/lib/libboost_python314.so.1.91.0 ] && [ -e /usr/lib/libboost_python314.so.1.92.0 ]; then
-    ln -s libboost_python314.so.1.92.0 /usr/lib/libboost_python314.so.1.91.0
-    echo "customize_airootfs: compat symlink boost 1.91.0 -> 1.92.0 (temporal upstream)"
-fi
+# NOTA Calamares/boost (desync upstream 2026-10-26/27, verificado en VM):
+# cachyos-calamares-next 3.4.2-13 (2026-08-13) enlaza libboost_python314.so.1.91.0
+# pero los repos sirven boost-libs 1.92.0. Se probó un symlink 1.91->1.92:
+# NO vale (símbolo _ZN5boost6python6detail11init_module... ausente en 1.92,
+# error en VM). Sin puente posible desde nuestra capa: hay que esperar a que
+# CachyOS reconstruya Calamares contra 1.92; el próximo build lo recoge solo.
+# NO crear el symlink: solo enmascara el error real.
