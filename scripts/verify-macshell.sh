@@ -150,7 +150,7 @@ for p in hyprland quickshell hyprlock kitty inter-font whitesur-gtk-theme whites
   chkg "append: $p" "$APP" "^${p}$"
 done
 chkg "manifest: pin MacShell + SHA" "$MAN" '0-ss/MacShell'
-chkg "manifest: SHA 2026-10-23" "$MAN" 'bef9fc4'
+chkg "manifest: SHA 2026-10-27 (0.4.2)" "$MAN" 'd930ba7'
 
 # --- Task workflow-mac: centrado + Spaces + Mission Control + fullscreen ---------
 SHORT="$ROOT/nimbus-overlay/etc/skel/.config/hypr/10-shortcuts.conf"

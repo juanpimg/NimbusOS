@@ -184,9 +184,10 @@ Scope {
     // The choice is made by worst-case contrast (white text on the brightest part vs dark text on the darkest part, spread
     // included), with hysteresis so it never flickers, and falls back to the system look when both read equally well.
     // ═════════ UPDATE CHECK ═════════
-    // Only ASKS whether a newer MacShell exists (`macshell-update check --json`, one tiny request to GitHub). It never downloads or
-    // installs anything: the "Update" button just opens updateUrl in the browser.
-    readonly property string updateScript: decodeURIComponent(String(Qt.resolvedUrl("macshell-update")).replace(/^file:\/\//, ""))
+    // Only ASKS whether a newer MacShell exists (assets/check-update.sh: the latest release, else VERSION on the main branch of
+    // github.com/0-ss/MacShell, compared with the VERSION file of this install). It never downloads or installs anything:
+    // the "Update" button just opens updateUrl in the browser.
+    readonly property string updateScript: decodeURIComponent(String(Qt.resolvedUrl("assets/check-update.sh")).replace(/^file:\/\//, ""))
     property string updateUrl: "https://github.com/0-ss/MacShell/releases/latest"     // ← the link the "Update" button opens
     property bool updateChecking: false
     property string updateState: ""            // "" = not checked yet | uptodate | available | error
@@ -197,7 +198,7 @@ Scope {
         updateAnnounce = announce === true;
         if (updateProc.running) return;
         updateChecking = true;
-        updateProc.command = ["bash", updateScript, "check", "--json"];
+        updateProc.command = ["sh", updateScript];
         updateProc.running = true;
     }
     function openUpdateLink() { Quickshell.execDetached(["xdg-open", updateUrl]); }
@@ -209,6 +210,7 @@ Scope {
                 var o = null;
                 try { o = JSON.parse(text.trim().split("\n").pop()); } catch (e) { o = null; }
                 if (!o) { root.updateState = "error"; return; }
+                if (o.url) root.updateUrl = String(o.url);
                 if (o.status === "available") {
                     root.updateVersion = String(o.latest || "").replace(/^v(?=[0-9])/, "");
                     root.updateState = "available";
@@ -222,6 +224,8 @@ Scope {
         onExited: root.updateChecking = false
     }
 
+    readonly property string recentScript: decodeURIComponent(String(Qt.resolvedUrl("assets/recent-files.sh")).replace(/^file:\/\//, ""))
+    readonly property string openPathScript: decodeURIComponent(String(Qt.resolvedUrl("assets/open-path.sh")).replace(/^file:\/\//, ""))
     readonly property string toneScript: decodeURIComponent(String(Qt.resolvedUrl("assets/tone.sh")).replace(/^file:\/\//, ""))
     // cur: 1 = dark text now (bright backdrop), -1 = white text now, 0 = undecided; v/sd = brightness / spread 0..1
     function pickTone(cur, v, sd, fresh) {
@@ -388,6 +392,8 @@ Scope {
     property string fileSearchFor: ""
     property bool fileSearchPending: false
     property var fileHits: []
+    property var recentHits: []               // Files button with nothing typed: [{ t: epoch, kind: "f"|"d", path }], newest first
+    property bool recentLoading: false
 
     readonly property var settingKeys: ["barEnabled", "darkMode", "appearanceMode", "accent", "fontFamily", "barHeight", "uiScaleAuto", "uiScaleManual", "glassOpacity",
         "barStyle", "barGlass", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "barBgOpacity", "glassRealtime", "liveWallGlass", "glassDebug", "wallpaperPath", "use24h", "language", "showDate",
@@ -526,11 +532,8 @@ Scope {
         sh('sh ~/.config/quickshell/MacLock/lock-via-ipc.sh');
     }
     function sleepMachine() {
-        // Ruling P1 sleep-seguro (2026-10-27): QML no habla D-Bus a logind,
-        // asi que la guarda se delega en busctl(1) (systemd, siempre en la
-        // imagen): solo suspende si logind anuncia CanSuspend=yes; si no
-        // (VM sin S3, hardware sin soporte), avisa con notify-send en vez de
-        // lanzar un `systemctl suspend` que fallaria o colgaria.
+        // NimbusOS Ruling sleep-seguro: QML no habla D-Bus a logind, la guarda
+        // se delega en busctl(1): solo suspende si logind anuncia CanSuspend=yes.
         sh('if [ "$(busctl get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanSuspend 2>/dev/null)" = \'s "yes"\' ]; then sh ~/.config/quickshell/MacLock/lock-via-ipc.sh; sleep 0.5; systemctl suspend; else notify-send "NimbusOS" "Suspensión no disponible (logind CanSuspend=no)"; fi');
     }
     function logOut() {
@@ -1411,7 +1414,7 @@ Scope {
         Behavior on scale { NumberAnimation { duration: 230; easing.type: Easing.OutBack; easing.overshoot: 3.2 } }
         GGlass { visible: !b.plain && b.glass; anchors.fill: parent; gx: b.gx; cornerR: b.d / 2; thickness: 14; strengthMul: 0.6; shadowAmt: 0; flatInner: 1 }
         CornerBorder { visible: !b.plain && b.glass && !b.matchMenuBorder; z: 2; anchors.fill: parent; cornerR: b.d / 2; dark: b.gx.dark; tint: b.gx.borderTint; amount: b.gx.borderAmount; lineW: 0.8 }
-        MenuBorder { visible: !b.plain && b.glass && b.matchMenuBorder; z: 2; anchors.fill: parent; cornerR: b.d / 2; dark: root.panelDarkMode; tint: root.menuBorderColor; amount: 0.5 }
+        MenuBorder { visible: !b.plain && b.glass && b.matchMenuBorder; z: 2; anchors.fill: parent; cornerR: b.d / 2; dark: root.panelDarkMode; tint: root.menuBorderColor; amount: 1 }
         Rectangle {
             anchors.fill: parent
             radius: b.width / 2
@@ -2611,7 +2614,7 @@ Scope {
     function pickColor() { sh("c=$(hyprpicker -a) && [ -n \"$c\" ] && notify-send -a macbar 'Color copied' \"$c\""); }
     Process {
         id: fileSearchProc
-        command: ["sh", "-c", "find \"$HOME\" -type f -iname \"*$1*\" -not -path '*/.cache/*' -not -path '*/.local/share/Trash/*' 2>/dev/null | head -n 60", "sh", root.fileQuery]
+        command: ["sh", "-c", "find \"$HOME\" \\( -type f -o -type d \\) -iname \"*$1*\" -not -path '*/.cache/*' -not -path '*/.local/share/Trash/*' -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null | head -n 60", "sh", root.fileQuery]
         stdout: StdioCollector { onStreamFinished: {
             var a=text.trim().split("\n").filter(function(x){return x!=="";});
             if (root.fileSearchFor === root.fileQuery) { root.fileHits=a; root.fileSearchPending=false; }
@@ -2623,6 +2626,38 @@ Scope {
         if (root.fileQuery.length > 0 && !fileSearchProc.running) { root.fileSearchFor=root.fileQuery; root.fileSearchPending=true; fileSearchProc.running=true; }
     } }
     function updateFileSearch(q) { fileQuery=q; fileHits=[]; fileSearchPending=true; fileDebounce.restart(); }
+    // recent files / folders for the Files button (assets/recent-files.sh)
+    Process {
+        id: recentProc
+        command: ["bash", root.recentScript, "40"]
+        stdout: StdioCollector { onStreamFinished: {
+            var out = [], lines = text.split("\n");
+            for (var i = 0; i < lines.length; i++) {
+                var f = lines[i].split("\t");
+                if (f.length < 3 || f[2] === "") continue;
+                out.push({ t: Number(f[0]) || 0, kind: f[1], path: f.slice(2).join("\t") });
+            }
+            root.recentHits = out;
+            root.recentLoading = false;
+        } }
+        onExited: root.recentLoading = false
+    }
+    function loadRecents() {
+        if (recentProc.running) return;
+        recentLoading = true;
+        recentProc.running = true;
+    }
+    // folders open in the file manager, AppImages are made executable and started, everything else goes to its default app
+    function openPath(p) { Quickshell.execDetached(["bash", openPathScript, p]); }
+    function relTime(t) {
+        var d = Math.max(0, Math.round(Date.now() / 1000 - t));
+        if (d < 90) return I18n.tr("Just now");
+        if (d < 3600) return Math.round(d / 60) + " " + I18n.tr("min ago");
+        if (d < 86400) { var h = Math.round(d / 3600); return h + (h === 1 ? " " + I18n.tr("hour ago") : " " + I18n.tr("hours ago")); }
+        if (d < 172800) return I18n.tr("Yesterday");
+        if (d < 2592000) return Math.round(d / 86400) + " " + I18n.tr("days ago");
+        return Qt.formatDate(new Date(t * 1000), "d MMM yyyy");
+    }
 
     // focus / night shift / keep awake
     property bool dnd: false
@@ -2737,7 +2772,7 @@ Scope {
     }
     function launchActive() {
         var e = lookup(activeAppId);
-        if (e) e.execute();
+        if (e) runEntry(e);
     }
     function search() {
         if (!spotlightEnabled && launcher === "") return;
@@ -3124,6 +3159,24 @@ Scope {
         u[e.id] = (u[e.id] || 0) + 1;
         appUsage = u;
         saveTimer.restart();
+        runEntry(e);
+    }
+    // Quickshell's DesktopEntry.execute() ignores Terminal=true, so TUI apps (htop, btop, ncdu, ...) started and died at once.
+    // Those entries are run inside the configured terminal instead ("$@" keeps every argument intact, no quoting issues).
+    function runEntry(e) {
+        if (!e) return;
+        var cmd = [];
+        try { cmd = e.command ? Array.prototype.slice.call(e.command) : []; } catch (err) { cmd = []; }
+        if (e.runInTerminal === true && cmd.length > 0) {
+            var t = (terminal || "").trim() !== "" ? terminal : "kitty";
+            var wd = "";
+            try { wd = e.workingDirectory || ""; } catch (err2) { wd = ""; }
+            var script = (wd !== "" ? "cd \"$MS_WD\" 2>/dev/null; " : "")
+                       + "if command -v " + t.split(/\s+/)[0] + " >/dev/null 2>&1; then exec " + t + " -e \"$@\"; fi; "
+                       + "for tm in kitty alacritty foot wezterm ghostty konsole xterm; do command -v $tm >/dev/null 2>&1 && exec $tm -e \"$@\"; done";
+            Quickshell.execDetached(["env", "MS_WD=" + wd, "sh", "-c", script, "sh"].concat(cmd));
+            return;
+        }
         e.execute();
     }
     function appRunner(e) { return function () { launchApp(e); }; }
@@ -3182,13 +3235,32 @@ Scope {
         }
         return out;
     }
+    function pathItem(path, isDir, subPrefix) {
+        var home = Quickshell.env("HOME") || "";
+        var shown = (home && path.indexOf(home + "/") === 0) ? "~" + path.substring(home.length) : path;
+        return { title: path.substring(path.lastIndexOf("/") + 1) || path, sub: (subPrefix ? subPrefix + " \u00b7 " : "") + shown, path: true,
+                 glyph: isDir ? "folder" : "doc", run: (function (p) { return function () { root.openPath(p); }; })(path) };
+    }
     function fileItems(q) {
-        var out=[], home=Quickshell.env("HOME")||""; for(var i=0;i<fileHits.length&&out.length<60;i++){var path=fileHits[i];out.push({title:path.substring(path.lastIndexOf("/")+1)||path,sub:(home&&path.indexOf(home+"/")===0?"~"+path.substring(home.length):path),path:true,glyph:"folder",run:(function(p){return function(){Quickshell.execDetached(["xdg-open",p]);};})(path)});} return out;
+        var out = [];
+        for (var i = 0; i < fileHits.length && out.length < 60; i++) out.push(pathItem(fileHits[i], false, ""));
+        return out;
+    }
+    function recentItems() {
+        var out = [];
+        for (var i = 0; i < recentHits.length && out.length < 40; i++) out.push(pathItem(recentHits[i].path, recentHits[i].kind === "d", relTime(recentHits[i].t)));
+        return out;
     }
     function homeItems(q) {
         var out = [], s = (q || "").trim().toLowerCase();
-        if (s.indexOf("file ") === 0 || s.indexOf("find ") === 0) {
-            var fq=s.replace(/^(file|find)\s+/,"").trim(); if(fq!=="" && fileQuery!==fq) updateFileSearch(fq);
+        if (/^(file|find)\s+/i.test(q || "")) {
+            var fq=s.replace(/^(file|find)\s+/,"").trim();
+            if (fq === "") {
+                out = recentItems();
+                if (out.length === 0) out.push({title:recentLoading?I18n.tr("Loading recent files…"):I18n.tr("No recent files"),sub:I18n.tr("Files"),glyph:"folder",run:function(){}});
+                return out;
+            }
+            if(fileQuery!==fq) updateFileSearch(fq);
             out=fileItems(fq); if(out.length===0) out.push({title:fileSearchPending?I18n.tr("Searching files…"):I18n.tr("No matching files"),sub:I18n.tr("Files"),glyph:"folder",run:function(){}});
             return out;
         }
@@ -3201,18 +3273,12 @@ Scope {
         return out.slice(0,8);
     }
 
-    // ── NimbusOS Ruling menu-global (V1, 2026-10-27): NO hay menu D-Bus real ──
+    // ── NimbusOS Ruling menu-global (V1): NO hay menu D-Bus real ──
     // MacBar no implementa importer/registrador com.canonical.AppMenu.Registrar
-    // (grep: cero ocurrencias en este fichero; el unico QsMenuOpener es el de
-    // los iconos del system tray) y menuModelFor() solo fabrica entradas
-    // estaticas por heuristica appKind(). Quickshell upstream no ofrece menu
-    // global (issue #170: "huge can of worms, not planned") y el unico puente
-    // conocido exige binario externo + bus AT-SPI: fuera de V1 (cero AUR nuevo,
-    // cambios QML minimos). Las entradas que enviaban atajos a ciegas via
-    // keys()/sendshortcut (Ctrl+S, Ctrl+W, ...) se ELIMINAN: solo quedan
-    // acciones reales (IPC Hyprland, cierre Wayland, Spotlight, capturas).
-    // keys() se conserva solo para pasteSoon() (pegar del historial Spotlight,
-    // automatizacion real, no menu). Proponer aguas arriba: importer AppMenu.
+    // y Quickshell upstream no ofrece menu global (issue #170). Las entradas
+    // que enviaban atajos a ciegas via keys()/sendshortcut se ELIMINAN: solo
+    // quedan acciones reales (IPC Hyprland, cierre Wayland, Spotlight, etc.).
+    // Proponer aguas arriba: importer AppMenu.
     function menuModelFor(name) {
         var m = [], i;
         if (name === "apple") {
@@ -3244,7 +3310,7 @@ Scope {
                     m.push(mi("Search\u2026", "", function () { root.search(); }));
                 } else {
                     m.push(mi(I18n.tr("About ") + n, "", function () { root.aboutActive(aw, n); }));
-                    // NimbusOS menu-global V1: sin "Preferences Ctrl+," (atajo ciego).
+                    // NimbusOS menu-global V1: sin Preferences ciego.
                     m.push(msep());
                     m.push(mi(I18n.tr("Hide ") + n, "", disp('hl.dsp.window.move({ workspace = "special:hidden", follow = false })')));
                     m.push(mi("Show Hidden Windows", "", disp('hl.dsp.workspace.toggle_special("hidden")')));
@@ -3258,8 +3324,6 @@ Scope {
                     m.push(mi("New Files Window", "", function () { sh(filesCmd); }));
                 } else {
                     m.push(mi("New Window", "", function () { root.launchActive(); }));
-                    // NimbusOS menu-global V1: sin atajos ciegos (New Private
-                    // Window, New/Reopen Tab, Open, Save, Print, Close Tab).
                     m.push(msep());
                     m.push(mi("Close Window", "", disp('hl.dsp.window.close()')));
                 }
@@ -3270,8 +3334,7 @@ Scope {
                 m.push(mi(root.recording ? "Stop Screen Recording" : "Start Screen Recording", "", function () { root.toggleRecording(); }));
                 m.push(mi("Pick Color", "", function () { root.pickColor(); }));
             } else if (name === "edit") {
-                // NimbusOS menu-global V1: sin atajos ciegos (Undo/Redo/Cut/
-                // Copy/Paste/Select All/Find). Solo acciones reales Spotlight.
+                if (has) m.push(msep());
                 m.push(mi("Clipboard History\u2026", "", function () { root.spotOpen("clip"); }));
                 m.push(mi("Emoji & Symbols", "", function () { root.spotOpen("emoji"); }));
             } else if (name === "view") {
@@ -3282,8 +3345,6 @@ Scope {
                     m.push(dis(mchk("Pin to All Workspaces", "", aw && aw.pinned === true, disp('hl.dsp.window.pin({ action = "toggle" })')), !floating));
                     m.push(dis(mi("Center Window", "", disp('hl.dsp.window.center()')), !floating));
                     m.push(dis(mi("Toggle Split Direction", "", disp('hl.dsp.layout("togglesplit")')), floating));
-                    // NimbusOS menu-global V1: sin atajos ciegos
-                    // (Zoom, Reload, DevTools). Solo controles del compositor.
                     m.push(msep());
                 }
                 m.push(mchk("Dark Mode", "", root.darkMode, function () { root.setAppearance(root.darkMode ? "light" : "dark"); }));
@@ -4518,9 +4579,14 @@ Scope {
         PanelWindow {
             id: barBgWin
             screen: perScreen.modelData
-            visible: root.barBgOpacity > 0.001
+            // Always mapped. Hyprland stacks layers of the same level by the time they were mapped, so a blur layer that was only
+            // shown once the opacity went above 0 got mapped AFTER the bar and ended up on top of it: its blur then covered the
+            // whole bar (icons and text included). Mapped from the start (declared before the bar) it stays under it. With the
+            // fill off it shrinks to 1 px and stays fully transparent, so nothing is blurred.
+            visible: true
+            readonly property bool fillOn: root.barBgOpacity > 0.001
             anchors { left: true; right: true; top: true }
-            implicitHeight: root.barH
+            implicitHeight: fillOn ? root.barH : 1
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
             mask: Region { }
@@ -4533,7 +4599,7 @@ Scope {
 
             Rectangle {
                 anchors.fill: parent
-                color: root.darkMode ? Qt.rgba(0.10, 0.10, 0.11, root.barBgOpacity) : Qt.rgba(1, 1, 1, root.barBgOpacity)
+                color: !barBgWin.fillOn ? "transparent" : (root.darkMode ? Qt.rgba(0.10, 0.10, 0.11, root.barBgOpacity) : Qt.rgba(1, 1, 1, root.barBgOpacity))
             }
         }
 
@@ -4561,6 +4627,10 @@ Scope {
 
                 property string pop: ""          // "", apple, app, file, edit, view, window, help, cc, cal
                 property real menuX: 0
+                // anchors that only the dropdown menus / the tray menu write, so opening another popover (which overwrites menuX)
+                // can't move a menu that is still fading out
+                property real menuDropX: 0
+                property real trayX: 0
                 property var menuModel: []
                 property string armed: ""
                 property int calYear: 2026
@@ -4590,7 +4660,7 @@ Scope {
                     if (pop === "tray" && trayItem === item) { pop = ""; return; }
                     trayStack = [];
                     trayItem = item;
-                    menuX = x;
+                    menuX = x; trayX = x;
                     pop = "tray";
                 }
 
@@ -4641,6 +4711,13 @@ Scope {
                     if (m === "clip") root.clipRefresh();
                     if (m === "emoji") emCat = root.emojiRecent.length > 0 ? 0 : 1;
                     spFocusTimer.restart();
+                }
+                // Back to the plain search pill with nothing typed, without grabbing focus (used once Spotlight has finished closing,
+                // so the next open starts from the home layout instead of collapsing the Apps / Clipboard / Emoji panel while it fades in)
+                function spResetClosed() {
+                    if (spMode === "home" && spQuery === "" && spInput.text === "" && !clipMenu && armed === "" && spHoverLabel === "") return;
+                    spMode = "home"; spQuery = ""; spHoverLabel = ""; spSel = 0; spExpanded = ({}); armed = ""; clipMenu = false;
+                    spInput.text = ""; appsInput.text = ""; clipInput.text = ""; emojiInput.text = "";
                 }
                 function spEscape() {
                     if (clipMenu) clipMenu = false;
@@ -4726,7 +4803,7 @@ Scope {
                 onAnyVisibleChanged: root.popCount += (anyVisible ? 1 : -1)
                 onPopChanged: {
                     if (pop !== "" && pop !== "spot") toneT.restart();
-                    if (pop === "spot" && ui.toastScreen) root.measureTone(win.modelData.x + ui.width / 2 - 320, win.modelData.y + ui.height * 0.4 - 30, 640, 60);
+                    if (pop === "spot" && ui.toastScreen) spotToneT.restart();      // measured once the open animation is over (see spotToneT)
                     armed = "";
                     wifiPrompt = "";
                     spHoverLabel = "";
@@ -4741,6 +4818,13 @@ Scope {
                         spInput.text = ""; appsInput.text = ""; clipInput.text = ""; emojiInput.text = "";
                         spFocusTimer.restart();
                     }
+                }
+                // grim + ImageMagick are started 330 ms after Spotlight opens, not at the first frame: spawning them in the middle of the pop
+                // animation (together with a compositor screen copy) made it hitch
+                Timer {
+                    id: spotToneT
+                    interval: 330
+                    onTriggered: if (ui.pop === "spot" && ui.toastScreen) root.measureTone(win.modelData.x + ui.width / 2 - 320, win.modelData.y + ui.height * 0.4 - 30, 640, 60)
                 }
                 Connections {
                     target: root
@@ -4770,6 +4854,7 @@ Scope {
                     if (pop === name) { pop = ""; return; }
                     if (name === "spot") { spCalm = spReqCalm; spReqCalm = false; }
                     menuX = x;
+                    if (["apple", "app", "file", "edit", "view", "window", "help"].indexOf(name) >= 0) menuDropX = x;
                     if (["apple", "app", "file", "edit", "view", "window", "help"].indexOf(name) >= 0) root.refreshActive();
                     if (["apple", "app", "file", "edit", "view", "window", "help"].indexOf(name) >= 0) menuModel = root.menuModelFor(name);
                     if (name === "cal") { var d = new Date(); calYear = d.getFullYear(); calMonth = d.getMonth(); }
@@ -4777,7 +4862,7 @@ Scope {
                 }
                 function hoverPop(name, x) {
                     if (!isMenu || name === pop) return;
-                    menuX = x;
+                    menuX = x; menuDropX = x;
                     menuModel = root.menuModelFor(name);
                     pop = name;
                 }
@@ -4974,7 +5059,7 @@ Scope {
                                     // hidden right now (Spotlight, switcher, ...) are only kept warm with slow single captures.
                                     // While recording only the windows behind visible glass stay live (so the glass is real-time exactly where you see it,
                                     // e.g. a video behind the Control Center), every other window sits out.
-                                    live: !gw.gone && !root.captureHeld && bd.hostShown && (!sv.hush || gw.onGlass) && (root.glassRealtime || ui.anyVisible || levelOsd.visible || spotWin.openish || swWin.visible || wpWin.visible)
+                                    live: !gw.gone && !root.captureHeld && bd.hostShown && (!sv.hush || gw.onGlass) && (root.glassRealtime || ui.anyVisible || levelOsd.visible || spotWin.glassGo || swWin.visible || wpWin.visible)
                                     onCaptureSourceChanged: {
                                         // a brand-new capture grabs its first frame immediately instead of waiting for the timer
                                         // (a short delay: asking before the capture context exists only logged "no recording context is ready")
@@ -5562,6 +5647,11 @@ Scope {
                 Item {
                     id: volPop
                     z: 10
+                    // anchor X, latched while this popover is open: ui.menuX is shared and is overwritten (e.g. 0 by the Control Center)
+                    // while this one is still folding away, which used to fling its closing animation to the top-left corner
+                    property real mx: 0
+                    readonly property bool latchOn: ui.pop === "vol"
+                    onLatchOnChanged: if (latchOn) mx = ui.menuX
                     // same morph as the Wi-Fi popover, growing out of the speaker icon (menuX is the icon's centre here)
     readonly property real ps: root.barPopupScale
                     readonly property real fullW: 330
@@ -5569,9 +5659,9 @@ Scope {
                     // the rectangle it grows from (the bar icon, in screen px) and the one it grows into
                     readonly property real srcW: 26
                     readonly property real srcH: 22
-                    readonly property real srcX: ui.menuX - 13
+                    readonly property real srcX: volPop.mx - 13
                     readonly property real srcY: Math.max(0, (root.barH - srcH) / 2)
-                    readonly property real dstX: Math.max(6, Math.min(ui.width - fullW * ps - 8, ui.menuX - fullW * ps / 2))
+                    readonly property real dstX: Math.max(6, Math.min(ui.width - fullW * ps - 8, volPop.mx - fullW * ps / 2))
                     readonly property real dstY: root.barH + 6
 
                     readonly property bool opening: ui.pop === "vol"
@@ -5750,9 +5840,14 @@ Scope {
                 Item {
                     id: kbPop
                     z: 10
+                    // anchor X, latched while this popover is open: ui.menuX is shared and is overwritten (e.g. 0 by the Control Center)
+                    // while this one is still folding away, which used to fling its closing animation to the top-left corner
+                    property real mx: 0
+                    readonly property bool latchOn: ui.pop === "kb"
+                    onLatchOnChanged: if (latchOn) mx = ui.menuX
                     width: 250
                     height: kbCol.height + 16
-                    x: Math.max(6, Math.min(ui.width - width * root.barPopupScale - 8, ui.menuX - width / 2))
+                    x: Math.max(6, Math.min(ui.width - width * root.barPopupScale - 8, kbPop.mx - width / 2))
                     y: root.barH + 6
                     opacity: ui.pop === "kb" ? 1 : 0
                     visible: opacity > 0
@@ -5985,6 +6080,11 @@ Scope {
                 Item {
                     id: notifPop
                     z: 10
+                    // anchor X, latched while this popover is open: ui.menuX is shared and is overwritten (e.g. 0 by the Control Center)
+                    // while this one is still folding away, which used to fling its closing animation to the top-left corner
+                    property real mx: 0
+                    readonly property bool latchOn: ui.pop === "notif"
+                    onLatchOnChanged: if (latchOn) mx = ui.menuX
                     // same morph as the Wi-Fi popover: one glass shape grows out of the bell. When popups merge in it appears
                     // at once instead (its cards are the popups) and only the chrome builds in around them.
                     // while clearing the height tracks the collapsing list frame by frame (never shorter than the empty state),
@@ -5995,7 +6095,7 @@ Scope {
                     readonly property real fullW: 380
                     readonly property real srcW: 26
                     readonly property real srcH: 22
-                    readonly property real srcX: Math.max(0, Math.min(ui.width - srcW, ui.menuX + 1))
+                    readonly property real srcX: Math.max(0, Math.min(ui.width - srcW, notifPop.mx + 1))
                     readonly property real srcY: Math.max(0, (root.barH - srcH) / 2)
                     readonly property real dstX: Math.max(6, ui.width - fullW * ps - 8)
                     readonly property real dstY: root.barH + 6
@@ -6249,7 +6349,7 @@ Scope {
                     z: 10
                     width: 260
                     height: menuCol.height + 14
-                    x: Math.max(6, Math.min(ui.width - width * root.barPopupScale - 6, ui.menuX - 4))
+                    x: Math.max(6, Math.min(ui.width - width * root.barPopupScale - 6, ui.menuDropX - 4))
                     y: root.barH + 3
                     opacity: ui.isMenu ? 1 : 0
                     visible: opacity > 0
@@ -6395,7 +6495,7 @@ Scope {
                     }
                     width: 260
                     height: Math.min(trayCol.height + 14, root.popRoom - 20)
-                    x: Math.max(6, Math.min(ui.width - width * root.barPopupScale - 6, ui.menuX - 4))
+                    x: Math.max(6, Math.min(ui.width - width * root.barPopupScale - 6, ui.trayX - 4))
                     y: root.barH + 3
                     opacity: shown ? 1 : 0
                     visible: opacity > 0
@@ -6829,20 +6929,25 @@ Scope {
                 Item {
                     id: wifiPop
                     z: 10
+                    // anchor X, latched while this popover is open: ui.menuX is shared and is overwritten (e.g. 0 by the Control Center)
+                    // while this one is still folding away, which used to fling its closing animation to the top-left corner
+                    property real mx: 0
+                    readonly property bool latchOn: ui.pop === "wifi"
+                    onLatchOnChanged: if (latchOn) mx = ui.menuX
                     // ── morph: the popover is ONE glass shape that grows out of the Wi-Fi icon (or the Control Center tile)
                     // into the full menu, while the whole thing starts out of focus and sharpens as it opens. Closing folds it
                     // back into the icon and blurs it out again.
                     readonly property real ps: root.barPopupScale
                     readonly property real fullW: 320
                     readonly property real fullH: (wifiLoad.item ? wifiLoad.item.height : 120) + 24
-                    readonly property bool fromCC: ui.menuX >= ui.width - 1
+                    readonly property bool fromCC: wifiPop.mx >= ui.width - 1
                     // the rectangle it grows from (in screen px)
                     readonly property real srcW: fromCC ? 44 : 26
                     readonly property real srcH: fromCC ? 30 : 22
-                    readonly property real srcX: fromCC ? ui.width - 64 : ui.menuX + 1
+                    readonly property real srcX: fromCC ? ui.width - 64 : wifiPop.mx + 1
                     readonly property real srcY: fromCC ? root.barH + 36 : Math.max(0, (root.barH - 22) / 2)
                     // the rectangle it grows into
-                    readonly property real dstX: Math.max(6, Math.min(ui.width - fullW * ps - 8, ui.menuX + 14 - fullW * ps / 2))
+                    readonly property real dstX: Math.max(6, Math.min(ui.width - fullW * ps - 8, wifiPop.mx + 14 - fullW * ps / 2))
                     readonly property real dstY: root.barH + 6
 
                     readonly property bool opening: ui.pop === "wifi"
@@ -7133,6 +7238,11 @@ Scope {
                 Item {
                     id: btPop
                     z: 10
+                    // anchor X, latched while this popover is open: ui.menuX is shared and is overwritten (e.g. 0 by the Control Center)
+                    // while this one is still folding away, which used to fling its closing animation to the top-left corner
+                    property real mx: 0
+                    readonly property bool latchOn: ui.pop === "bt"
+                    onLatchOnChanged: if (latchOn) mx = ui.menuX
                     // same morph as the Wi-Fi popover: one glass shape grows out of the bluetooth icon, blurred, and sharpens
                     // as it opens; closing folds it back into the icon.
     readonly property real ps: root.barPopupScale
@@ -7141,9 +7251,9 @@ Scope {
                     // the rectangle it grows from (the bar icon, in screen px) and the one it grows into
                     readonly property real srcW: 26
                     readonly property real srcH: 22
-                    readonly property real srcX: ui.menuX + 1
+                    readonly property real srcX: btPop.mx + 1
                     readonly property real srcY: Math.max(0, (root.barH - srcH) / 2)
-                    readonly property real dstX: Math.max(6, Math.min(ui.width - fullW * ps - 8, ui.menuX + 14 - fullW * ps / 2))
+                    readonly property real dstX: Math.max(6, Math.min(ui.width - fullW * ps - 8, btPop.mx + 14 - fullW * ps / 2))
                     readonly property real dstY: root.barH + 6
 
                     readonly property bool opening: ui.pop === "bt"
@@ -7384,20 +7494,27 @@ Scope {
                     Timer {
                         id: ccRefresh
                         interval: 40
+                        // true only after a menu-bar size change (the capture really can get stuck then). Plain size / position changes of the
+                        // panel (opening the Wi-Fi or Bluetooth page, Edit Controls, a network list filling in) just refresh the capture in
+                        // place: detaching the source for a moment made the whole Control Center blink every time.
+                        property bool flip: false
                         onTriggered: {
-                            if (!cc.glassFlip) { cc.glassFlip = true; ccRefresh.restart(); }
+                            if (!flip) { ccSrc.scheduleUpdate(); ccBlur.scheduleUpdate(); ccBlur2.scheduleUpdate(); }
+                            else if (!cc.glassFlip) { cc.glassFlip = true; ccRefresh.restart(); }
                             else {
+                                flip = false;
                                 cc.glassFlip = false;
                                 ccSrc.scheduleUpdate(); ccBlur.scheduleUpdate(); ccBlur2.scheduleUpdate();
                             }
                         }
                     }
-                    function refreshGlass() { cc.glassFlip = false; ccRefresh.restart(); }
+                    function refreshGlass() { cc.glassFlip = false; ccRefresh.flip = true; ccRefresh.restart(); }   // bar resized: full re-attach
+                    function softRefresh() { if (!ccRefresh.flip) ccRefresh.restart(); }                              // panel moved / resized: refresh in place
                     Connections { target: root; function onBarHeightChanged() { cc.refreshGlass(); } function onBarPopupScaleChanged() { cc.refreshGlass(); } }
-                    onWidthChanged: refreshGlass()
-                    onHeightChanged: refreshGlass()
-                    onXChanged: refreshGlass()
-                    onYChanged: refreshGlass()
+                    onWidthChanged: softRefresh()
+                    onHeightChanged: softRefresh()
+                    onXChanged: softRefresh()
+                    onYChanged: softRefresh()
 
                     ShaderEffectSource {
                         id: ccSrc
@@ -8751,7 +8868,12 @@ Scope {
             // Hyprland's layer animation, which is what made Spotlight flicker or vanish. Closed = invisible + click-through.
             visible: root.spotlightEnabled
             readonly property bool openish: ui.pop === "spot" || spot.vis > 0
-            onOpenishChanged: root.popCount += (openish ? 1 : -1)     // keeps the window-geometry poller running while Spotlight is open
+            onOpenishChanged: { root.popCount += (openish ? 1 : -1); if (!openish) glassGo = false; }     // keeps the window-geometry poller running while Spotlight is open
+            // The windows behind Spotlight only start STREAMING once its open animation is over: starting every window capture
+            // (a compositor round trip each) in the middle of the 220 ms pop was what made toggling Spotlight stutter. Until then the
+            // backdrop shows the warm single captures (refreshed 4x a second), which is not visible in a half-transparent pop.
+            property bool glassGo: false
+            Timer { interval: 420; running: spotWin.openish && !spotWin.glassGo; onTriggered: spotWin.glassGo = true }
             mask: Region { item: spotWin.openish ? spotRoot : spotNoInput }
             Item { id: spotNoInput; width: 0; height: 0 }
             // Auto contrast, live: while a panel (menu, Control Center, Spotlight) is open on this screen, the area around it is
@@ -8769,7 +8891,7 @@ Scope {
                 if (pr) root.measureAround(perScreen.modelData, pr, false);
             }
             Timer { interval: 700; repeat: true; running: root.autoContrast && ui.pop !== "" && ui.toastScreen; onTriggered: spotWin.measureLive() }
-            Timer { id: liveKick; interval: 180; onTriggered: spotWin.measureLive() }
+            Timer { id: liveKick; interval: 450; onTriggered: spotWin.measureLive() }
             Connections { target: root; function onGlassClientsChanged() { if (ui.pop !== "") liveKick.restart(); } }
             anchors { left: true; right: true; top: true; bottom: true }
             color: "transparent"
@@ -8934,6 +9056,8 @@ Scope {
                     Behavior on y { enabled: spot.vis > 0.99; NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     // opens with a springy pop; dismiss: quick fade + shrink
                     property real vis: 0
+                    // fully closed (fade finished, not reopening): reset to the home layout
+                    onVisChanged: if (vis <= 0.001 && ui.pop !== "spot") ui.spResetClosed()
                     opacity: vis
                     visible: vis > 0.001
                     readonly property real uiS: root.barPopupScale      // Settings → Menu Bar → UI scale
@@ -8963,6 +9087,8 @@ Scope {
                         }
                     ]
 
+                    // results are showing under the search field: the field melts into the results card (no buttons, no own border)
+                    readonly property bool joined: !ui.spFull && resPanel.items.length > 0
                     Timer { id: spHoverClear; interval: 350; onTriggered: ui.spHoverLabel = "" }
                     Timer {
                         id: spFocusTimer
@@ -8973,6 +9099,7 @@ Scope {
                     // ── search pill + the five round buttons ──
                     Row {
                         id: spRow
+                        z: 2                                    // above the results card that wraps it
                         spacing: 12
                         opacity: !ui.spFull ? 1 : 0
                         visible: opacity > 0
@@ -8980,12 +9107,16 @@ Scope {
 
                         Item {
                             id: spPill
-                            width: spot.width - 5 * 60
+                            width: spot.joined ? spot.width : spot.width - 5 * 60
+                            Behavior on width { NumberAnimation { duration: root.reduceMotion ? 0 : 200; easing.type: Easing.OutCubic } }
                             height: 48
-                            GGlass { anchors.fill: parent; gx: spg; cornerR: 24; thickness: 22; strengthMul: 1.0; shadowAmt: 0.08 }
+                            GGlass { anchors.fill: parent; gx: spg; cornerR: 24; thickness: 22; strengthMul: 1.0; shadowAmt: 0; flatInner: 1      // flatInner: no darker inner edge
+                                     opacity: spot.joined ? 0 : 1; Behavior on opacity { NumberAnimation { duration: root.reduceMotion ? 0 : 160; easing.type: Easing.OutCubic } } }
                             HoverHandler { id: pillHover }
-                            ContourGlow { cornerR: 24; hovered: pillHover.hovered; at: pillHover.point.position; glowColor: root.panelDarkMode ? "white" : root.accent }
-                            MenuBorder { amount: 0.5; anchors.fill: parent; cornerR: 24; dark: root.panelDarkMode; tint: root.menuBorderColor }
+                            ContourGlow { cornerR: 24; hovered: pillHover.hovered && !spot.joined; at: pillHover.point.position; glowColor: root.panelDarkMode ? "white" : root.accent
+                                          opacity: spot.joined ? 0 : 1; Behavior on opacity { NumberAnimation { duration: root.reduceMotion ? 0 : 160 } } }
+                            MenuBorder { amount: 1; anchors.fill: parent; cornerR: 24; dark: root.panelDarkMode; tint: root.menuBorderColor
+                                         opacity: spot.joined ? 0 : 1; Behavior on opacity { NumberAnimation { duration: root.reduceMotion ? 0 : 160; easing.type: Easing.OutCubic } } }
                             Glyph {
                                 x: 18; anchors.verticalCenter: parent.verticalCenter
                                 width: 18; height: 18
@@ -9016,7 +9147,7 @@ Scope {
                                 selectedTextColor: "white"
                                 font.family: root.fontForWeight(font.weight, panelPal.fam); font.pixelSize: 17
                                 horizontalAlignment: /[\u0590-\u08ff]/.test(text) ? Text.AlignRight : Text.AlignLeft
-                                onTextChanged: { if (!ui.spFull) { ui.spQuery = text; ui.spSel = 0; ui.armed = ""; if (/^(file|find)\s+/i.test(text)) root.updateFileSearch(text.replace(/^(file|find)\s+/i, "").trim()); } }
+                                onTextChanged: { if (!ui.spFull) { ui.spQuery = text; ui.spSel = 0; ui.armed = ""; if (/^(file|find)\s+/i.test(text)) { var fq0 = text.replace(/^(file|find)\s+/i, "").trim(); if (fq0 === "") root.loadRecents(); else root.updateFileSearch(fq0); } } }
                                 Keys.onPressed: event => ui.spKey(event)
                             }
                             // clear button: appears once there is a query; keeps focus in the field
@@ -9057,7 +9188,9 @@ Scope {
                                 matchMenuBorder: true
                                 // entrance when Spotlight opens: fade + scale 0.88 -> 1 + rise 4 px, 24 ms stagger (never blocks clicks / keys)
                                 property real inT: 1
-                                opacity: inT
+                                opacity: inT * (spot.joined ? 0 : 1)
+                                enabled: !spot.joined
+                                Behavior on opacity { NumberAnimation { duration: root.reduceMotion ? 0 : 140; easing.type: Easing.OutCubic } }
                                 transform: [
                                     Translate { y: (1 - navBtn.inT) * 4 },
                                     Scale { origin.x: navBtn.d / 2; origin.y: navBtn.d / 2; xScale: 0.88 + 0.12 * navBtn.inT; yScale: 0.88 + 0.12 * navBtn.inT }
@@ -9075,7 +9208,7 @@ Scope {
                                 bounce: true
                                 shadow: 0.18
                                 kind: modelData.k
-                                on: ui.spMode === modelData.id
+                                on: modelData.id === "files" ? (ui.spMode === "home" && /^(file|find)\s/i.test(ui.spQuery)) : ui.spMode === modelData.id
                                 HoverHandler {
                                     id: btnHover
                                     // crossing the gap to the next button must not flash "Spotlight Search": only go back
@@ -9106,8 +9239,12 @@ Scope {
                     // ── results under the pill ──
                     Item {
                         id: resPanel
-                        y: spRow.height + 10
-                        width: spot.width
+                        // One card with the search row: it reaches 8 px around the pill and the buttons and carries the results
+                        // under them, so the results are attached to Spotlight instead of floating apart. The pill never moves.
+                        readonly property int pad: 8
+                        readonly property int listTop: pad + spRow.height + 4
+                        x: -pad; y: -pad
+                        width: spot.width + 2 * pad
                         readonly property var items: ui.spFull ? [] : ui.spResults      // clipboard / emoji / apps have their own panels
                         property int keep: 1                         // last non-empty row count, so the panel shrinks while it fades out
                         onItemsChanged: if (items.length > 0) keep = items.length
@@ -9124,15 +9261,15 @@ Scope {
                         Behavior on opacity { NumberAnimation { duration: root.reduceMotion ? 0 : 160; easing.type: Easing.OutCubic } }
                         // file search shows 5 rows at a time; more results scroll
                         readonly property int maxRows: /^(file|find)\s+/i.test(ui.spQuery) ? 5 : 99
-                        height: Math.min(items.length > 0 ? items.length : keep, maxRows) * 46 + 16
+                        height: listTop + Math.min(items.length > 0 ? items.length : keep, maxRows) * 46 + pad
                         // expands / contracts downward only: the pill above never moves
                         Behavior on height { NumberAnimation { duration: root.reduceMotion ? 0 : 220; easing.type: Easing.OutCubic } }
-                        GGlass { anchors.fill: parent; gx: spg; cornerR: 26; thickness: 26; strengthMul: 1.0; shadowAmt: 0.10 }
-                        MenuBorder { amount: 0.5; anchors.fill: parent; cornerR: 26; dark: root.panelDarkMode; tint: root.menuBorderColor }
+                        GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 30; strengthMul: 1.0; shadowAmt: 0.14 }
+                        MenuBorder { amount: 1; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
                         Item {
-                            x: 8; y: 8
+                            x: 8; y: resPanel.listTop
                             width: parent.width - 16
-                            height: parent.height - 16
+                            height: parent.height - resPanel.listTop - resPanel.pad
                             clip: true
                         Flickable {
                             id: resFlick
@@ -9234,7 +9371,7 @@ Scope {
                             }
                         }
                         }
-                        LiquidScrollBar { flick: resFlick; compact: true; alwaysVisible: true; anchors.right: parent.right; anchors.rightMargin: 2; anchors.top: parent.top; anchors.topMargin: 6; anchors.bottom: parent.bottom; anchors.bottomMargin: 6; dark: root.panelDarkMode }
+                        LiquidScrollBar { flick: resFlick; compact: true; alwaysVisible: true; anchors.right: parent.right; anchors.rightMargin: 2; anchors.top: parent.top; anchors.topMargin: resPanel.listTop + 4; anchors.bottom: parent.bottom; anchors.bottomMargin: 6; dark: root.panelDarkMode }
                         }
                     }
 
@@ -9261,7 +9398,7 @@ Scope {
                         height: 64 + (items.length > 0 ? shown * rowH + 14 : 118)
                         Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
                         GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 34; strengthMul: 1.0; shadowAmt: 0.22 }
-                        MenuBorder { amount: 0.5; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
+                        MenuBorder { amount: 1; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
 
                         Item {
                             id: clipHeader
@@ -9474,7 +9611,7 @@ Scope {
                             width: 250
                             height: 3 * 40 + 12
                             GGlass { anchors.fill: parent; gx: spg; cornerR: 20; thickness: 26; strengthMul: 1.0; shadowAmt: 0.26 }
-                            MenuBorder { amount: 0.5; anchors.fill: parent; cornerR: 20; dark: root.panelDarkMode; tint: root.menuBorderColor }
+                            MenuBorder { amount: 1; anchors.fill: parent; cornerR: 20; dark: root.panelDarkMode; tint: root.menuBorderColor }
                             Column {
                                 x: 6; y: 6
                                 width: parent.width - 12
@@ -9544,7 +9681,7 @@ Scope {
                         readonly property var cur: items[Math.min(ui.spSel, items.length - 1)]
                         height: 64 + 42 + gridRows * cell + 46
                         GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 34; strengthMul: 1.0; shadowAmt: 0.22 }
-                        MenuBorder { amount: 0.5; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
+                        MenuBorder { amount: 1; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
 
                         Item {
                             x: 20
@@ -9710,7 +9847,7 @@ Scope {
                         width: spot.width
                         height: Math.min(64 + appsCol.height + 14, 520)
                         GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 34; strengthMul: 1.0; shadowAmt: 0.22 }
-                        MenuBorder { amount: 0.5; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
+                        MenuBorder { amount: 1; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
 
                         Item {
                             id: appsHeader

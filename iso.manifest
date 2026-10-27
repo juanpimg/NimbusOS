@@ -6,7 +6,7 @@
 # --- Task 1 (2026-10-23): macshell + theming ----------------------------------
 # Shell (MIT, 246 stars, push verificado 2026-10-23T02:26:59Z via GitHub API):
 #   repo:    https://github.com/0-ss/MacShell
-#   ref:     main @ bef9fc4d20cedd570c1a9a9fb72f548fe4571936 (2026-10-23)
+#   ref:     main @ d930ba7604f0d22e8b2705223f92f614412323b0 (2026-10-27, v0.4.2)
 #   deps:    Quickshell>=0.3.2 (extra: 0.3.2), Qt>=6.8 (extra: 6.12),
 #            Hyprland>=0.55 Lua (cachyos: 0.56.2)
 #   install: install.sh -> ~/.config/quickshell/{MacShell,MacLock},
@@ -94,7 +94,7 @@
 # Test: ./scripts/test-qemu.sh (qemu-img 20G + qemu-system-x86_64 kvm q35
 #   cpu host smp4 4G OVMF virtio-vga-gl sdl,gl acpi-battery boot order=d).
 #   Pre-check lscpu AVX2 (x86-64-v3) o abortar.
-# Pins MacShell (heredado Task 1): 0-ss/MacShell main @ bef9fc4 (2026-10-23).
+# Pins MacShell: 0-ss/MacShell main @ d930ba7 (2026-10-27, v0.4.2). Parches Nimbus (proponer aguas arriba): guarda CanSuspend en sleepMachine; menuModelFor sin atajos ciegos (solo acciones reales).
 ISO=nimbus-2026.10.23-x86_64.iso
 SHA256=fc7e4821b08fc5ddbe669a86e4464939b5d3257af70da053476adca38b317043
 SIZE=3,6G
