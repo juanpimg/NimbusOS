@@ -10,6 +10,8 @@
 
 Una ISO booteable que instala un escritorio listo para usar **sin tocar la terminal**: ventanas flotantes con semáforos nativos, dock con aumento, Spotlight, Spaces y Mission Control, tienda de software gráfica y asistente de instalación estilo "Hello".
 
+> **¿Ya tienes Arch instalado?** La capa de escritorio es un proyecto propio: [**NimbusShell**](https://github.com/juanpimg/NimbusShell) — su `install.sh` (+ `--check`) transforma cualquier Arch en este escritorio sin reinstalar. Esta ISO empaquetará esa capa ya probada.
+
 ## Estado
 
 ISO `nimbus-2026.10.27` verificada en QEMU (arranque UEFI → escritorio live → instalador). Suite de verificación en verde (`scripts/verify-*.sh` + `./build_iso.sh --check-only`). El manifiesto [`iso.manifest`](iso.manifest) registra el SHA de cada build.
