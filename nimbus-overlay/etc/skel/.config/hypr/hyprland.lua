@@ -16,9 +16,16 @@
 --   sesion Lua -> switcher de MacShell via qs ipc (`switcher next`).
 --   La linea `hyprshell switch` del .conf NO se porta (hyprshell sobra en la
 --   sesion Lua; el .conf queda intacto como fallback legacy).
--- RULING overview: ni MacShell (ipc: spotlight/switcher/...) ni Hyprland 0.56
---   core traen dispatcher `overview` (seria plugin externo hyprexpo); SUPER+W
---   abre el switcher visual de MacShell (lo mas cercano a Mission Control).
+-- RULING overview (Task ventanas-p0, 2026-10-26): Mission Control REAL via
+--   hyprexpo es IMPOSIBLE en 0.56: upstream elimino los plugins no mantenidos
+--   (hyprland-plugins commits 046be75/3aa21f2 "drop unmaintained plugins",
+--   May-2026; hyprexpo borrado del monorepo) y el repo standalone
+--   hyprwm/hyprexpo devuelve 404. `pacman -Si hyprland-plugin-hyprexpo` =
+--   no existe en repos oficiales; AUR solo tiene el fork third-party
+--   `hyprexpose-git` (r0-1, 0 votos, -git sin pin -> rechazado por
+--   reproducibilidad). Sin .so no hay dispatcher `overview` (verify-config:
+--   `Invalid dispatcher`). SUPER+W mantiene el fallback ya verificado
+--   (switcher visual de MacShell); Alt+Tab queda como switcher.
 -- =============================================================================
 
 -- --- Monitor -----------------------------------------------------------------
@@ -112,6 +119,19 @@ hl.window_rule({ name = "nimbus-float-all",  match = { class = ".*" }, float  = 
 hl.window_rule({ name = "nimbus-center-all", match = { class = ".*" }, center = true })
 hl.window_rule({ name = "nimbus-size-all",   match = { class = ".*" }, size   = "1100 700" })
 
+-- --- Task ventanas-p0: dialogos/filechoosers NO heredan 1100x700 -------------
+-- La regla `nimbus-size-all` (`class:^(.*)$` -> 1100x700) tambien agranda
+-- dialogos y filechoosers. Excepciones compactas 700x500 (las reglas se
+-- evaluan en orden: las posteriores ganan para la misma propiedad). Matches:
+--   * clase portal (filechoosers del portal xdg + impls hyprland/gtk),
+--   * `modal = true` (dialogos modales: "Are you sure?", about, prefs),
+--   * titulos open/save/choose/select (EN+ES: live C.UTF-8, instalado es_ES)
+--     + autenticacion (polkit). Efectos estaticos: se evaluan al abrir con
+--     initialTitle/initialClass (verificado con zenity en Hyprland 0.56.2).
+hl.window_rule({ name = "nimbus-dialog-portal", match = { class = "^(org\\.freedesktop\\.impl\\.portal\\.desktop\\.(gtk|hyprland)|[Xx]dg-desktop-portal-gtk)$" }, size = "700 500" })
+hl.window_rule({ name = "nimbus-dialog-modal",  match = { modal = true }, size = "700 500" })
+hl.window_rule({ name = "nimbus-dialog-titles", match = { title = "^([Oo]pen|[Ss]ave|[Cc]hoose|[Ss]elect|[Aa]brir|[Gg]uardar|[Ee]legir|[Ss]eleccionar|[Aa]utenticaci|[Aa]uthentication).*" }, size = "700 500" })
+
 -- --- Decoracion macOS: esquinas 12-14px, sombras suaves, blur ----------------
 hl.config({
     decoration = {
@@ -201,7 +221,9 @@ hl.config({
         },
     },
 })
--- Rojo cerrar / amarillo minimizar a special:minimized / verde fullscreen.
+-- Rojo cerrar / amarillo minimizar a special:minimized (RESTAURA con SUPER+M
+-- o click en el Dock: ver binds abajo y nimbus-minimize-toggle) / verde
+-- fullscreen.
 hl.plugin.hyprbars.add_button({ bg_color = "rgb(FF5F57)", fg_color = "rgb(FF5F57)", size = 13, icon = "", action = [[hyprctl dispatch 'hl.dsp.window.close()']] })
 hl.plugin.hyprbars.add_button({ bg_color = "rgb(FEBE2E)", fg_color = "rgb(FEBE2E)", size = 13, icon = "", action = [[hyprctl dispatch 'hl.dsp.window.move({ workspace = "special:minimized", follow = false })']] })
 hl.plugin.hyprbars.add_button({ bg_color = "rgb(28C840)", fg_color = "rgb(28C840)", size = 13, icon = "", action = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" })']] })
@@ -244,9 +266,20 @@ hl.bind("SUPER + period", hl.dsp.exec_cmd(qs .. "spotlight emoji"))
 -- ALT+TAB = switcher con preview de MacShell (Ruling: UNA sola definicion; la
 -- variante `hyprshell switch` del .conf no se porta a la sesion Lua).
 hl.bind("ALT + TAB", hl.dsp.exec_cmd(qs .. "switcher next"))
--- Mission Control (SUPER+W): sin `overview` en MacShell ni en core 0.56
--- (seria plugin hyprexpo); fallback al switcher visual de MacShell.
+-- Task ventanas-p0: SUPER+W mantiene el switcher (Ruling overview: hyprexpo
+-- muerto upstream, sin dispatcher `overview`; ver cabecera del fichero).
 hl.bind("SUPER + W", hl.dsp.exec_cmd(qs .. "switcher next"))
+-- Task ventanas-p0 Launchpad: MacShell SI tiene vista de apps (MacBar
+-- appsPanel: grid de 5 columnas por categoria + buscador; IpcHandler
+-- `spotlight apps` -> spotOpen("apps")). Equivale al Launchpad de macOS.
+hl.bind("SUPER + A", hl.dsp.exec_cmd(qs .. "spotlight apps"))
+-- Task ventanas-p0 minimizar: el amarillo manda a special:minimized
+-- (follow=false: el shelf queda oculto). SUPER+M = toggle inteligente
+-- (nimbus-minimize-toggle): si la ventana activa vive en special:minimized
+-- la devuelve al workspace visible (el compositor auto-oculta el shelf al vaciarse);
+-- si no, abre/cierra el shelf. El click en el Dock enfoca (abre el shelf
+-- con la ventana activa: `tl.activate()` ~= `focuswindow`).
+hl.bind("SUPER + M", hl.dsp.exec_cmd("nimbus-minimize-toggle"))
 hl.bind("PRINT",     hl.dsp.exec_cmd(qs .. "screenshot region"))
 
 -- MacLock (pantalla de bloqueo Liquid Glass, proceso separado).

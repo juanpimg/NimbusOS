@@ -106,12 +106,12 @@ for f in etc/passwd etc/shadow etc/gshadow etc/group; do
 done
 echo "overlay: sin overwrite passwd/shadow/group OK"
 # Binarios con permiso: deben existir + estar declarados en el .inc:
-for b in usr/bin/macshell usr/bin/nimbus-live-setup; do
+for b in usr/bin/macshell usr/bin/nimbus-live-setup usr/bin/nimbus-minimize-toggle; do
     [ -f "$OVERLAY/$b" ] || fail "falta binario overlay $b"
     grep -q "\"/$b\"" "$INC" || fail "$INC no declara file_permissions para /$b"
 done
 grep -qE '\["/(etc/(passwd|shadow|gshadow|group)|root)"\]' "$INC" && fail "$INC declara passwd/shadow (prohibido)"
-echo "file_permissions declara macshell + nimbus-live-setup 0755 OK"
+echo "file_permissions declara macshell + nimbus-live-setup + nimbus-minimize-toggle 0755 OK"
 # Append sin duplicados (ignora comentarios/lineas vacias):
 DUPES="$(grep -vE '^\s*#|^\s*$' "$APPEND" | sort | uniq -d || true)"
 [ -z "$DUPES" ] || fail "duplicados en $APPEND: $DUPES"
@@ -167,6 +167,7 @@ if [ "$CHECK_ONLY" = "1" ]; then
     grep -q 'NIMBUS_ISO_NAME="nimbus"' "$INC" || fail ".inc sin NIMBUS_ISO_NAME"
     grep -q '/usr/bin/macshell' "$INC" || fail ".inc sin macshell"
     grep -q '/usr/bin/nimbus-live-setup' "$INC" || fail ".inc sin nimbus-live-setup"
+    grep -q '/usr/bin/nimbus-minimize-toggle' "$INC" || fail ".inc sin nimbus-minimize-toggle"
     # 5b. pamac.conf fusion: nimbus.conf aporta ambos flags:
     grep -q '^EnableFlatpak=true' "$OVERLAY/etc/pamac.conf.d/nimbus.conf" || fail "nimbus.conf sin EnableFlatpak"
     grep -q '^EnableAUR=true' "$OVERLAY/etc/pamac.conf.d/nimbus.conf" || fail "nimbus.conf sin EnableAUR"
@@ -307,7 +308,8 @@ python3 - "$PROFILE_DIR/profiledef.sh" <<'EOF'
 import re, sys
 path = sys.argv[1]
 add = ['  ["/usr/bin/macshell"]="0:0:755"',
-       '  ["/usr/bin/nimbus-live-setup"]="0:0:755"']
+       '  ["/usr/bin/nimbus-live-setup"]="0:0:755"',
+       '  ["/usr/bin/nimbus-minimize-toggle"]="0:0:755"']
 src = open(path).read()
 assert '"/usr/bin/macshell"' not in src, "file_permissions ya contiene macshell"
 # Anclar al bloque file_permissions=( ... ): localizar apertura y su cierre.
@@ -323,7 +325,7 @@ assert start < insert_at < block_end, "insercion fuera del bloque file_permissio
 new = src[:insert_at] + ''.join(a + '\n' for a in add) + src[insert_at:]
 # Post-condicion: las lineas anadidas estan dentro del bloque:
 blk = new[start:block_end + sum(len(a) + 1 for a in add)]
-assert '/usr/bin/macshell' in blk and '/usr/bin/nimbus-live-setup' in blk
+assert '/usr/bin/macshell' in blk and '/usr/bin/nimbus-live-setup' in blk and '/usr/bin/nimbus-minimize-toggle' in blk
 open(path, 'w').write(new)
 print("profiledef.sh: file_permissions Nimbus inyectados (bloque anclado)")
 EOF

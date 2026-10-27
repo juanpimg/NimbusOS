@@ -53,7 +53,7 @@ chkg "tool_options limita mksquashfs a 8 hilos" "$ROOT/build_iso.sh" "'-processo
 
 # --- Overlay: ficheros pendientes Task 1-4 -------------------------------------
 for f in usr/share/backgrounds/nimbus/sequoia-light.jpg \
-         usr/bin/macshell usr/bin/nimbus-live-setup \
+         usr/bin/macshell usr/bin/nimbus-live-setup usr/bin/nimbus-minimize-toggle \
          usr/lib/systemd/system/nimbus-live-setup.service \
          etc/pamac.conf.d/nimbus.conf profiledef.nimbus.inc; do
     [ -f "$ROOT/nimbus-overlay/$f" ] && ok "overlay: $f" || bad "overlay: $f"
@@ -66,6 +66,9 @@ if [ -f "$ROOT/nimbus-overlay/usr/share/backgrounds/nimbus/sequoia-light.jpg" ];
     fi
 fi
 [ -x "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" ] && ok "nimbus-live-setup ejecutable" || bad "nimbus-live-setup ejecutable"
+[ -x "$ROOT/nimbus-overlay/usr/bin/nimbus-minimize-toggle" ] && ok "nimbus-minimize-toggle ejecutable" || bad "nimbus-minimize-toggle ejecutable"
+if sh -n "$ROOT/nimbus-overlay/usr/bin/nimbus-minimize-toggle" 2>/dev/null; then ok "sh -n nimbus-minimize-toggle"; else bad "sh -n nimbus-minimize-toggle"; fi
+chkg "file_permissions incluye nimbus-minimize-toggle" "$ROOT/nimbus-overlay/profiledef.nimbus.inc" 'nimbus-minimize-toggle'
 if bash -n "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 2>/dev/null; then ok "bash -n nimbus-live-setup"; else bad "bash -n nimbus-live-setup"; fi
 chkg "live-setup flatpak remote-add flathub" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'flatpak remote-add --if-not-exists flathub'
 chkg "live-setup invoca paru (AUR defer)" "$ROOT/nimbus-overlay/usr/bin/nimbus-live-setup" 'paru -S --needed --noconfirm'

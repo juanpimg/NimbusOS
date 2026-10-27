@@ -13,8 +13,9 @@
 #    inserta estas lineas dentro del array file_permissions=( ... ) upstream:
 #      ["/usr/bin/macshell"]="0:0:755"
 #      ["/usr/bin/nimbus-live-setup"]="0:0:755"
+#      ["/usr/bin/nimbus-minimize-toggle"]="0:0:755"
 #    El array upstream ya declara /root/.automated_script.sh y /usr/local/bin/*
-#    con 0755; estas dos entradas son las unicas que aporta NimbusOS.
+#    con 0755; estas tres entradas son las unicas que aporta NimbusOS.
 #
 # REGLA: nunca declarar aqui /etc/passwd ni /etc/shadow (los gestiona el
 # perfil upstream; sobrescribirlos romperia el login live). verify-build.sh
@@ -33,4 +34,5 @@ NIMBUS_ISO_NAME="nimbus"
 NIMBUS_FILE_PERMISSIONS_ADD=(
   '["/usr/bin/macshell"]="0:0:755"'
   '["/usr/bin/nimbus-live-setup"]="0:0:755"'
+  '["/usr/bin/nimbus-minimize-toggle"]="0:0:755"'
 )

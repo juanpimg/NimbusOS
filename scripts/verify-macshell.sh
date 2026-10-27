@@ -253,11 +253,10 @@ chkg "barra-resize: lua fija bar_precedence_over_border false (defecto auditado)
 chkg "barra-resize: lua cita drag nativo MBIND_MOVE (barDeco.cpp)" "$HLUA" 'MBIND_MOVE'
 chkg "barra-resize: lua cita handles auditados (barDeco.cpp)" "$HLUA" 'barDeco\.cpp'
 chkg "barra-resize: conf documenta el limite (bloque Task barra-resize)" "$HYPR" 'Task barra-resize'
-if grep -vE '^[[:space:]]*#' "$HYPR" | grep -qE 'plugin:hyprbars[[:space:]]*=|^[[:space:]]*plugin[[:space:]]*\{'; then
-  bad "barra-resize: conf sin bloque plugin:hyprbars (vive en sesion Lua)"
-else
-  ok "barra-resize: conf sin bloque plugin:hyprbars (vive en sesion Lua)"
-fi
+# Task ventanas-p0: el fallback .conf SI porta la stanza (antes prohibida
+# aqui; ahora validada sin .so). El check negativo se sustituye por paridad.
+chkg "ventanas-p0: conf porta plugin hyprbars (fallback)" "$HYPR" '^[[:space:]]*plugin[[:space:]]*\{'
+chkg "ventanas-p0: conf hyprbars bar_height 28" "$HYPR" 'bar_height[[:space:]]*=[[:space:]]*28'
 _HBARBLK="$(awk '/hyprbars = \{/{f=1} f{print} f&&/\},/{exit}' "$HLUA")"
 if printf '%s\n' "$_HBARBLK" | grep -vE '^\s*--' | grep -qE 'resize'; then
   bad "barra-resize: bloque hyprbars sin opcion resize inexistente"
@@ -369,6 +368,45 @@ if command -v hyprland >/dev/null 2>&1; then
   rm -rf "$_tmpd"
 else
   skip "hyprland --verify-config sesion Lua (hyprland no instalado en host)"
+fi
+
+# --- Task ventanas-p0: minimizar con retorno + overview + Launchpad + dialogos
+TGL="$ROOT/nimbus-overlay/usr/bin/nimbus-minimize-toggle"
+# P0-1 minimizar: el amarillo va a special:minimized; el retorno es SUPER+M
+# (toggle inteligente) + click Dock (enfoca). Una via que funciona en VM.
+chkg "ventanas-p0: lua amarillo a special:minimized" "$HLUA" 'special:minimized'
+chkg "ventanas-p0: lua SUPER+M toggle (nimbus-minimize-toggle)" "$HLUA" 'SUPER \+ M.*nimbus-minimize-toggle'
+chkg "ventanas-p0: conf SUPER+M toggle (nimbus-minimize-toggle)" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*M,[[:space:]]*exec,[[:space:]]*nimbus-minimize-toggle'
+chkg "ventanas-p0: script toggle existe" "$TGL" 'togglespecialworkspace minimized'
+chkg "ventanas-p0: script toggle devuelve al workspace visible" "$TGL" 'move_back "\$cur"'
+[ -x "$TGL" ] && ok "ventanas-p0: script toggle ejecutable" || bad "ventanas-p0: script toggle ejecutable"
+chk "ventanas-p0: script toggle supera sh -n" sh -n "$TGL"
+# P0-2 overview: Ruling hyprexpo muerto (drop upstream + 404 + sin AUR):
+# documentado en codigo, SIN paquete ni plugin. SUPER+W = switcher (ya
+# verificado arriba); Alt+Tab queda switcher.
+chkg "ventanas-p0: lua documenta hyprexpo muerto (drop unmaintained)" "$HLUA" 'drop unmaintained plugins'
+chkg "ventanas-p0: conf documenta hyprexpo muerto (repo 404)" "$SHORT" 'repo standalone 404'
+# P0-3 Launchpad: MacShell SI tiene vista de apps (spotlight apps).
+chkg "ventanas-p0: lua SUPER+A spotlight apps (Launchpad)" "$HLUA" 'SUPER \+ A.*spotlight apps'
+chkg "ventanas-p0: conf SUPER+A spotlight apps (Launchpad)" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*A,[[:space:]]*exec.*spotlight apps'
+chkg "ventanas-p0: MacShell expone spotlight apps por ipc" "$MBAR" 'function apps\(\).*spotOpen\("apps"\)'
+# P0-4 dialogos: excepciones 700x500 (lua + conf) verificadas con verify-config.
+chkg "ventanas-p0: lua excepcion dialogos portal" "$HLUA" 'nimbus-dialog-portal.*700 500'
+chkg "ventanas-p0: lua excepcion dialogos modal" "$HLUA" 'nimbus-dialog-modal.*modal = true.*700 500'
+chkg "ventanas-p0: lua excepcion dialogos titulos" "$HLUA" 'nimbus-dialog-titles.*700 500'
+chkg "ventanas-p0: conf excepcion dialogos portal" "$HYPR" 'window_rule[[:space:]]*=[[:space:]]*size 700 500, class:\^\(org'
+chkg "ventanas-p0: conf excepcion dialogos titulos" "$HYPR" 'window_rule[[:space:]]*=[[:space:]]*size 700 500, title:\^'
+# P0-5 fallback .conf: stanza plugin hyprbars (valida sin .so) + 3 semaforos;
+# no_bar NO se porta (limitacion documentada).
+chkg "ventanas-p0: conf plugin hyprbars on_double_click" "$HYPR" 'on_double_click'
+chkg "ventanas-p0: conf boton rojo cerrar" "$HYPR" 'hyprbars-button = rgb\(FF5F57\)'
+chkg "ventanas-p0: conf boton amarillo minimizar" "$HYPR" 'hyprbars-button = rgb\(FEBE2E\).*movetoworkspace special:minimized'
+chkg "ventanas-p0: conf boton verde fullscreen" "$HYPR" 'hyprbars-button = rgb\(28C840\)'
+chkg "ventanas-p0: conf documenta no_bar no portado" "$HYPR" 'no_bar: NO se porta'
+if grep -vE '^[[:space:]]*#' "$HYPR" | grep -qE 'hyprbars:no_bar'; then
+  bad "ventanas-p0: conf sin efecto no_bar (rompe verify sin .so)"
+else
+  ok "ventanas-p0: conf sin efecto no_bar (rompe verify sin .so)"
 fi
 
 # --- Sintaxis: hyprland --verify-config si disponible --------------------------
