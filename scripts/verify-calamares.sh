@@ -227,6 +227,11 @@ else
   skip "instalado-p0 verify-config .conf (hyprland no instalado en host)"
 fi
 
+# Compatibilidad Calamares/boost (desync upstream: pide 1.91.0, repos dan
+# 1.92.0): customize_airootfs.sh debe crear el symlink temporal con guards.
+chkg "compat boost: customize crea symlink 1.91.0->1.92.0" "$ROOT/nimbus-overlay/root/customize_airootfs.sh" 'libboost_python314\.so\.1\.91\.0'
+chkg "compat boost: guard solo si falta 1.91.0" "$ROOT/nimbus-overlay/root/customize_airootfs.sh" '! -e /usr/lib/libboost_python314\.so\.1\.91\.0'
+
 echo "-------------------------------------------------------------"
 echo "RESULT: PASS=$PASS FAIL=$FAIL SKIP=$SKIP"
 [ "$FAIL" -eq 0 ]
