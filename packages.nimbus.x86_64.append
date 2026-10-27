@@ -21,6 +21,10 @@ qt6-wayland
 qt6-svg
 qt6-shadertools
 hyprpaper
+# swaybg pinta el fondo (hyprpaper 0.8.4 rompe IPC con Hyprland 0.56.2, probado
+# en VM; hyprpaper.conf se conserva como referencia pero el daemon activo es
+# swaybg). Ambos en repos oficiales (extra).
+swaybg
 kitty
 # Theming repo-nativo (extra): Inter + Noto, Papirus (fallback), capitaine
 # (cursor estilo macOS; WhiteSur-cursors no tiene paquete repo-nativo):

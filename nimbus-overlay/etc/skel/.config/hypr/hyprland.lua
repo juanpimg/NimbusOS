@@ -57,9 +57,9 @@ hl.env("HYPRCURSOR_SIZE", "24")
 -- Task 3 (USB plug&play): agente polkit + automontaje udiskie (udiskie --notify
 -- usa MacBar; sin swaynotificationcenter para no duplicar el daemon).
 hl.on("hyprland.start", function()
-    -- Task ui-desktop2: fondo visible al arrancar (hyprpaper.conf preload
-    -- sequoia-light.jpg). Nada lo ejecutaba: sin esto el fondo quedaba negro.
-    hl.exec_cmd("hyprpaper")
+    -- Task ui-desktop2: fondo visible al arrancar. hyprpaper DESCARTADO como
+    -- daemon (0.8.4 rompe IPC con Hyprland 0.56.2, probado en VM): swaybg.
+    hl.exec_cmd("swaybg -i /usr/share/backgrounds/nimbus/sequoia-light.jpg -m fill")
     hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
     hl.exec_cmd("udiskie --automount --notify --smart-tray")
 end)

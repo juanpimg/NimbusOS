@@ -265,14 +265,13 @@ else
 fi
 
 # --- Task ui-desktop2: escritorio live indistinguible de macOS -----------------
-# Checklist: fondo al arrancar (hyprpaper ejecutandose, no solo configurado),
-# barra translucida + blur, dock flotante, Spotlight, Inter, WhiteSur,
-# capitaine, modo claro coherente. QML MacShell = upstream pristine (no se
-# reescribe: solo se verifica presencia + autostart + theming que lo viste).
+# Checklist: fondo al arrancar (swaybg ejecutandose, no solo configurado;
+# hyprpaper.conf se conserva como referencia pero el daemon activo es swaybg:
+# hyprpaper 0.8.4 rompe el IPC con Hyprland 0.56.2, probado en VM).
 HYPAPER="$ROOT/nimbus-overlay/etc/skel/.config/hypr/hyprpaper.conf"
-chkg "ui-desktop2: hyprpaper.conf existe" "$HYPAPER" 'preload[[:space:]]*=[[:space:]]*/usr/share/backgrounds/nimbus/sequoia-light.jpg'
-chkg "ui-desktop2: conf ejecuta hyprpaper (fondo al arrancar)" "$HYPR" 'exec-once[[:space:]]*=[[:space:]]*hyprpaper'
-chkg "ui-desktop2: lua arranca hyprpaper (fondo al arrancar)" "$HLUA" 'exec_cmd\("hyprpaper"\)'
+chkg "ui-desktop2: hyprpaper.conf existe (referencia)" "$HYPAPER" 'preload[[:space:]]*=[[:space:]]*/usr/share/backgrounds/nimbus/sequoia-light.jpg'
+chkg "ui-desktop2: conf ejecuta swaybg (fondo al arrancar)" "$HYPR" 'exec-once[[:space:]]*=[[:space:]]*swaybg -i /usr/share/backgrounds/nimbus/sequoia-light.jpg'
+chkg "ui-desktop2: lua arranca swaybg (fondo al arrancar)" "$HLUA" 'swaybg -i /usr/share/backgrounds/nimbus/sequoia-light.jpg'
 chkg "ui-desktop2: wallpaper canonico en overlay" "$OVL/usr/share/backgrounds/nimbus/sequoia-light.jpg" '.*'
 [ -s "$OVL/usr/share/backgrounds/nimbus/sequoia-light.jpg" ] && ok "ui-desktop2: wallpaper no vacio" || bad "ui-desktop2: wallpaper no vacio"
 for _qml in MacBar MacDock shell; do
