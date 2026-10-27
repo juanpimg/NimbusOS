@@ -1,37 +1,45 @@
 #!/bin/sh
-# NimbusOS — nimbus-minimize-toggle (Task ventanas-p0, 2026-10-26)
-# Toggle inteligente del shelf de minimizadas (SUPER+M en 10-shortcuts.conf
-# y hyprland.lua). El boton amarillo de hyprbars manda a special:minimized
-# pero nada restauraba: este script es la via de retorno por teclado
-# (el click en el Dock enfoca y abre el shelf con la ventana activa).
+# NimbusOS — nimbus-minimize-toggle (Task ventanas-p0, 2026-10-26; auditado 2026-10-27)
+# Toggle del shelf de minimizadas (SUPER+M en 10-shortcuts.conf y hyprland.lua).
+# El boton amarillo de hyprbars manda a special:minimized pero nada restauraba:
+# este script es la via de retorno por teclado (el click en el Dock enfoca y
+# abre el shelf con la ventana activa).
 #   * si la ventana ACTIVA vive en special:minimized -> la devuelve al
-#     workspace visible bajo el shelf (activeworkspace sigue siendo el
-#     workspace de fondo aunque el shelf este abierto; el compositor
-#     auto-oculta el shelf al vaciarse);
+#     workspace con foco (capturado por id; si el id no es un workspace
+#     normal se usa el 1; en multi-monitor restaura al monitor con foco,
+#     documentado, no al de origen);
 #   * si no -> abre/cierra el shelf (togglespecialworkspace minimized).
 # DOS FORMAS de dispatch (Hyprland 0.56 acepta una u otra segun la sesion):
 #   * sesion Lua (existe ~/.config/hypr/hyprland.lua, tiene precedencia):
 #     `hyprctl dispatch 'hl.dsp...'` (el dispatch CLI evalua Lua);
-#   * sesion .conf legacy: dispatch clasico `dispatcher args`
-#     (`hyprctl eval` aqui responde "only supported with lua config manager").
+#   * sesion .conf legacy: dispatch clasico `dispatcher args`.
+# La direccion (address) se fija en la PRIMERA consulta para que un cambio de
+# foco entre llamadas no mueva la ventana equivocada.
 # Solo necesita hyprctl + python3 (falla en silencio sin ellos).
 set -u
 if command -v python3 >/dev/null 2>&1 && command -v hyprctl >/dev/null 2>&1; then
     if [ -f "${HOME:-/root}/.config/hypr/hyprland.lua" ]; then
         TOGGLE="dispatch hl.dsp.workspace.toggle_special(\"minimized\")"
-        move_back() { hyprctl dispatch "hl.dsp.window.move({ workspace = \"$1\" })" >/dev/null 2>&1; }
+        move_back() { hyprctl dispatch "hl.dsp.window.move({ workspace = \"$1\", window = \"address:$2\" })" >/dev/null 2>&1; }
     else
         TOGGLE="dispatch togglespecialworkspace minimized"
-        move_back() { hyprctl dispatch movetoworkspace "$1" >/dev/null 2>&1; }
+        move_back() { hyprctl dispatch movetoworkspace "$1,address:$2" >/dev/null 2>&1; }
     fi
     # shellcheck disable=SC2086
-    active_ws="$(hyprctl activewindow -j 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("workspace",{}).get("name",""))' 2>/dev/null)"
-    if [ "$active_ws" = "special:minimized" ]; then
-        # Devolver al workspace visible bajo el shelf. NOTA: Hyprland
-        # auto-oculta el shelf al quedarse vacio (verificado en 0.56.2):
-        # NO hacer toggle de cierre aqui (lo re-abriria vacio).
+    _info="$(hyprctl activewindow -j 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("workspace",{}).get("name",""), d.get("address",""))' 2>/dev/null)"
+    # shellcheck disable=SC2086
+    set -- $_info
+    active_ws="${1:-}"; addr="${2:-}"
+    if [ "$active_ws" = "special:minimized" ] && [ -n "$addr" ]; then
+        # Devolver al workspace con foco (id numerico normal; si el shelf
+        # sigue abierto el id puede ser el del special -> usar 1).
+        # El compositor auto-oculta el shelf al vaciarse: NO hacer toggle de
+        # cierre aqui (lo re-abriria vacio).
+        # shellcheck disable=SC2086
         cur="$(hyprctl activeworkspace -j 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id",1))' 2>/dev/null)"
-        move_back "$cur"
+        case "$cur" in ''|*[!0-9-]*) cur=1 ;; esac
+        if [ "$cur" -lt 1 ] 2>/dev/null; then cur=1; fi
+        move_back "$cur" "$addr"
         exit 0
     fi
     # shellcheck disable=SC2086

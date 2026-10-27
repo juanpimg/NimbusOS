@@ -461,6 +461,27 @@ chkg "p2-final: lua verde hyprbars = mode maximize" "$HLUA" 'bg_color = "rgb\(28
 chkg "p2-final: conf doble-click barra = fullscreen 1 (maximizar)" "$HYPR" 'on_double_click = hyprctl dispatch fullscreen 1'
 chkg "p2-final: lua doble-click barra = mode maximize" "$HLUA" 'on_double_click.*mode = "maximize"'
 chkg "p2-final: lua SUPER+F = fullscreen real (paridad .conf)" "$HLUA" 'SUPER \+ F.*mode = "fullscreen"'
+# 6) Sleep post-chequeo (auditoria 2026-10-27: el pre-chequeo busctl
+#    get-property era INVALIDO — CanSuspend es METODO, no propiedad — y dejaba
+#    Sleep muerto siempre. Post-chequeo sin carrera: suspender, y si falla avisar).
+if grep -q 'get-property.*CanSuspend' "$OVL/etc/skel/.config/quickshell/MacShell/MacBar.qml" 2>/dev/null; then
+  bad "sleep-seguro: sin pre-chequeo busctl get-property (siempre fallaba: CanSuspend es METODO)"
+else
+  ok "sleep-seguro: sin pre-chequeo busctl get-property (siempre fallaba: CanSuspend es METODO)"
+fi
+if grep -q 'systemctl suspend || notify-send' "$OVL/etc/skel/.config/quickshell/MacShell/MacBar.qml" 2>/dev/null; then
+  ok "sleep-seguro: post-chequeo systemctl suspend || notify-send"
+else
+  bad "sleep-seguro: post-chequeo systemctl suspend || notify-send"
+fi
+# 7) nimbus-minimize-toggle con direccion fijada (auditoria 2026-10-27: evita
+#    mover la ventana equivocada si cambia el foco entre consultas; ids
+#    special (negativos) caen al workspace 1).
+MBT="$ROOT/nimbus-overlay/usr/bin/nimbus-minimize-toggle"
+[ -x "$MBT" ] && ok "minimize-toggle ejecutable (file_permissions 0755)" || bad "minimize-toggle ejecutable (file_permissions 0755)"
+chkg "minimize-toggle fija address en primera consulta" "$MBT" 'address'
+chkg "minimize-toggle ids special negativos caen a ws 1" "$MBT" 'cur=1'
+chkg "minimize-toggle documenta multi-monitor (restaura al foco)" "$MBT" 'multi-monitor'
 
 # --- Sintaxis: hyprland --verify-config si disponible --------------------------
 # Hyprland 0.56: --check-config no existe, es --verify-config. El source=

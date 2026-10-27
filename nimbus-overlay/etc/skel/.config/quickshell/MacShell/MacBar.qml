@@ -532,9 +532,12 @@ Scope {
         sh('sh ~/.config/quickshell/MacLock/lock-via-ipc.sh');
     }
     function sleepMachine() {
-        // NimbusOS Ruling sleep-seguro: QML no habla D-Bus a logind, la guarda
-        // se delega en busctl(1): solo suspende si logind anuncia CanSuspend=yes.
-        sh('if [ "$(busctl get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanSuspend 2>/dev/null)" = \'s "yes"\' ]; then sh ~/.config/quickshell/MacLock/lock-via-ipc.sh; sleep 0.5; systemctl suspend; else notify-send "NimbusOS" "Suspensión no disponible (logind CanSuspend=no)"; fi');
+        // NimbusOS Ruling sleep-seguro (auditoria 2026-10-27): QML no habla
+        // D-Bus a logind y el pre-chequeo busctl get-property es INVALIDO
+        // (CanSuspend es METODO, no propiedad: siempre fallaba y el Sleep
+        // quedaba muerto). Post-chequeo sin carrera: si systemctl falla,
+        // avisa en vez de colgar en negro.
+        sh('sh ~/.config/quickshell/MacLock/lock-via-ipc.sh; sleep 0.5; systemctl suspend || notify-send "NimbusOS" "Suspensión no disponible en este equipo"');
     }
     function logOut() {
         sh('if command -v uwsm >/dev/null 2>&1 && uwsm check is-active >/dev/null 2>&1; then uwsm stop; '
