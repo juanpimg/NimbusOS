@@ -159,3 +159,8 @@ SHA256=36f43490c1cfb9a36bb24bf1cc015abab0b33e0d52bd89e29352b2649de69694
 SIZE=3,7G
 DATE=2026-10-27T05:04Z
 NOTA=P0+P1 completo (GRUB tema, wallpaper real, upower/dconf, verde=maximizar); I6
+ISO=nimbus-2026.10.27-x86_64.iso
+SHA256=3c053860c6a8d4b1a7d97c84b5f8b6ee568397fffae164b17b1c2cb832566097
+SIZE=3,7G
+DATE=2026-10-27T05:25Z
+NOTA=swaybg pinta fondo (hyprpaper IPC roto descartado); I6
