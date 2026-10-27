@@ -60,25 +60,25 @@ if [ -f /etc/dconf/db/local.d/nimbus ] && command -v dconf >/dev/null 2>&1; then
     dconf update || echo "customize_airootfs AVISO: dconf update fallo (omitido)" >&2
 fi
 
-# Puente temporal con la libreria REAL 1.91 (no symlink: ABI incompatible).
-# Se instala SOLO si algun binario de Calamares la sigue pidiendo (grep sobre
-# las entradas NEEDED del ELF; sin readelf). Cuando upstream reconstruya
-# contra 1.92, el guard no se cumple y la compat deja de instalarse sola.
-# Ruling out: symlink a 1.92 (simbolo init_module ausente, probado en VM) e
-# inyectar el .so sin condicion (basura permanente).
+# Puente temporal con las librerias REALES 1.91 (no symlink: ABI incompatible,
+# probado en VM). Se instalan SOLO si algun binario de Calamares las sigue
+# pidiendo (grep sobre las entradas NEEDED del ELF; sin readelf). Cuando
+# upstream reconstruya contra 1.92, el guard no se cumple y la compat deja
+# de instalarse sola. Ruling out: symlink a 1.92 e inyectar .so sin condicion.
 _CAL_NEED_191=0
 for _cb in /usr/bin/calamares /usr/lib/calamares/libcalamares.so /usr/lib/libcalamares.so; do
-    if [ -f "$_cb" ] && grep -q 'libboost_python314\.so\.1\.91\.0' "$_cb" 2>/dev/null; then
+    if [ -f "$_cb" ] && grep -q 'libboost_.*\.so\.1\.91\.0' "$_cb" 2>/dev/null; then
         _CAL_NEED_191=1; break
     fi
 done
 if [ "$_CAL_NEED_191" = "1" ]; then
-    if [ -f /usr/share/nimbus/compat/libboost_python314.so.1.91.0 ]; then
-        install -Dm644 /usr/share/nimbus/compat/libboost_python314.so.1.91.0 /usr/lib/libboost_python314.so.1.91.0
-        echo "customize_airootfs: compat boost 1.91 instalada (Calamares la pide)"
-    else
-        echo "customize_airootfs AVISO: Calamares pide 1.91 pero falta staging (revisar build)" >&2
-    fi
+    _n=0
+    for _lib in /usr/share/nimbus/compat/libboost_*.so.1.91.0; do
+        [ -f "$_lib" ] || continue
+        install -Dm644 "$_lib" "/usr/lib/$(basename "$_lib")" && _n=$((_n+1))
+    done
+    echo "customize_airootfs: compat boost 1.91 instaladas ($_n libs, Calamares las pide)"
+    [ "$_n" -gt 0 ] || echo "customize_airootfs AVISO: Calamares pide 1.91 pero staging vacio (revisar build)" >&2
 else
     echo "customize_airootfs: Calamares ya no pide boost 1.91 (compat innecesaria, omitida)"
 fi

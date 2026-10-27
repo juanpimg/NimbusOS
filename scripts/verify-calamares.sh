@@ -233,7 +233,7 @@ fi
 # tarball pineado en build, staging en apply_overlay, instalacion CONDICIONAL
 # en customize (auto-expira cuando upstream reconstruya).
 chkg "compat boost: pin tarball 1.91.0-2 archive.archlinux" "$ROOT/build_iso.sh" 'archive\.archlinux\.org/packages/b/boost-libs/boost-libs-1\.91'
-chkg "compat boost: staging del .so versionado" "$ROOT/build_iso.sh" 'libboost_python314\.so\.1\.91\.0'
+chkg "compat boost: staging TODAS las versionadas (no solo python)" "$ROOT/build_iso.sh" 'libboost_\*\.so\.1\.91\.0'
 chkg "compat boost: customize solo si Calamares lo pide (auto-expira)" "$ROOT/nimbus-overlay/root/customize_airootfs.sh" 'CAL_NEED_191'
 if grep -q 'ln -s.*libboost_python' "$ROOT/nimbus-overlay/root/customize_airootfs.sh" "$ROOT/build_iso.sh" 2>/dev/null; then
   bad "compat boost: sin symlinks (ABI incompatible, probado en VM)"
