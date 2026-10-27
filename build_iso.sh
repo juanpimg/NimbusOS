@@ -106,12 +106,12 @@ for f in etc/passwd etc/shadow etc/gshadow etc/group; do
 done
 echo "overlay: sin overwrite passwd/shadow/group OK"
 # Binarios con permiso: deben existir + estar declarados en el .inc:
-for b in usr/bin/macshell usr/bin/nimbus-live-setup usr/bin/nimbus-minimize-toggle; do
+for b in usr/bin/macshell usr/bin/nimbus-live-setup usr/bin/nimbus-minimize-toggle usr/bin/nimbus-installed-setup; do
     [ -f "$OVERLAY/$b" ] || fail "falta binario overlay $b"
     grep -q "\"/$b\"" "$INC" || fail "$INC no declara file_permissions para /$b"
 done
 grep -qE '\["/(etc/(passwd|shadow|gshadow|group)|root)"\]' "$INC" && fail "$INC declara passwd/shadow (prohibido)"
-echo "file_permissions declara macshell + nimbus-live-setup + nimbus-minimize-toggle 0755 OK"
+echo "file_permissions declara macshell + nimbus-live-setup + nimbus-minimize-toggle + nimbus-installed-setup 0755 OK"
 # Append sin duplicados (ignora comentarios/lineas vacias):
 DUPES="$(grep -vE '^\s*#|^\s*$' "$APPEND" | sort | uniq -d || true)"
 [ -z "$DUPES" ] || fail "duplicados en $APPEND: $DUPES"
@@ -168,10 +168,20 @@ if [ "$CHECK_ONLY" = "1" ]; then
     grep -q '/usr/bin/macshell' "$INC" || fail ".inc sin macshell"
     grep -q '/usr/bin/nimbus-live-setup' "$INC" || fail ".inc sin nimbus-live-setup"
     grep -q '/usr/bin/nimbus-minimize-toggle' "$INC" || fail ".inc sin nimbus-minimize-toggle"
+    grep -q '/usr/bin/nimbus-installed-setup' "$INC" || fail ".inc sin nimbus-installed-setup"
     # 5b. pamac.conf fusion: nimbus.conf aporta ambos flags:
     grep -q '^EnableFlatpak=true' "$OVERLAY/etc/pamac.conf.d/nimbus.conf" || fail "nimbus.conf sin EnableFlatpak"
     grep -q '^EnableAUR=true' "$OVERLAY/etc/pamac.conf.d/nimbus.conf" || fail "nimbus.conf sin EnableAUR"
     [ -f "$OVERLAY/usr/bin/nimbus-live-setup" ] || fail "falta script fusion pamac"
+    # 5b-bis. %post del instalado (P0 instalado==live): script + instancia
+    # shellprocess declarada y secuenciada tras displaymanager:
+    [ -x "$OVERLAY/usr/bin/nimbus-installed-setup" ] || fail "falta nimbus-installed-setup ejecutable"
+    [ -f "$OVERLAY/etc/calamares/modules/shellprocess_nimbus_installed.conf" ] \
+        || fail "falta shellprocess_nimbus_installed.conf"
+    grep -q 'shellprocess_nimbus_installed.conf' "$OVERLAY/etc/calamares/settings.conf" \
+        || fail "settings.conf sin instancia shellprocess nimbus_installed"
+    grep -qE '^[[:space:]]*-[[:space:]]*shellprocess@nimbus_installed$' "$OVERLAY/etc/calamares/settings.conf" \
+        || fail "settings.conf sin shellprocess@nimbus_installed en exec"
     # 5c. servicio live habilitado: el wants-symlink debe existir en el overlay
     # (systemd lo activa via preset/enable; sin symlink no arranca en el live):
     WANTS="$OVERLAY/etc/systemd/system/multi-user.target.wants/nimbus-live-setup.service"
@@ -309,7 +319,8 @@ import re, sys
 path = sys.argv[1]
 add = ['  ["/usr/bin/macshell"]="0:0:755"',
        '  ["/usr/bin/nimbus-live-setup"]="0:0:755"',
-       '  ["/usr/bin/nimbus-minimize-toggle"]="0:0:755"']
+       '  ["/usr/bin/nimbus-minimize-toggle"]="0:0:755"',
+       '  ["/usr/bin/nimbus-installed-setup"]="0:0:755"']
 src = open(path).read()
 assert '"/usr/bin/macshell"' not in src, "file_permissions ya contiene macshell"
 # Anclar al bloque file_permissions=( ... ): localizar apertura y su cierre.
@@ -325,7 +336,7 @@ assert start < insert_at < block_end, "insercion fuera del bloque file_permissio
 new = src[:insert_at] + ''.join(a + '\n' for a in add) + src[insert_at:]
 # Post-condicion: las lineas anadidas estan dentro del bloque:
 blk = new[start:block_end + sum(len(a) + 1 for a in add)]
-assert '/usr/bin/macshell' in blk and '/usr/bin/nimbus-live-setup' in blk and '/usr/bin/nimbus-minimize-toggle' in blk
+assert '/usr/bin/macshell' in blk and '/usr/bin/nimbus-live-setup' in blk and '/usr/bin/nimbus-minimize-toggle' in blk and '/usr/bin/nimbus-installed-setup' in blk
 open(path, 'w').write(new)
 print("profiledef.sh: file_permissions Nimbus inyectados (bloque anclado)")
 EOF

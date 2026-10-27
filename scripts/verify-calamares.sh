@@ -166,6 +166,67 @@ done
 chkg "customize install -Dm644 piel" "$CUST" 'install -Dm644'
 chkg "customize guards [ -f ]" "$CUST" '\[ -f '
 
+# --- Task instalado-p0: el INSTALADO funciona igual que el live -----------------
+# 1) greetd con el usuario REAL (nunca liveuser hardcodeado): %post via
+#    instancia shellprocess@nimbus_installed (dontChroot: false = en target),
+#    declarada en instances: y secuenciada tras displaymanager (el usuario ya
+#    existe: users corre antes). Patron auditado contra upstream
+#    CachyOS/cachyos-calamares@cachyos (settings.conf: bloque `instances:`
+#    id->config + secuencia `shellprocess@id`).
+NIS="$OVL/usr/bin/nimbus-installed-setup"
+NISC="$CAL/modules/shellprocess_nimbus_installed.conf"
+chk "instalado-p0 nimbus-installed-setup existe" test -f "$NIS"
+chk "instalado-p0 nimbus-installed-setup ejecutable" test -x "$NIS"
+chk "instalado-p0 nimbus-installed-setup bash -n" bash -n "$NIS"
+chk "instalado-p0 shellprocess_nimbus_installed.conf existe" test -f "$NISC"
+if python3 -c "import yaml,sys; [yaml.safe_load(open(f)) for f in sys.argv[1:]]" \
+  "$SET" "$NISC" 2>/dev/null; then ok "instalado-p0 yaml valido (settings + instancia)"; else bad "instalado-p0 yaml valido (settings + instancia)"; fi
+chkg "instalado-p0 instancia dontChroot false (corre en target)" "$NISC" '^dontChroot:[[:space:]]*false'
+chkg "instalado-p0 instancia invoca nimbus-installed-setup" "$NISC" 'nimbus-installed-setup'
+chkg "instalado-p0 instancia recibe \${USER} de Calamares" "$NISC" '\$\{USER\}'
+chkg "instalado-p0 settings declara instancia nimbus_installed" "$SET" 'shellprocess_nimbus_installed\.conf'
+chkg "instalado-p0 settings id nimbus_installed -> shellprocess" "$SET" 'id:[[:space:]]*nimbus_installed'
+chkg "instalado-p0 settings exec shellprocess@nimbus_installed" "$SET" '^[[:space:]]*-[[:space:]]*shellprocess@nimbus_installed$'
+# Orden exec: users < displaymanager < shellprocess@nimbus_installed
+_order_ok="$(awk '/^[[:space:]]*-[[:space:]]*users$/{u=NR} /^[[:space:]]*-[[:space:]]*displaymanager$/{d=NR} /^[[:space:]]*-[[:space:]]*shellprocess@nimbus_installed$/{s=NR} END{print (u>0 && d>u && s>d) ? "si" : "no"}' "$SET")"
+if [ "$_order_ok" = "si" ]; then ok "instalado-p0 orden exec users<displaymanager<%post"; else bad "instalado-p0 orden exec users<displaymanager<%post"; fi
+# Script: sin liveuser hardcodeado; deriva el usuario (argv Calamares o passwd)
+if grep -q 'liveuser' "$NIS" 2>/dev/null; then bad "instalado-p0 script sin liveuser hardcodeado"; else ok "instalado-p0 script sin liveuser hardcodeado"; fi
+chkg "instalado-p0 script regenera greetd config.toml" "$NIS" 'GREETD_CONF.*config\.toml'
+chkg "instalado-p0 script usuario de argv o passwd uid>=1000" "$NIS" 'PASSWD_DB'
+chkg "instalado-p0 script rechaza username sospechoso" "$NIS" 'sospechoso'
+chkg "instalado-p0 script requiere root" "$NIS" 'requiere root'
+chkg "instalado-p0 script fusiona pamac EnableFlatpak/EnableAUR" "$NIS" 'EnableFlatpak.*EnableAUR|EnableAUR.*EnableFlatpak'
+chkg "instalado-p0 script flathub remote-add" "$NIS" 'flatpak remote-add --if-not-exists flathub'
+chkg "instalado-p0 script mask power-profiles-daemon" "$NIS" 'mask power-profiles-daemon'
+for _u in auto-cpufreq thermald bluetooth; do
+  chkg "instalado-p0 script enable $_u" "$NIS" "$_u"
+done
+chkg "instalado-p0 script ensure nimbus-live-setup.service" "$NIS" 'nimbus-live-setup\.service'
+chkg "instalado-p0 script exit 0" "$NIS" '^exit 0'
+chkg "instalado-p0 live-setup tambien habilita bluetooth" "$OVL/usr/bin/nimbus-live-setup" 'bluetooth\.service'
+# Herencia primer arranque: el wants-symlink copiado al instalado reintenta
+# AUR/flathub con red aunque el %post fuera sin red:
+chk "instalado-p0 wants symlink (hereda live-setup en instalado)" test -L "$OVL/etc/systemd/system/multi-user.target.wants/nimbus-live-setup.service"
+# 3) Fallback .conf: stanza plugin:hyprbars presente Y validada sin el .so.
+# `hyprland --verify-config` en sesion .conf pura (sin hyprland.lua, que tiene
+# precedencia en >=0.55): prueba la paridad real del fallback.
+chkg "instalado-p0 fallback .conf trae stanza plugin:hyprbars" "$HYPR" 'plugin[[:space:]]*\{'
+chkg "instalado-p0 fallback documenta divergencias (amarilla/no_bar)" "$HYPR" 'no_bar'
+if command -v hyprland >/dev/null 2>&1; then
+  _vtmp="$(mktemp -d)"
+  mkdir -p "$_vtmp/.config/hypr"
+  cp "$ROOT/nimbus-overlay/etc/skel/.config/hypr/"*.conf "$_vtmp/.config/hypr/" 2>/dev/null
+  if HOME="$_vtmp" hyprland --verify-config -c "$_vtmp/.config/hypr/hyprland.conf" >/dev/null 2>&1; then
+    ok "instalado-p0 fallback .conf valida sin plugin (config ok)"
+  else
+    bad "instalado-p0 fallback .conf valida sin plugin (config ok)"
+  fi
+  rm -rf "$_vtmp"
+else
+  skip "instalado-p0 verify-config .conf (hyprland no instalado en host)"
+fi
+
 echo "-------------------------------------------------------------"
 echo "RESULT: PASS=$PASS FAIL=$FAIL SKIP=$SKIP"
 [ "$FAIL" -eq 0 ]

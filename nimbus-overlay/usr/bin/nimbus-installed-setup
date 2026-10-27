@@ -1,0 +1,140 @@
+#!/bin/sh
+# NimbusOS — nimbus-installed-setup (%post en el sistema INSTALADO)
+# Lo ejecuta Calamares via la instancia shellprocess@nimbus_installed
+# (etc/calamares/modules/shellprocess_nimbus_installed.conf, dontChroot:
+# false), es decir, DENTRO del target ya instalado, despues de los modulos
+# users y displaymanager. Uso manual equivalente (chroot):
+#   arch-chroot /mnt /usr/bin/nimbus-installed-setup <usuario>
+# Hace, solo en el instalado:
+#   1. greetd: regenera /etc/greetd/config.toml con el usuario REAL creado
+#      por Calamares (argv[1] = ${USER} de Calamares; fallback: primer
+#      uid >= 1000 con shell valida en $PASSWD_DB). El live trae su usuario
+#      de sesion hardcodeado en config.toml; el instalado nunca debe
+#      autologuear ese usuario del live.
+#   2. pamac.conf merge (EnableFlatpak/EnableAUR) — misma fusion que el live
+#      (pamac no lee conf.d de forma nativa).
+#   3. flatpak remote-add --if-not-exists flathub (solo si hay flatpak; si
+#      falla por falta de red, el servicio nimbus-live-setup —heredado en el
+#      instalado via wants-symlink— lo reintenta en el primer arranque).
+#   4. mask power-profiles-daemon (conflicto con auto-cpufreq) + enable
+#      auto-cpufreq/thermald/bluetooth (solo units presentes; `systemctl
+#      enable` funciona offline/en chroot: solo crea symlinks).
+#   5. ensure nimbus-live-setup.service habilitado (reintento AUR con red en
+#      el primer arranque del instalado; idempotente).
+# Idempotente: seguro re-ejecutar. Devuelve 0 aunque falten
+# flatpak/systemd/red/pamac.conf; solo falla (1) si no es root.
+# NUNCA hardcodea ningun nombre de usuario: se recibe de Calamares o se
+# deriva de la base de usuarios del target.
+set -u
+
+GREETD_CONF="${GREETD_CONF:-/etc/greetd/config.toml}"
+PAMAC_CONF="${PAMAC_CONF:-/etc/pamac.conf}"
+PASSWD_DB="${PASSWD_DB:-/etc/passwd}"
+FLATHUB_URL="https://dl.flathub.org/repo/flathub.flatpakrepo"
+
+log() { echo "nimbus-installed-setup: $1"; }
+die() { echo "nimbus-installed-setup: ERROR: $1" >&2; exit 1; }
+
+[ "$(id -u)" = "0" ] || die "requiere root"
+
+# --- 0. Usuario real: argv[1] (Calamares ${USER}) o primer uid>=1000 ------
+TARGET_USER="${1:-}"
+if [ -z "$TARGET_USER" ]; then
+    if [ -f "$PASSWD_DB" ]; then
+        TARGET_USER="$(awk -F: '$3>=1000 && $3<60000 && $7 !~ /(nologin|false)/ {print $1; exit}' "$PASSWD_DB" 2>/dev/null)"
+    fi
+fi
+if [ -z "$TARGET_USER" ]; then
+    log "AVISO: sin usuario real (argv vacio y nadie con uid>=1000 en $PASSWD_DB); salto fix greetd"
+else
+    case "$TARGET_USER" in
+        *[!a-zA-Z0-9_.-]*|"" ) die "nombre de usuario sospechoso: $TARGET_USER" ;;
+    esac
+    if ! getent passwd "$TARGET_USER" >/dev/null 2>&1 && [ "$PASSWD_DB" = "/etc/passwd" ]; then
+        log "AVISO: $TARGET_USER no esta en passwd del target; salto fix greetd"
+        TARGET_USER=""
+    fi
+fi
+
+# --- 1. greetd: config.toml con el usuario real (atomico, 644) ------------
+if [ -n "$TARGET_USER" ]; then
+    _tmp="$GREETD_CONF.tmp.$$"
+    {
+        echo "# NimbusOS — greetd (instalado): autologin directo a Hyprland."
+        echo "# Generado por nimbus-installed-setup (%post Calamares,"
+        echo "# shellprocess@nimbus_installed) con el usuario creado en el"
+        echo "# instalador. Regeneracion idempotente; no editar a mano."
+        echo "[terminal]"
+        echo "vt = 1"
+        echo ""
+        echo "[default_session]"
+        echo 'command = "Hyprland"'
+        echo "user = \"$TARGET_USER\""
+        echo ""
+        echo "[initial_session]"
+        echo 'command = "Hyprland"'
+        echo "user = \"$TARGET_USER\""
+    } > "$_tmp"
+    chmod 644 "$_tmp"
+    mv -f "$_tmp" "$GREETD_CONF"
+    log "greetd config.toml regenerado con user = \"$TARGET_USER\""
+fi
+
+# --- 2. Fusionar flags pamac (igual que nimbus-live-setup) ----------------
+merge_flag() {
+    key="$1" val="$2"
+    if grep -qE "^[# ]*${key}=" "$PAMAC_CONF"; then
+        sed -i -E "s|^[# ]*${key}=.*|${key}=${val}|" "$PAMAC_CONF"
+    else
+        printf '%s=%s\n' "$key" "$val" >> "$PAMAC_CONF"
+    fi
+}
+if [ -f "$PAMAC_CONF" ]; then
+    merge_flag "EnableFlatpak" "true"
+    merge_flag "EnableAUR" "true"
+    log "flags EnableFlatpak/EnableAUR fusionados en $PAMAC_CONF"
+else
+    {
+        echo "# NimbusOS — creado por nimbus-installed-setup (%post Calamares)"
+        printf '%s\n' "EnableFlatpak=true" "EnableAUR=true"
+    } > "$PAMAC_CONF"
+    log "creado $PAMAC_CONF minimo con EnableFlatpak/EnableAUR"
+fi
+
+# --- 3. Flathub (solo si flatpak existe; reintento en primer arranque) ----
+if command -v flatpak >/dev/null 2>&1; then
+    flatpak remote-add --if-not-exists flathub "$FLATHUB_URL" \
+        && log "remote flathub OK" \
+        || log "AVISO: no se pudo anadir flathub (sin red en %post?; reintenta nimbus-live-setup en primer arranque)"
+else
+    log "AVISO: flatpak no instalado en target, salto flathub"
+fi
+
+# --- 4. PPD fuera; gestores reales dentro (offline/chroot-safe) -----------
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl mask power-profiles-daemon.service >/dev/null 2>&1 \
+        && log "power-profiles-daemon enmascarado" \
+        || log "AVISO: no se pudo enmascarar power-profiles-daemon"
+    for unit in auto-cpufreq.service thermald.service bluetooth.service; do
+        if systemctl list-unit-files 2>/dev/null | grep -q "^${unit}"; then
+            systemctl enable "$unit" >/dev/null 2>&1 \
+                && log "$unit habilitado" \
+                || log "AVISO: no se pudo habilitar $unit"
+        else
+            log "AVISO: $unit no instalado en target, salto enable"
+        fi
+    done
+    # --- 5. nimbus-live-setup en primer arranque (reintento AUR+flathub) ---
+    if [ -f /usr/lib/systemd/system/nimbus-live-setup.service ]; then
+        systemctl enable nimbus-live-setup.service >/dev/null 2>&1 \
+            && log "nimbus-live-setup.service habilitado (reintento primer arranque)" \
+            || log "AVISO: no se pudo habilitar nimbus-live-setup.service"
+    else
+        log "AVISO: nimbus-live-setup.service ausente en target, salto"
+    fi
+else
+    log "AVISO: sin systemctl (chroot sin systemd?), salto servicios"
+fi
+
+log "listo (usuario: ${TARGET_USER:-sin-detectar})"
+exit 0

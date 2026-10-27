@@ -7,7 +7,8 @@
 #   2. flatpak remote-add --if-not-exists flathub (solo si flatpak existe)
 #   3. mask power-profiles-daemon (Task 2: auto-cpufreq es el gestor canonico;
 #      PPD y auto-cpufreq en conflicto romperian el escalado en laptop)
-#   4. enable auto-cpufreq + thermald (si estan instalados y hay systemd)
+#   4. enable auto-cpufreq + thermald + bluetooth (si estan instalados y hay
+#      systemd; bluetooth va en bluez/bluez-utils del append Task ui-flows)
 #   5. AUR defer (Task5): instala las 4 AUR fuera de pacstrap via paru
 #      (manifest usr/share/nimbus/packages.nimbus-aur.txt; best-effort con
 #      red, sin reinstalar si ya presentes, exit 0 siempre). makepkg prohibe
@@ -83,7 +84,7 @@ if command -v systemctl >/dev/null 2>&1; then
     systemctl mask power-profiles-daemon.service >/dev/null 2>&1 \
         && log "power-profiles-daemon enmascarado" \
         || log "AVISO: no se pudo enmascarar power-profiles-daemon"
-    for unit in auto-cpufreq.service thermald.service; do
+    for unit in auto-cpufreq.service thermald.service bluetooth.service; do
         if systemctl list-unit-files 2>/dev/null | grep -q "^${unit}"; then
             systemctl enable "$unit" >/dev/null 2>&1 \
                 && log "$unit habilitado" \
