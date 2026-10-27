@@ -187,8 +187,26 @@ hl.config({
             bar_title_enabled     = true,
             bar_text_size         = 11,
             bar_text_font         = "Inter",
-            bar_padding           = 10,
-            bar_button_padding    = 6,
+            bar_padding           = 15,
+            bar_button_padding    = 8,
+            -- Task botones-nativos: paridad con los semaforos NATIVOS de
+            -- MacShell (AboutApp.qml:178, ClockApp.qml:398, Installer.qml:157,
+            -- MacDock.qml:1064-1067: circulos 14px en Row scale 0.93 (~13px
+            -- efectivos), spacing 8, luces en x15-17, colores exactos
+            -- #FF5F57/#FEBC2E/#28C840, glifo al hover en negro 58%).
+            -- hyprbars dibuja el icono con fuente "sans" fija a size*0.62 y
+            -- color fg (barDeco.cpp, dibujado de botones): con icon_on_hover
+            -- (bool real, main.cpp:233) el glifo sale SOLO al hover, como en
+            -- macOS. `buttons_on_hover` NO existe en la API 0.56.2 (grep en
+            -- el fuente: 0 resultados): NO usarlo. bar_blur acerca la barra
+            -- al cristal esmerilado nativo (bg alfa .97 sobre blur); el
+            -- tinte exacto por-tema es imposible (un solo bar_color estatico
+            -- en la API: se deja el defecto). inactive_button_color gris ~=
+            -- apagado nativo (AboutApp pal.lightOff: dark rgba(1,1,1,0.2) /
+            -- light rgba(0,0,0,0.15); Apple systemGray #8E8E93).
+            icon_on_hover         = true,
+            bar_blur              = true,
+            inactive_button_color = "rgb(8E8E93)",
             -- Task barra-resize: MOVER con la barra = nativo, sin opcion que
             -- activar. Upstream barDeco.cpp: pulsar dentro de la barra arma
             -- drag-pending (handleDownEvent, lineas 212-246) y mover el raton
@@ -226,9 +244,16 @@ hl.config({
 -- ZOOM macOS = maximizar (mode="maximize": ocupa el escritorio sin tapar
 -- barra/dock; P1 2026-10-26: antes era fullscreen real). Pantalla completa
 -- real queda SOLO en SUPER+F (ver binds workflow-mac).
-hl.plugin.hyprbars.add_button({ bg_color = "rgb(FF5F57)", fg_color = "rgb(FF5F57)", size = 13, icon = "", action = [[hyprctl dispatch 'hl.dsp.window.close()']] })
-hl.plugin.hyprbars.add_button({ bg_color = "rgb(FEBE2E)", fg_color = "rgb(FEBE2E)", size = 13, icon = "", action = [[hyprctl dispatch 'hl.dsp.window.move({ workspace = "special:minimized", follow = false })']] })
-hl.plugin.hyprbars.add_button({ bg_color = "rgb(28C840)", fg_color = "rgb(28C840)", size = 13, icon = "", action = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "maximize", action = "toggle" })']] })
+-- Task botones-nativos: los 3 botones llevan glifo ×/−/+ (fg negro 58% ~=
+-- Canvas nativo rgba(0,0,0,0.58)) que hyprbars muestra SOLO al hover
+-- (icon_on_hover arriba), como los nativos. El verde usa "+" (zoom clasico
+-- macOS) en vez del "↗" nativo: hyprbars renderiza el icono con fuente
+-- "sans" fija (barDeco.cpp) y U+2197 puede faltar en el fallback, mientras
+-- ×/−/+ tienen cobertura universal. Amarillo CORREGIDO a FEBC2E (era
+-- FEBE2E transpuesto; el nativo es #FEBC2E en los 5 QML).
+hl.plugin.hyprbars.add_button({ bg_color = "rgb(FF5F57)", fg_color = "rgba(00000094)", size = 13, icon = "×", action = [[hyprctl dispatch 'hl.dsp.window.close()']] })
+hl.plugin.hyprbars.add_button({ bg_color = "rgb(FEBC2E)", fg_color = "rgba(00000094)", size = 13, icon = "−", action = [[hyprctl dispatch 'hl.dsp.window.move({ workspace = "special:minimized", follow = false })']] })
+hl.plugin.hyprbars.add_button({ bg_color = "rgb(28C840)", fg_color = "rgba(00000094)", size = 13, icon = "+", action = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "maximize", action = "toggle" })']] })
 
 -- Sin doble barra en apps con CSD propio bueno (headerbar/tabs nativos):
 -- Nautilus (GTK4 headerbar) y Firefox (tabs en la barra de titulo).
@@ -248,6 +273,24 @@ hl.window_rule({ name = "nimbus-hyprbars-no-bar-firefox",  match = { class = "^(
 --     ejecutarlo; los dialogos de Calamares caen en la regla modal=true.
 hl.window_rule({ name = "nimbus-hyprbars-no-bar-pamac", match = { class = "^(pamac-manager)$" }, ["hyprbars:no_bar"] = true })
 hl.window_rule({ name = "nimbus-hyprbars-no-bar-modal", match = { modal = true },                 ["hyprbars:no_bar"] = true })
+-- Task botones-nativos: SIN doble juego en ventanas propias de MacShell.
+-- Esas ventanas dibujan YA sus semaforos Liquid Glass nativos y hyprbars
+-- les pondria una SEGUNDA barra+botones encima:
+--   * AboutApp.qml:170-204 (solo Close activo, como el About de un Mac),
+--   * ClockApp.qml:390-450 (Close + zoom; minimizar grisado, no hace nada),
+--   * MacDock.qml prefsWindow "macshell Settings":1055-1127 (igual),
+--   * Installer.qml:151-175 (huérfano: no lo instancia shell.qml, pero el
+--     título queda cubierto por si aguas arriba lo reutiliza).
+-- Clase `org.quickshell`: app_id Wayland real del proceso `qs -c MacShell`,
+-- verificado en VM live (ISO 10.27) con `hyprctl clients`: About, Clock y
+-- Settings listan class=org.quickshell. Titulos exactos verificados en
+-- codigo: AboutApp.qml:93 "About This Linux", ClockApp.qml:343 "Clock",
+-- Installer.qml:112 "Install Dependencies", MacDock.qml:624
+-- "macshell Settings". La clase cubre las 4 (+ futuras ventanas MacShell);
+-- los titulos documentan cada caso y protegen si la clase cambiase aguas
+-- arriba.
+hl.window_rule({ name = "nimbus-hyprbars-no-bar-macshell", match = { class = "^(org\\.quickshell)$" }, ["hyprbars:no_bar"] = true })
+hl.window_rule({ name = "nimbus-hyprbars-no-bar-macshell-titles", match = { title = "^(About This Linux|Clock|Install Dependencies|macshell Settings)$" }, ["hyprbars:no_bar"] = true })
 
 -- --- Animaciones: curvas Bezier suaves estilo macOS ---------------------------
 hl.curve("nimbus",    { type = "bezier", points = { { 0.25, 0.1 }, { 0.25, 1 } } })

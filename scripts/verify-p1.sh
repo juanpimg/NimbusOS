@@ -93,7 +93,7 @@ chkg "p1-10: nautilus/firefox intactos" "$HLUA" 'nimbus-hyprbars-no-bar-nautilus
 chkg "p1-11: lua verde maximiza (no fullscreen)" "$HLUA" '28C840.*mode = "maximize"'
 chkg "p1-11: lua SUPER+F sigue fullscreen real" "$HLUA" 'SUPER \+ F.*mode = "fullscreen"'
 chkg "p1-11: lua doble-click maximiza" "$HLUA" 'on_double_click.*mode = "maximize"'
-chkg "p1-11: conf verde maximiza" "$HYPR" 'hyprbars-button = rgb\(28C840\), 13, , hyprctl dispatch fullscreen 1'
+chkg "p1-11: conf verde maximiza" "$HYPR" 'hyprbars-button = rgb\(28C840\), 13, \+, hyprctl dispatch fullscreen 1'
 chkg "p1-11: conf SUPER+F fullscreen 0" "$SHORT" 'bind[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*F,[[:space:]]*fullscreen, 0'
 if grep -qE '^[[:space:]]*bind[^=]*=[[:space:]]*CTRL' "$SHORT" "$HLUA" 2>/dev/null; then bad "p1-11: cero binds CTRL"; else ok "p1-11: cero binds CTRL"; fi
 

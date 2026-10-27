@@ -209,7 +209,7 @@ chkg "hyprbars: plugin load /usr/lib/libhyprbars.so" "$HLUA" 'hl\.plugin\.load\(
 chkg "hyprbars: bar_height 28" "$HLUA" 'bar_height *= *28'
 chkg "hyprbars: botones a la izquierda" "$HLUA" 'bar_buttons_alignment *= *"left"'
 chkg "hyprbars: boton rojo cerrar window.close" "$HLUA" 'bg_color = "rgb\(FF5F57\)".*window\.close'
-chkg "hyprbars: boton amarillo minimizar special:minimized" "$HLUA" 'bg_color = "rgb\(FEBE2E\)".*special:minimized'
+chkg "hyprbars: boton amarillo minimizar special:minimized" "$HLUA" 'bg_color = "rgb\(FEBC2E\)".*special:minimized'
 chkg "hyprbars: boton verde fullscreen toggle" "$HLUA" 'bg_color = "rgb\(28C840\)".*window\.fullscreen'
 chkg "hyprbars: no_bar Nautilus (CSD GTK propio)" "$HLUA" 'Nautilus.*hyprbars:no_bar'
 chkg "hyprbars: no_bar Firefox (tabs propios)" "$HLUA" 'firefox.*hyprbars:no_bar'
@@ -218,6 +218,45 @@ if grep -qE 'windowBar|WindowBar|winBarWantsGeo|tlAlwaysSymbols|tlColorOnHover' 
 else
   ok "hyprbars: cero QML MacShell modificado (MacBar/shell pristine)"
 fi
+
+# --- Task botones-nativos: UN solo juego de semaforos estilo Liquid Glass ---
+# MacShell dibuja semaforos nativos en sus ventanas (AboutApp.qml:178 14px
+# #FF5F57/#FEBC2E/#28C840 solo Close activo; ClockApp.qml:398; Installer
+# qml:157 huerfano; MacDock.qml:1064 prefsWindow "macshell Settings"):
+# hyprbars NO debe duplicarlos (no_bar clase quickshell + titulos exactos)
+# y sus propios botones imitan al nativo (13px ~= 14*0.93, iconos ×/−/+
+# negro 58% SOLO al hover, padding 15/8, gris #8E8E93 inactivo, blur).
+ABOUT="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/AboutApp.qml"
+ASH="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/assets/about-info.sh"
+chkg "botones-nativos: lua no_bar clase org.quickshell (ventanas MacShell)" "$HLUA" 'class = "\^\(org\\\\\.quickshell\)\$".*hyprbars:no_bar'
+chkg "botones-nativos: lua no_bar titulos About/Clock/Installer/Settings" "$HLUA" 'title = "\^\(About This Linux\|Clock\|Install Dependencies\|macshell Settings\)\$".*hyprbars:no_bar'
+chkg "botones-nativos: lua icon_on_hover (glifo solo al hover, como macOS)" "$HLUA" 'icon_on_hover *= *true'
+chkg "botones-nativos: lua boton rojo con ×" "$HLUA" 'bg_color = "rgb\(FF5F57\)".*icon = "×"'
+chkg "botones-nativos: lua boton amarillo FEBC2E con −" "$HLUA" 'bg_color = "rgb\(FEBC2E\)".*icon = "−"'
+chkg "botones-nativos: lua boton verde con +" "$HLUA" 'bg_color = "rgb\(28C840\)".*icon = "\+"'
+chkg "botones-nativos: lua fg negro 58% (Canvas nativo rgba 0,0,0,0.58)" "$HLUA" 'fg_color = "rgba\(00000094\)"'
+chkg "botones-nativos: lua bar_padding 15 (luces nativas en x15-17)" "$HLUA" 'bar_padding *= *15,'
+chkg "botones-nativos: lua bar_button_padding 8 (spacing nativo 8)" "$HLUA" 'bar_button_padding *= *8,'
+chkg "botones-nativos: lua gris inactivo #8E8E93 (lightOff nativo)" "$HLUA" 'inactive_button_color *= *"rgb\(8E8E93\)"'
+chkg "botones-nativos: lua bar_blur (cristal esmerilado nativo)" "$HLUA" 'bar_blur *= *true'
+if grep -qE 'buttons_on_hover[[:space:]]*=' "$HLUA"; then
+  bad "botones-nativos: lua sin clave buttons_on_hover (NO existe en API 0.56.2)"
+else
+  ok "botones-nativos: lua sin clave buttons_on_hover (NO existe en API 0.56.2)"
+fi
+if grep -vE '^[[:space:]]*(--|#)' "$HLUA" "$HYPR" 2>/dev/null | grep -q 'FEBE2E'; then
+  bad "botones-nativos: cero FEBE2E transpuesto (nativo #FEBC2E en 5 QML)"
+else
+  ok "botones-nativos: cero FEBE2E transpuesto (nativo #FEBC2E en 5 QML)"
+fi
+chkg "botones-nativos: conf botones con iconos ×/−/+" "$HYPR" 'hyprbars-button = rgb\(FF5F57\), 13, ×'
+chkg "botones-nativos: conf amarillo FEBC2E con −" "$HYPR" 'hyprbars-button = rgb\(FEBC2E\), 13, −'
+chkg "botones-nativos: conf verde con +" "$HYPR" 'hyprbars-button = rgb\(28C840\), 13, \+'
+chkg "botones-nativos: conf icon_on_hover paridad Lua" "$HYPR" 'icon_on_hover[[:space:]]*=[[:space:]]*true'
+chkg "botones-nativos: About titulo This Linux (no Mac)" "$ABOUT" 'title: "About This Linux"'
+chkg "botones-nativos: About specs dinamicas de os-release" "$ASH" 'os-release'
+chkg "botones-nativos: About hook userlogo sin tocar QML" "$ASH" 'linux-logo'
+chkg "botones-nativos: About cita MacShell (Ruling: es SU app, se deja)" "$ABOUT" 'MacShell 0\.4\.2'
 
 # --- Task ui-win: ventanas indistinguibles de macOS ---------------------------
 # 1) Sin borde AZUL (era col.active_border rgba(007affee)): borde sutil gris
@@ -399,7 +438,7 @@ chkg "ventanas-p0: conf excepcion dialogos titulos" "$HYPR" 'window_rule[[:space
 # no_bar NO se porta (limitacion documentada).
 chkg "ventanas-p0: conf plugin hyprbars on_double_click" "$HYPR" 'on_double_click'
 chkg "ventanas-p0: conf boton rojo cerrar" "$HYPR" 'hyprbars-button = rgb\(FF5F57\)'
-chkg "ventanas-p0: conf boton amarillo minimizar" "$HYPR" 'hyprbars-button = rgb\(FEBE2E\).*movetoworkspace special:minimized'
+chkg "ventanas-p0: conf boton amarillo minimizar" "$HYPR" 'hyprbars-button = rgb\(FEBC2E\).*movetoworkspace special:minimized'
 chkg "ventanas-p0: conf boton verde fullscreen" "$HYPR" 'hyprbars-button = rgb\(28C840\)'
 chkg "ventanas-p0: conf documenta no_bar no portado" "$HYPR" 'no_bar: NO se porta'
 if grep -vE '^[[:space:]]*#' "$HYPR" | grep -qE 'hyprbars:no_bar'; then
