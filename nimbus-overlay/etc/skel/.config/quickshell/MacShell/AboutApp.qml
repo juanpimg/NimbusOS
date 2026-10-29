@@ -140,7 +140,8 @@ Scope {
             readonly property color edgeOuter: Qt.rgba(1, 1, 1, 0.50)     // thin dark line on the outside
             readonly property color edgeInner: dark ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.65)      // soft highlight just inside it
             function lightBorder(active, c) { return active ? Qt.darker(c, dark ? 1.12 : 1.22) : "transparent"; }
-            readonly property color lightOff: dark ? Qt.rgba(1, 1, 1, 0.2) : Qt.rgba(0, 0, 0, 0.15)
+            // NimbusOS Ruling: Apple SystemGray #8E8E93 al 35% alpha para semáforos inactivos (paridad M5).
+            readonly property color lightOff: "#598E8E93"
             readonly property color btn: dark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.75)
             readonly property color btnDown: dark ? Qt.rgba(1, 1, 1, 0.2) : Qt.rgba(1, 1, 1, 0.5)
         }
@@ -150,7 +151,8 @@ Scope {
             // drawn at a scaled size: the window content shrinks with the UI scale, the window itself shrinks to match
             width: parent.width / win.uiS; height: parent.height / win.uiS
             scale: win.uiS; transformOrigin: Item.TopLeft
-            radius: 18
+            // NimbusOS Ruling: radio de diálogo 12px paridad Tahoe M2 y ClockApp/Settings (upstream usa 18).
+            radius: 12
             color: pal.bg
             border.width: 1; border.color: pal.edgeOuter
             clip: true
@@ -170,15 +172,14 @@ Scope {
             // traffic lights: only Close is active, like the About window on a Mac
             Item {
                 x: 15; y: 12
-                width: 58; height: 14
+                width: 52; height: 12
                 Row {
-                    scale: 0.93; transformOrigin: Item.TopLeft      // a touch smaller
                     spacing: 8
                     Repeater {
                         model: [{ c: "#FF5F57", on: true }, { c: "#FEBC2E", on: false }, { c: "#28C840", on: false }]
                         delegate: Rectangle {
                             required property var modelData
-                            width: 14; height: 14; radius: 7
+                            width: 12; height: 12; radius: 6
                             color: (modelData.on && (win.active || tl.containsMouse)) ? modelData.c : pal.lightOff
                             border.width: 1; border.color: pal.lightBorder(modelData.on && (win.active || tl.containsMouse), modelData.c)
                             Canvas {
@@ -192,15 +193,15 @@ Scope {
                                     ctx.lineWidth = 1.2;
                                     ctx.lineCap = "round";
                                     ctx.beginPath();
-                                    ctx.moveTo(4.9, 4.9); ctx.lineTo(9.1, 9.1);
-                                    ctx.moveTo(9.1, 4.9); ctx.lineTo(4.9, 9.1);
+                                    ctx.moveTo(3.9, 3.9); ctx.lineTo(8.1, 8.1);
+                                    ctx.moveTo(8.1, 3.9); ctx.lineTo(3.9, 8.1);
                                     ctx.stroke();
                                 }
                             }
                         }
                     }
                 }
-                MouseArea { id: tl; anchors.fill: parent; hoverEnabled: true; onClicked: mouse => { if (mouse.x < 22) win.visible = false; } }
+                MouseArea { id: tl; anchors.fill: parent; hoverEnabled: true; onClicked: mouse => { if (mouse.x < 16) win.visible = false; } }
             }
 
             Column {

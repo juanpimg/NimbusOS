@@ -19,6 +19,10 @@ Scope {
     id: root
     property var hub: null
     property bool appEnabled: true
+    // Override manual (components.json): se guarda aparte para no romper el
+    // binding de appEnabled con el ajuste de Settings (ver shell.qml).
+    property bool manualOverride: false
+    property bool manualVal: true
     readonly property var dock: hub ? hub.dock : null
     readonly property var bar: hub ? hub.bar : null
     readonly property bool darkMode: dock ? dock.darkMode : true
@@ -100,7 +104,7 @@ Scope {
     FileView {
         path: root.home + "/.config/macshell/components.json"
         printErrors: false
-        onLoaded: { try { var o = JSON.parse(text()); if (o.clockEnabled !== undefined) root.appEnabled = !!o.clockEnabled; } catch (e) {} }
+        onLoaded: { try { var o = JSON.parse(text()); if (o.clockEnabled !== undefined) { root.manualVal = !!o.clockEnabled; root.manualOverride = true; } else { root.manualOverride = false; } } catch (e) {} }
     }
     Timer { id: saveLater; interval: 150; onTriggered: root.saveNow() }
     function save() { if (loaded) saveLater.restart(); }
@@ -364,7 +368,8 @@ Scope {
             readonly property color ctrlSel: dark ? "#636366" : "#FFFFFF"
             readonly property color border: dark ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(0, 0, 0, 0.2)
             function lightBorder(active, c) { return active ? Qt.darker(c, dark ? 1.12 : 1.22) : "transparent"; }
-            readonly property color lightOff: dark ? Qt.rgba(1, 1, 1, 0.2) : Qt.rgba(0, 0, 0, 0.15)
+            // NimbusOS Ruling: Apple SystemGray #8E8E93 al 35% alpha para semáforos inactivos (paridad M5).
+            readonly property color lightOff: "#598E8E93"
         }
 
         Rectangle {
@@ -390,15 +395,14 @@ Scope {
                 // traffic lights
                 Item {
                     x: 17; anchors.verticalCenter: parent.verticalCenter; anchors.verticalCenterOffset: -2
-                    width: 58; height: 14
+                    width: 52; height: 12
                     Row {
-                        scale: 0.93; transformOrigin: Item.TopLeft      // a touch smaller
                         spacing: 8
                         Repeater {
                             model: [{ c: "#FF5F57", g: "×", on: true }, { c: "#FEBC2E", g: "−", on: false }, { c: "#28C840", g: "↗", on: true }]
                             delegate: Rectangle {
                                 required property var modelData
-                                width: 14; height: 14; radius: 7
+                                width: 12; height: 12; radius: 6
                                 color: (modelData.on && (win.active || tlMa.containsMouse)) ? modelData.c : pal.lightOff
                                 border.width: 1; border.color: pal.lightBorder(modelData.on && (win.active || tlMa.containsMouse), modelData.c)
                                 Canvas {
@@ -413,24 +417,24 @@ Scope {
                                             ctx.lineWidth = 1.1;
                                             ctx.lineCap = "round";
                                             ctx.beginPath();
-                                            ctx.moveTo(4.9, 4.9); ctx.lineTo(9.1, 9.1);
-                                            ctx.moveTo(9.1, 4.9); ctx.lineTo(4.9, 9.1);
+                                            ctx.moveTo(3.9, 3.9); ctx.lineTo(8.1, 8.1);
+                                            ctx.moveTo(8.1, 3.9); ctx.lineTo(3.9, 8.1);
                                             ctx.stroke();
                                         } else if (parent.modelData.g === "−") {
                                             ctx.strokeStyle = "rgba(0,0,0,0.58)";
                                             ctx.lineWidth = 1.2;
                                             ctx.lineCap = "round";
                                             ctx.beginPath();
-                                            ctx.moveTo(3.5, 7.0); ctx.lineTo(10.5, 7.0);
+                                            ctx.moveTo(3.0, 6.0); ctx.lineTo(9.0, 6.0);
                                             ctx.stroke();
                                         } else if (parent.modelData.g === "↗") {
                                             ctx.fillStyle = "rgba(0,0,0,0.58)";
                                             ctx.beginPath();
-                                            ctx.moveTo(6, 4); ctx.lineTo(10, 4); ctx.lineTo(10, 8);
+                                            ctx.moveTo(5.1, 3.4); ctx.lineTo(8.6, 3.4); ctx.lineTo(8.6, 6.9);
                                             ctx.closePath();
                                             ctx.fill();
                                             ctx.beginPath();
-                                            ctx.moveTo(8, 10); ctx.lineTo(4, 10); ctx.lineTo(4, 6);
+                                            ctx.moveTo(6.9, 8.6); ctx.lineTo(3.4, 8.6); ctx.lineTo(3.4, 5.1);
                                             ctx.closePath();
                                             ctx.fill();
                                         }
@@ -442,8 +446,8 @@ Scope {
                     MouseArea {
                         id: tlMa; anchors.fill: parent; hoverEnabled: true
                         onClicked: mouse => {
-                            if (mouse.x < 22) win.visible = false;
-                            else if (mouse.x < 44) { }      // minimize is greyed out and does nothing
+                            if (mouse.x < 16) win.visible = false;
+                            else if (mouse.x < 36) { }      // minimize is greyed out and does nothing
                             else win.visibility === Window.FullScreen ? win.showNormal() : win.showFullScreen();
                         }
                     }

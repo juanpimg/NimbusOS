@@ -53,9 +53,57 @@ Scope {
     // Window positions come from the shell's geometry feed, which only runs when something asks for it (the glass
     // did; in Opaque nothing did, so the controls had nowhere to go)
     Binding { target: root.hub; property: "winBarWantsGeo"; value: root.enabled; when: root.hub !== null }
+    function screenForClient(c) {
+        if (!c || c.monitor === undefined) return (Quickshell.screens[0] ? Quickshell.screens[0].name : "");
+        var ms = Hyprland.monitors.values;
+        for (var i = 0; i < ms.length; i++) {
+            if (ms[i].id === c.monitor) return ms[i].name;
+        }
+        return Quickshell.screens[0] ? Quickshell.screens[0].name : "";
+    }
     function dispatch(d) { Hyprland.dispatch(d + "({ window = \"address:" + activeAddr + "\" })"); }
     function close() { Hyprland.dispatch('hl.dsp.window.close({ window = "address:' + activeAddr + '" })'); }
-    function minimize() { Hyprland.dispatch('hl.dsp.window.move({ workspace = "special:minimized", follow = false, window = "address:' + activeAddr + '" })'); }
+    function minimize() {
+        var addr = root.activeAddr;
+        if (!addr) return;
+        var fx = hub ? hub.minimizeFx : null;
+        var c = root.active;
+        var tl = root.activeTl;
+
+        var doMove = function() {
+            Hyprland.dispatch('hl.dsp.window.set_prop({ prop = "no_anim", value = "1", window = "address:' + addr + '" })');
+            Hyprland.dispatch('hl.dsp.window.move({ workspace = "special:minimized", follow = false, window = "address:' + addr + '" })');
+        };
+
+        if (!fx || !c || !tl || fx.effect === "instant") {
+            doMove();
+            return;
+        }
+
+        var sName = root.screenForClient(c);
+        var target = (dock && typeof dock.targetRectForToplevel === "function")
+            ? dock.targetRectForToplevel(tl, sName)
+            : ({ x: 0, y: 0, width: 48, height: 48 });
+
+        var winGeo = {
+            x: c.at[0],
+            y: c.at[1],
+            width: c.size[0],
+            height: c.size[1]
+        };
+
+        fx.play({
+            screen: sName,
+            tl: tl,
+            win: winGeo,
+            target: target,
+            reverse: false,
+            before: doMove,
+            after: function() {
+                Hyprland.dispatch('hl.dsp.window.set_prop({ prop = "no_anim", value = "0", window = "address:' + addr + '" })');
+            }
+        });
+    }
     function zoom() { Hyprland.dispatch('hl.dsp.window.fullscreen_state({ internal = 2, client = 0, window = "address:' + activeAddr + '" })'); }
 
     Variants {
@@ -94,7 +142,8 @@ Scope {
                 Rectangle {
                     anchors.fill: parent
                     anchors.margins: -5
-                    radius: 11
+                    // NimbusOS Ruling: placa en píldora estilo macOS Tahoe (radius: 15 = 30px/2; upstream usa 11). Propuesta aguas arriba.
+                    radius: 15
                     color: root.darkMode ? Qt.rgba(0, 0, 0, 0.28) : Qt.rgba(1, 1, 1, 0.3)
                     opacity: hover.hovered ? 1 : 0.55
                     Behavior on opacity { NumberAnimation { duration: 180 } }
@@ -111,9 +160,9 @@ Scope {
                             id: light
                             required property var modelData
                             required property int index
-                            width: 13; height: 13; radius: 6.5
-                            color: (root.colorOnHover ? hover.hovered : true) ? modelData.c
-                                 : (root.darkMode ? Qt.rgba(1, 1, 1, 0.26) : Qt.rgba(0, 0, 0, 0.22))
+                            width: 12; height: 12; radius: 6
+                            // NimbusOS Ruling: Apple SystemGray #8E8E93 al 35% alpha para semáforos inactivos (paridad M5).
+                            color: (root.colorOnHover ? hover.hovered : true) ? modelData.c : "#598E8E93"
                             Behavior on color { ColorAnimation { duration: 160 } }
                             border.width: 1; border.color: Qt.rgba(0, 0, 0, 0.14)
                             scale: lMa.pressed ? 0.86 : 1
@@ -121,6 +170,11 @@ Scope {
                             TLGlyph {
                                 anchors.fill: parent
                                 kind: parent.modelData.g
+                                // NimbusOS Ruling: los glifos solo al hover (macOS los muestra
+                                // solo con el puntero encima); respeta el ajuste
+                                // Settings → Windows → alwaysSymbols. Propuesta aguas arriba:
+                                // cablear tlAlwaysSymbols al visible del glifo.
+                                visible: root.alwaysSymbols || hover.hovered
                                 Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
                             }
                             MouseArea {

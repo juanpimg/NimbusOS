@@ -88,7 +88,7 @@ Item {
     readonly property real k: contentScale * k0        // RU -> px for the contents
     readonly property real wr: width / k               // card size in RU: the layout stretches to fill the whole card
     readonly property real hr: height / k
-    readonly property real radiusPx: 28 * scaleF * (isSmall ? 168 / 158 : (isMedium ? 358 / 338 : 1))
+    readonly property real radiusPx: 24 * scaleF * (isSmall ? 168 / 158 : (isMedium ? 358 / 338 : 1))
 
     width: (isSmall ? 158 : (isMedium ? 338 : 358)) * scaleF
            * (isSmall ? 168 / 158 : (isMedium ? 358 / 338 : 1.0))

@@ -836,7 +836,8 @@ Scope {
             readonly property color hover: dark ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(0, 0, 0, 0.05)
             readonly property color selInactive: dark ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.12)
             function lightBorder(active, c) { return active ? Qt.darker(c, dark ? 1.12 : 1.22) : "transparent"; }
-            readonly property color lightOff: dark ? Qt.rgba(1, 1, 1, 0.20) : Qt.rgba(0, 0, 0, 0.15)
+            // NimbusOS Ruling: Apple SystemGray #8E8E93 al 35% alpha para semáforos inactivos (paridad M5).
+            readonly property color lightOff: "#598E8E93"
             readonly property color danger: "#FF453A"
         }
 
@@ -1056,9 +1057,8 @@ Scope {
                 Item {
                     id: lights
                     x: 17; y: 14
-                    width: 58; height: 14
+                    width: 52; height: 12
                     Row {
-                        scale: 0.93; transformOrigin: Item.TopLeft      // a touch smaller
                         spacing: 8
                         Repeater {
                             model: [
@@ -1068,7 +1068,7 @@ Scope {
                             ]
                             delegate: Rectangle {
                                 required property var modelData
-                                width: 14; height: 14; radius: 7
+                                width: 12; height: 12; radius: 6
                                 color: (modelData.on && (prefsWindow.active || lightsMa.containsMouse))
                                        ? modelData.c : pal.lightOff
                                 border.width: 1
@@ -1085,24 +1085,24 @@ Scope {
                                             ctx.lineWidth = 1.1;
                                             ctx.lineCap = "round";
                                             ctx.beginPath();
-                                            ctx.moveTo(4.9, 4.9); ctx.lineTo(9.1, 9.1);
-                                            ctx.moveTo(9.1, 4.9); ctx.lineTo(4.9, 9.1);
+                                            ctx.moveTo(3.9, 3.9); ctx.lineTo(8.1, 8.1);
+                                            ctx.moveTo(8.1, 3.9); ctx.lineTo(3.9, 8.1);
                                             ctx.stroke();
                                         } else if (parent.modelData.g === "\u2212") {
                                             ctx.strokeStyle = "rgba(0,0,0,0.58)";
                                             ctx.lineWidth = 1.2;
                                             ctx.lineCap = "round";
                                             ctx.beginPath();
-                                            ctx.moveTo(3.5, 7.0); ctx.lineTo(10.5, 7.0);
+                                            ctx.moveTo(3.0, 6.0); ctx.lineTo(9.0, 6.0);
                                             ctx.stroke();
                                         } else if (parent.modelData.g === "↗") {
                                             ctx.fillStyle = "rgba(0,0,0,0.58)";
                                             ctx.beginPath();
-                                            ctx.moveTo(6, 4); ctx.lineTo(10, 4); ctx.lineTo(10, 8);
+                                            ctx.moveTo(5.1, 3.4); ctx.lineTo(8.6, 3.4); ctx.lineTo(8.6, 6.9);
                                             ctx.closePath();
                                             ctx.fill();
                                             ctx.beginPath();
-                                            ctx.moveTo(8, 10); ctx.lineTo(4, 10); ctx.lineTo(4, 6);
+                                            ctx.moveTo(6.9, 8.6); ctx.lineTo(3.4, 8.6); ctx.lineTo(3.4, 5.1);
                                             ctx.closePath();
                                             ctx.fill();
                                         }
@@ -1116,9 +1116,9 @@ Scope {
                         anchors.fill: parent
                         hoverEnabled: true
                         onClicked: mouse => {
-                            if (mouse.x < 22) prefsWindow.visible = false;
-                            else if (mouse.x < 44) { }      // minimize is greyed out and does nothing
-                            else if (mouse.x < 58) {
+                            if (mouse.x < 16) prefsWindow.visible = false;
+                            else if (mouse.x < 36) { }      // minimize is greyed out and does nothing
+                            else if (mouse.x <= 52) {
                                 if (prefsWindow.visibility === Window.FullScreen) prefsWindow.showNormal();
                                 else prefsWindow.showFullScreen();
                             }
@@ -1493,9 +1493,9 @@ Scope {
                         subtitle: I18n.tr("Automatic follows the system language")
                         SSegmented {
                             t: pal
-                            readonly property var codes: ["auto", "en", "ru"]
-                            model: ["Automatic", "English", "Русский"]
-                            segWidth: 96
+                            readonly property var codes: ["auto", "en", "ru", "es"]
+                            model: ["Automatic", "English", "Русский", "Español"]
+                            segWidth: 72
                             current: codes.indexOf(root.bar ? root.bar.language : "auto")
                             onPicked: i => { if (root.bar) root.bar.language = codes[i]; }
                         }
@@ -1968,7 +1968,7 @@ Scope {
                 }
                 SLabel {
                     t: pal
-                    text: I18n.tr("Bind the Print key:  bind = , Print, exec, qs -c macbar ipc call screenshot region.  Choose\u2026 needs zenity, kdialog or yad; otherwise type the path. Screenshots need grim.")
+                    text: I18n.tr("Bind the Print key:  bind = , Print, exec, qs -c MacShell ipc call screenshot region.  Choose\u2026 needs zenity, kdialog or yad; otherwise type the path. Screenshots need grim.")
                 }
                 Process {
                     id: shotPick
@@ -3474,7 +3474,10 @@ Scope {
                             Quickshell.execDetached(["sh", "-c", "MACLOCK_PREVIEW=1 MACLOCK_CLOCK=\"$1\" timeout 6 qs -c MacLock >/dev/null 2>&1", "sh", cfg]);
                         }
                     }
-                    SButton { t: pal; text: I18n.tr("Lock Screen Now"); onClicked: { prefsWindow.visible = false; Quickshell.execDetached(["sh", "-c", "pgrep -f -- \"-c [M]acLock\" >/dev/null 2>&1 || qs -c MacLock"]); } }
+                    // NimbusOS Ruling (sin MacLock vendoreado): bloquear via el shim
+                    // hyprlock, igual que SUPER+L. Solo MacLock upstream
+                    // provee "Preview"; sin el, ese boton queda sin efecto.
+                    SButton { t: pal; text: I18n.tr("Lock Screen Now"); onClicked: { prefsWindow.visible = false; Quickshell.execDetached([Quickshell.env("HOME") + "/.config/quickshell/MacLock/lock-via-ipc.sh"]); } }
                 }
             }
         }
@@ -4378,8 +4381,117 @@ Scope {
         return out;
     }
 
+    function hyprOf(tl) {
+        if (!tl) return null;
+        var v = Hyprland.toplevels.values;
+        for (var i = 0; i < v.length; i++) if (v[i].wayland === tl) return v[i];
+        return null;
+    }
+
+    function screenNameForMon(monId) {
+        if (monId !== undefined) {
+            var ms = Hyprland.monitors.values;
+            for (var i = 0; i < ms.length; i++) {
+                if (ms[i].id === monId) return ms[i].name;
+            }
+        }
+        return Quickshell.screens[0] ? Quickshell.screens[0].name : "";
+    }
+
+    function targetRectForToplevel(tl, screenName) {
+        var s = null;
+        if (screenName) {
+            for (var i = 0; i < Quickshell.screens.length; i++) {
+                if (Quickshell.screens[i].name === screenName) { s = Quickshell.screens[i]; break; }
+            }
+        }
+        if (!s && root.monitor) {
+            for (var j = 0; j < Quickshell.screens.length; j++) {
+                if (Quickshell.screens[j].name === root.monitor) { s = Quickshell.screens[j]; break; }
+            }
+        }
+        if (!s && Quickshell.screens.length > 0) s = Quickshell.screens[0];
+        if (!s) return { x: 0, y: 0, width: root.iconSize, height: root.iconSize };
+
+        var it = null;
+        if (tl) {
+            for (var k = 0; k < items.length; k++) {
+                if (items[k].kind === "win" && items[k].tl === tl) { it = items[k]; break; }
+            }
+            if (!it && tl.appId) {
+                var akey = keyOf(appOf(tl));
+                for (var m = 0; m < items.length; m++) {
+                    if (items[m].kind === "app" && items[m].key === akey) { it = items[m]; break; }
+                }
+            }
+        }
+
+        var totalW = appCount * (iconSize + spacing) + sepCount * (sepWidth + spacing) - spacing;
+        var rowLeft = (s.width - totalW) / 2;
+        var itemW = iconSize;
+        var c0 = 0;
+
+        if (it) {
+            itemW = (it.kind === "sep") ? sepWidth : iconSize;
+            c0 = it.nA * (iconSize + spacing) + it.nS * (sepWidth + spacing) + itemW / 2;
+        } else {
+            c0 = totalW - iconSize / 2;
+        }
+
+        var gx = s.x + rowLeft + c0 - itemW / 2;
+        var gy = s.y + s.height - bottomPad - iconSize;
+        return { x: Math.round(gx), y: Math.round(gy), width: Math.round(itemW), height: Math.round(iconSize) };
+    }
+
     function activate(item, forceNew) {
-        if (item.kind === "win") { if (item.tl) item.tl.activate(); return; }
+        if (item.kind === "win") {
+            var tl = item.tl;
+            if (!tl) return;
+            var h = root.hyprOf(tl);
+            var o = h ? h.lastIpcObject : null;
+            var addr = h ? ("0x" + String(h.address).replace(/^0x/, "")) : "";
+
+            var targetWs = (Hyprland.activeWorkspace && Hyprland.activeWorkspace.name)
+                ? String(Hyprland.activeWorkspace.name) : "1";
+            if (targetWs.indexOf("special:") === 0) targetWs = "1";
+
+            var isSpecial = o && o.workspace && (String(o.workspace.name).indexOf("special:") === 0 || o.workspace.id < 0);
+
+            var doRestore = function() {
+                if (addr) {
+                    Hyprland.dispatch('hl.dsp.window.set_prop({ prop = "no_anim", value = "1", window = "address:' + addr + '" })');
+                    Hyprland.dispatch('hl.dsp.window.move({ workspace = "' + targetWs + '", follow = false, window = "address:' + addr + '" })');
+                    Hyprland.dispatch('hl.dsp.window.focus_window({ window = "address:' + addr + '" })');
+                    Hyprland.dispatch('hl.dsp.window.set_prop({ prop = "no_anim", value = "0", window = "address:' + addr + '" })');
+                }
+                tl.activate();
+            };
+
+            var fx = root.hub ? root.hub.minimizeFx : null;
+            if (!isSpecial || !fx || fx.effect === "instant" || !o || !o.at || !o.size) {
+                doRestore();
+                return;
+            }
+
+            var screenName = (o && o.monitor !== undefined) ? root.screenNameForMon(o.monitor) : (Quickshell.screens[0] ? Quickshell.screens[0].name : "");
+            var targetRect = root.targetRectForToplevel(tl, screenName);
+            var winGeo = {
+                x: o.at[0],
+                y: o.at[1],
+                width: o.size[0],
+                height: o.size[1]
+            };
+
+            fx.play({
+                screen: screenName,
+                tl: tl,
+                win: winGeo,
+                target: targetRect,
+                reverse: true,
+                after: doRestore
+            });
+            return;
+        }
         if (item.special === "trash") {
             // the file manager first (Dolphin understands trash:/ natively); xdg-open only as the last resort
             Quickshell.execDetached(["sh", "-c",
@@ -4392,7 +4504,14 @@ Scope {
         if (wins.length > 0 && !forceNew) {
             var idx = -1;
             for (var i = 0; i < wins.length; i++) if (wins[i].activated) idx = i;
-            wins[(idx + 1) % wins.length].activate();
+            var targetTl = wins[(idx + 1) % wins.length];
+            var th = root.hyprOf(targetTl);
+            var to = th ? th.lastIpcObject : null;
+            if (to && to.workspace && (String(to.workspace.name).indexOf("special:") === 0 || to.workspace.id < 0)) {
+                root.activate({ kind: "win", tl: targetTl, key: "win:" + winIdFor(targetTl) }, false);
+                return;
+            }
+            targetTl.activate();
             return;
         }
         if (item.entry || item.key) {
@@ -5030,9 +5149,7 @@ Scope {
                     else ghostFade.finished.connect(function () { if (!ui.tearing) ui.tearItem = null; });
                 }
                 function hyprOf(tl) {
-                    var v = Hyprland.toplevels.values;
-                    for (var i = 0; i < v.length; i++) if (v[i].wayland === tl) return v[i];
-                    return null;
+                    return root.hyprOf(tl);
                 }
                 function beginTear(item, src, homeX, homeY) {
                     if (dragging) { dragTarget = dragIndex; endDrag(); }
