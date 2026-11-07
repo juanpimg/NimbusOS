@@ -19,8 +19,9 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 OVERLAY="$REPO_ROOT/nimbus-overlay"
-APPEND="$REPO_ROOT/packages.nimbus.x86_64.append"
 INC="$OVERLAY/profiledef.nimbus.inc"
+PROFILE="${NIMBUS_PROFILE:-plasma}"
+NIMBUS_SHELL="${NIMBUS_SHELL:-$REPO_ROOT/../NimbusShell}"
 
 UPSTREAM_URL="https://github.com/CachyOS/CachyOS-Live-ISO"
 UPSTREAM_TAG="${UPSTREAM_TAG:-master}"   # sin tags publicados; rama canonica
@@ -35,12 +36,30 @@ CHECK_ONLY=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --check-only) CHECK_ONLY=1; shift ;;
+        --profile) PROFILE="${2:-}"; shift 2 ;;
         --upstream-tag) UPSTREAM_TAG="${2:-}"; shift 2 ;;
         --work) WORKDIR="$2"; shift 2 ;;
         --out) OUTDIR="$2"; shift 2 ;;
-        *) echo "Uso: $0 [--check-only] [--upstream-tag BRANCH] [--work DIR] [--out DIR]" >&2; exit 2 ;;
+        *) echo "Uso: $0 [--check-only] [--profile plasma|legacy-hypr] [--upstream-tag BRANCH] [--work DIR] [--out DIR]" >&2; exit 2 ;;
     esac
 done
+
+case "$PROFILE" in
+    plasma)
+        APPEND="$REPO_ROOT/packages.nimbus-plasma.append"
+        AUR_MANIFEST="$REPO_ROOT/packages.nimbus-plasma-aur.txt"
+        OVERLAY_PROFILE="$REPO_ROOT/nimbus-overlay-plasma"
+        SKEL_SRC="$NIMBUS_SHELL/dotfiles"
+        ;;
+    legacy-hypr)
+        APPEND="$REPO_ROOT/packages.nimbus.x86_64.append"
+        AUR_MANIFEST="$REPO_ROOT/packages.nimbus-aur.txt"
+        OVERLAY_PROFILE=""
+        SKEL_SRC=""
+        ;;
+    *) echo "ERROR: --profile debe ser plasma o legacy-hypr (dado: '$PROFILE')" >&2; exit 2 ;;
+esac
+echo "perfil: $PROFILE"
 
 UPSTREAM_DIR="$WORKDIR/upstream"
 PROFILE_DIR="$UPSTREAM_DIR/archiso"
@@ -111,15 +130,58 @@ step "rutas overlay + append + profiledef.nimbus.inc"
 # No sobrescribir credenciales live del upstream:
 for f in etc/passwd etc/shadow etc/gshadow etc/group; do
     [ -e "$OVERLAY/$f" ] && fail "overlay no debe traer $f (lo gestiona upstream)"
+    [ -n "$OVERLAY_PROFILE" ] && [ -e "$OVERLAY_PROFILE/$f" ] \
+        && fail "overlay Plasma no debe traer $f (lo gestiona upstream)"
 done
 echo "overlay: sin overwrite passwd/shadow/group OK"
-# Binarios con permiso: deben existir + estar declarados en el .inc:
-for b in usr/bin/macshell usr/bin/nimbus-live-setup usr/bin/nimbus-minimize-toggle usr/bin/nimbus-installed-setup usr/bin/nimbus-screenshot; do
-    [ -f "$OVERLAY/$b" ] || fail "falta binario overlay $b"
-    grep -q "\"/$b\"" "$INC" || fail "$INC no declara file_permissions para /$b"
-done
+if [ "$PROFILE" = "plasma" ]; then
+    [ -d "$OVERLAY_PROFILE" ] || fail "falta $OVERLAY_PROFILE"
+    [ -d "$SKEL_SRC" ] || fail "falta skel fuente $SKEL_SRC (NIMBUS_SHELL)"
+    [ -x "$NIMBUS_SHELL/scripts/build-components" ] || fail "falta scripts/build-components en $NIMBUS_SHELL"
+    [ -f "$NIMBUS_SHELL/packages/plasma.list" ] || fail "falta packages/plasma.list en $NIMBUS_SHELL"
+    [ -f "$NIMBUS_SHELL/packages/themes/sddm-nimbus/Main.qml" ] || fail "falta tema SDDM de NimbusShell"
+    for s in nimbus-theme apply-theme nimbus-dock nimbus-trash nimbus-updates \
+             nimbus-a11y nimbus-layout nimbus-keys nimbus-bar-preset; do
+        [ -f "$NIMBUS_SHELL/scripts/$s" ] || fail "falta NimbusShell scripts/$s"
+    done
+    for r in packages/themes/nimbus-tahoe/colorschemes/NimbusTahoe.colors \
+             packages/shell/nimbus-bar/presets/default.json \
+             packages/shell/nimbus-bar/pins.txt \
+             packages/dock/kremarc-nimbus; do
+        [ -f "$NIMBUS_SHELL/$r" ] || fail "falta recurso NimbusShell $r"
+    done
+    [ -f "$OVERLAY_PROFILE/etc/skel/.config/systemd/user/nimbus-bar.service" ] \
+        || fail "falta unidad nimbus-bar.service"
+    [ -f "$OVERLAY_PROFILE/etc/skel/.config/autostart/nimbus-bar.desktop" ] \
+        || fail "falta autostart nimbus-bar.desktop"
+    for b in usr/bin/nimbus-live-setup usr/bin/nimbus-installed-setup usr/bin/nimbus-screenshot; do
+        [ -f "$OVERLAY/$b" ] || fail "falta binario overlay $b"
+    done
+    for b in usr/local/bin/nimbus-bar-start usr/local/bin/nimbus-hide-panel; do
+        [ -f "$OVERLAY_PROFILE/$b" ] || fail "falta binario Plasma overlay $b"
+    done
+    DM="$OVERLAY_PROFILE/etc/systemd/system/display-manager.service"
+    [ -L "$DM" ] && [ "$(readlink "$DM")" = "/usr/lib/systemd/system/sddm.service" ] \
+        || fail "DM Plasma no apunta a sddm"
+    grep -q '^  - sddm$' "$OVERLAY_PROFILE/etc/calamares/modules/displaymanager.conf" \
+        || fail "Calamares Plasma no usa sddm"
+    [ -f "$OVERLAY_PROFILE/usr/share/nimbus/packages.nimbus-aur.txt" ] \
+        || fail "falta manifest AUR Plasma en overlay"
+    for p in hyprland hyprlock quickshell hyprpaper swaybg greetd hyprshell hyprland-plugin-hyprbars; do
+        grep -qx "$p" "$APPEND" && fail "paquete legacy $p en el perfil Plasma"
+    done
+    "$NIMBUS_SHELL/scripts/nimbus-skel-sync" --check \
+        --src "$SKEL_SRC" --dest "$OVERLAY/etc/skel" >/dev/null \
+        || fail "skel Plasma desincronizado (ejecuta nimbus-skel-sync)"
+    echo "perfil plasma: SDDM + NimbusShell + skel sincronizado OK"
+else
+    for b in usr/bin/macshell usr/bin/nimbus-live-setup usr/bin/nimbus-minimize-toggle usr/bin/nimbus-installed-setup usr/bin/nimbus-screenshot; do
+        [ -f "$OVERLAY/$b" ] || fail "falta binario overlay $b"
+        grep -q "\"/$b\"" "$INC" || fail "$INC no declara file_permissions para /$b"
+    done
+    echo "perfil legacy-hypr: binarios + MacShell OK"
+fi
 grep -qE '\["/(etc/(passwd|shadow|gshadow|group)|root)"\]' "$INC" && fail "$INC declara passwd/shadow (prohibido)"
-echo "file_permissions declara macshell + nimbus-live-setup + nimbus-minimize-toggle + nimbus-installed-setup + nimbus-screenshot 0755 OK"
 # Append sin duplicados (ignora comentarios/lineas vacias):
 DUPES="$(grep -vE '^\s*#|^\s*$' "$APPEND" | sort | uniq -d || true)"
 [ -z "$DUPES" ] || fail "duplicados en $APPEND: $DUPES"
@@ -173,9 +235,11 @@ if [ "$CHECK_ONLY" = "1" ]; then
     echo "check-only: fusion simulada (sin escritura en work/)"
     # 5a. profiledef: iso_name renombrable + file_permissions insertables:
     grep -q 'NIMBUS_ISO_NAME="nimbus"' "$INC" || fail ".inc sin NIMBUS_ISO_NAME"
-    grep -q '/usr/bin/macshell' "$INC" || fail ".inc sin macshell"
+    if [ "$PROFILE" = "legacy-hypr" ]; then
+        grep -q '/usr/bin/macshell' "$INC" || fail ".inc sin macshell"
+        grep -q '/usr/bin/nimbus-minimize-toggle' "$INC" || fail ".inc sin nimbus-minimize-toggle"
+    fi
     grep -q '/usr/bin/nimbus-live-setup' "$INC" || fail ".inc sin nimbus-live-setup"
-    grep -q '/usr/bin/nimbus-minimize-toggle' "$INC" || fail ".inc sin nimbus-minimize-toggle"
     grep -q '/usr/bin/nimbus-installed-setup' "$INC" || fail ".inc sin nimbus-installed-setup"
     grep -q '/usr/bin/nimbus-screenshot' "$INC" || fail ".inc sin nimbus-screenshot"
     # 5b. pamac.conf fusion: nimbus.conf aporta ambos flags:
@@ -195,17 +259,24 @@ if [ "$CHECK_ONLY" = "1" ]; then
     # (systemd lo activa via preset/enable; sin symlink no arranca en el live):
     WANTS="$OVERLAY/etc/systemd/system/multi-user.target.wants/nimbus-live-setup.service"
     [ -L "$WANTS" ] || fail "falta symlink enable $WANTS"
-    # 5c-bis. Display Manager del live: greetd con autologin a Hyprland
-    # (sin esto no hay DM: el symlink plasmalogin de upstream lo crea su
-    # prepare_profile, que este build no ejecuta).
-    DM="$OVERLAY/etc/systemd/system/display-manager.service"
-    [ -L "$DM" ] || fail "falta symlink DM $DM"
-    [ "$(readlink "$DM")" = "/usr/lib/systemd/system/greetd.service" ] || fail "DM no apunta a greetd"
-    grep -q 'initial_session' "$OVERLAY/etc/greetd/config.toml" || fail "greetd sin initial_session"
-    grep -qx 'greetd' <(grep -vE '^\s*#' "$APPEND") || fail "greetd fuera de pacstrap"
-    # macshell vendoreado en skel (barra/dock reales en el live/instalado):
-    [ -f "$OVERLAY/etc/skel/.config/quickshell/MacShell/shell.qml" ] || fail "falta MacShell vendoreado en skel"
-    [ -x "$OVERLAY/etc/skel/.local/bin/macshell-start" ] || fail "falta macshell-start ejecutable en skel"
+    # 5c-bis. Display Manager: greetd (legacy) o SDDM (plasma).
+    if [ "$PROFILE" = "plasma" ]; then
+        DM="$OVERLAY_PROFILE/etc/systemd/system/display-manager.service"
+        [ -L "$DM" ] || fail "falta symlink DM $DM"
+        [ "$(readlink "$DM")" = "/usr/lib/systemd/system/sddm.service" ] || fail "DM no apunta a sddm"
+        grep -q '^  - sddm$' "$OVERLAY_PROFILE/etc/calamares/modules/displaymanager.conf" \
+            || fail "Calamares sin sddm"
+        [ -f "$OVERLAY/etc/skel/.config/kwinrc" ] || fail "falta kwinrc Plasma en skel"
+    else
+        DM="$OVERLAY/etc/systemd/system/display-manager.service"
+        [ -L "$DM" ] || fail "falta symlink DM $DM"
+        [ "$(readlink "$DM")" = "/usr/lib/systemd/system/greetd.service" ] || fail "DM no apunta a greetd"
+        grep -q 'initial_session' "$OVERLAY/etc/greetd/config.toml" || fail "greetd sin initial_session"
+        grep -qx 'greetd' <(grep -vE '^\s*#' "$APPEND") || fail "greetd fuera de pacstrap"
+        # macshell vendoreado en skel (barra/dock reales en el live/instalado):
+        [ -f "$OVERLAY/etc/skel/.config/quickshell/MacShell/shell.qml" ] || fail "falta MacShell vendoreado en skel"
+        [ -x "$OVERLAY/etc/skel/.local/bin/macshell-start" ] || fail "falta macshell-start ejecutable en skel"
+    fi
     # 5d. fusion packages simulada: sin comentarios ni lineas vacias en el
     # resultado (el append trae secciones '# ...' que no deben contaminar
     # packages_desktop.x86_64):
@@ -217,7 +288,7 @@ if [ "$CHECK_ONLY" = "1" ]; then
     while IFS= read -r _aur || [ -n "$_aur" ]; do
         case "$_aur" in ''|\#*) continue ;; esac
         ls "$REPO_ROOT/work/nimbus-repo/${_aur}-"*.pkg.tar.zst >/dev/null 2>&1 || printf '%s\n' "$_aur" >> "$TMPD/aur-skip.pkgs"
-    done < "$REPO_ROOT/packages.nimbus-aur.txt"
+    done < "$AUR_MANIFEST"
     grep -vE '^\s*#|^\s*$' "$APPEND" | grep -vxFf "$TMPD/upstream.pkgs" | grep -vxFf "$TMPD/aur-skip.pkgs" > "$TMPD/merged.pkgs"
     grep -qE '^\s*#' "$TMPD/merged.pkgs" && { rm -rf "$TMPD"; fail "fusion simulada deja comentarios"; }
     grep -qE '^\s*$' "$TMPD/merged.pkgs" && { rm -rf "$TMPD"; fail "fusion simulada deja lineas vacias"; }
@@ -230,11 +301,17 @@ if [ "$CHECK_ONLY" = "1" ]; then
         else
             grep -qx "$_aur" "$TMPD/merged.pkgs" && { rm -rf "$TMPD"; fail "fusion simulada deja AUR $_aur sin repo (debe ir a skipped-aur)"; }
         fi
-    done < "$REPO_ROOT/packages.nimbus-aur.txt"
+    done < "$AUR_MANIFEST"
     grep -qx 'paru' "$TMPD/merged.pkgs" || { rm -rf "$TMPD"; fail "fusion simulada filtra paru (es cachyos/oficial, debe quedar)"; }
     # Manifest AUR presente y copiado al overlay:
-    [ -f "$REPO_ROOT/packages.nimbus-aur.txt" ] || { rm -rf "$TMPD"; fail "falta packages.nimbus-aur.txt"; }
-    [ -f "$OVERLAY/usr/share/nimbus/packages.nimbus-aur.txt" ] || { rm -rf "$TMPD"; fail "overlay sin usr/share/nimbus/packages.nimbus-aur.txt"; }
+    [ -f "$AUR_MANIFEST" ] || { rm -rf "$TMPD"; fail "falta $AUR_MANIFEST"; }
+    if [ "$PROFILE" = "plasma" ]; then
+        [ -f "$OVERLAY_PROFILE/usr/share/nimbus/packages.nimbus-aur.txt" ] \
+            || { rm -rf "$TMPD"; fail "overlay Plasma sin usr/share/nimbus/packages.nimbus-aur.txt"; }
+    else
+        [ -f "$OVERLAY/usr/share/nimbus/packages.nimbus-aur.txt" ] \
+            || { rm -rf "$TMPD"; fail "overlay sin usr/share/nimbus/packages.nimbus-aur.txt"; }
+    fi
     rm -rf "$TMPD"
     echo "check-only: apply_overlay simulado OK"
     echo ""
@@ -249,6 +326,25 @@ AIROOTFS="$PROFILE_DIR/airootfs"
 
 # 5a. Copiar overlay sobre airootfs (cp -a; el overlay nunca trae passwd/shadow):
 cp -a "$OVERLAY"/. "$AIROOTFS"/
+if [ "$PROFILE" = "plasma" ]; then
+    # Delta Plasma: SDDM, Calamares, barra, tema y skel generado desde NimbusShell.
+    cp -a "$OVERLAY_PROFILE"/. "$AIROOTFS"/
+    rm -rf "$AIROOTFS/etc/skel/.config/hypr" \
+           "$AIROOTFS/etc/skel/.config/quickshell" \
+           "$AIROOTFS/etc/skel/.config/macdock" \
+           "$AIROOTFS/etc/skel/.config/macshell" \
+           "$AIROOTFS/etc/greetd"
+    rm -f "$AIROOTFS/etc/skel/.local/bin/macshell-start" \
+          "$AIROOTFS/usr/bin/macshell" \
+          "$AIROOTFS/usr/bin/nimbus-minimize-toggle"
+    "$NIMBUS_SHELL/scripts/nimbus-skel-sync" --apply \
+        --src "$SKEL_SRC" --dest "$AIROOTFS/etc/skel" \
+        || fail "no se pudo sincronizar el skel desde NimbusShell"
+    printf 'plasma\n' > "$AIROOTFS/etc/nimbus/profile"
+    echo "apply_overlay: perfil Plasma (SDDM + skel NimbusShell)"
+else
+    printf 'legacy-hypr\n' > "$AIROOTFS/etc/nimbus/profile"
+fi
 # 5a2. Conflictos overlay vs paquetes (pacstrap aborta si el fichero ya existe
 # en airootfs y lo posee un paquete): cachyos-calamares-next posee
 # etc/calamares/modules/{displaymanager,partition,users}.conf y
@@ -291,9 +387,9 @@ comm -12 "$WORKDIR/append.pkgs" "$WORKDIR/upstream.pkgs" > "$OUTDIR/skipped-dupe
 # paru SI es cachyos/oficial y debe quedar en pacstrap.
 AUR_LIST="$WORKDIR/aur-skip.pkgs"
 : > "$AUR_LIST"
-_manifest="$REPO_ROOT/packages.nimbus-aur.txt"
+_manifest="$AUR_MANIFEST"
 if [ ! -f "$_manifest" ]; then
-    printf 'whitesur-gtk-theme\nwhitesur-icon-theme\npamac-aur\nhyprshell\n' > "$_manifest.tmp"
+    printf 'whitesur-gtk-theme\nwhitesur-icon-theme\npamac-aur\n' > "$_manifest.tmp"
     _manifest="$_manifest.tmp"
 fi
 while IFS= read -r _aur || [ -n "$_aur" ]; do
@@ -322,17 +418,26 @@ echo "apply_overlay: solape upstream filtrado (ver $OUTDIR/skipped-dupes.txt) + 
 grep -q '^iso_name="cachyos"' "$PROFILE_DIR/profiledef.sh" \
     && sed -i -E 's/^iso_name="cachyos"/iso_name="nimbus"/' "$PROFILE_DIR/profiledef.sh"
 grep -q '^iso_name="nimbus"' "$PROFILE_DIR/profiledef.sh" || fail "renombrado iso_name fallo"
-if ! grep -q '"/usr/bin/macshell"' "$PROFILE_DIR/profiledef.sh"; then
-python3 - "$PROFILE_DIR/profiledef.sh" <<'EOF'
+_guard='"/usr/bin/nimbus-installed-setup"'
+[ "$PROFILE" = "legacy-hypr" ] && _guard='"/usr/bin/macshell"'
+if ! grep -q "$_guard" "$PROFILE_DIR/profiledef.sh"; then
+python3 - "$PROFILE_DIR/profiledef.sh" "$PROFILE" <<'EOF'
 import re, sys
-path = sys.argv[1]
-add = ['  ["/usr/bin/macshell"]="0:0:755"',
-       '  ["/usr/bin/nimbus-live-setup"]="0:0:755"',
-       '  ["/usr/bin/nimbus-minimize-toggle"]="0:0:755"',
-       '  ["/usr/bin/nimbus-screenshot"]="0:0:755"',
-       '  ["/usr/bin/nimbus-installed-setup"]="0:0:755"']
+path, profile = sys.argv[1], sys.argv[2]
+if profile == "plasma":
+    add = ['  ["/usr/bin/nimbus-live-setup"]="0:0:755"',
+           '  ["/usr/bin/nimbus-screenshot"]="0:0:755"',
+           '  ["/usr/bin/nimbus-installed-setup"]="0:0:755"']
+    guard = '"/usr/bin/nimbus-installed-setup"'
+else:
+    add = ['  ["/usr/bin/macshell"]="0:0:755"',
+           '  ["/usr/bin/nimbus-live-setup"]="0:0:755"',
+           '  ["/usr/bin/nimbus-minimize-toggle"]="0:0:755"',
+           '  ["/usr/bin/nimbus-screenshot"]="0:0:755"',
+           '  ["/usr/bin/nimbus-installed-setup"]="0:0:755"']
+    guard = '"/usr/bin/macshell"'
 src = open(path).read()
-assert '"/usr/bin/macshell"' not in src, "file_permissions ya contiene macshell"
+assert guard not in src, "file_permissions ya contiene el guard del perfil"
 # Anclar al bloque file_permissions=( ... ): localizar apertura y su cierre.
 m = re.search(r'^file_permissions=\(\s*$', src, re.M)
 assert m, "no se encontro apertura de file_permissions=(...)"
@@ -346,9 +451,10 @@ assert start < insert_at < block_end, "insercion fuera del bloque file_permissio
 new = src[:insert_at] + ''.join(a + '\n' for a in add) + src[insert_at:]
 # Post-condicion: las lineas anadidas estan dentro del bloque:
 blk = new[start:block_end + sum(len(a) + 1 for a in add)]
-assert '/usr/bin/macshell' in blk and '/usr/bin/nimbus-live-setup' in blk and '/usr/bin/nimbus-minimize-toggle' in blk and '/usr/bin/nimbus-installed-setup' in blk
+for a in add:
+    assert a.strip() in blk, "entrada fuera del bloque: " + a
 open(path, 'w').write(new)
-print("profiledef.sh: file_permissions Nimbus inyectados (bloque anclado)")
+print("profiledef.sh: file_permissions Nimbus inyectados (perfil " + profile + ")")
 EOF
 fi
 bash -n "$PROFILE_DIR/profiledef.sh" || fail "profiledef.sh roto tras parche"
@@ -430,6 +536,44 @@ else
     echo "apply_overlay: compat boost 1.91 en staging ($_n_after libs, $(du -sh "$COMPAT_STAGE_DIR" | cut -f1))"
 fi
 echo "apply_overlay OK"
+
+# --- Paso 5e (solo Plasma): binarios GUI + KCM desde NimbusShell --------------
+if [ "$PROFILE" = "plasma" ]; then
+    step "5e/7 build NimbusShell components"
+    [ -x "$NIMBUS_SHELL/scripts/build-components" ] \
+        || fail "falta $NIMBUS_SHELL/scripts/build-components"
+    PLASMA_GUI="nimbus-bar,nimbus-about,nimbus-apps,nimbus-clock,nimbus-help,nimbus-missioncontrol,nimbus-spotlight,nimbus-welcome,nimbus-wallpaper"
+    "$NIMBUS_SHELL/scripts/build-components" \
+        --prefix /usr/local --destdir "$AIROOTFS" --allow-root \
+        --build-dir "$WORKDIR/nimbus-build" --filter "$PLASMA_GUI" --jobs 8 \
+        || fail "build de binarios GUI NimbusShell falló"
+    "$NIMBUS_SHELL/scripts/build-components" \
+        --prefix /usr --destdir "$AIROOTFS" --allow-root \
+        --build-dir "$WORKDIR/nimbus-build" --filter kcm_nimbus --jobs 8 \
+        || fail "build del KCM NimbusShell falló"
+    # Herramientas de usuario de NimbusShell (tema, dock, updates, layout...).
+    for s in nimbus-theme apply-theme nimbus-dock nimbus-trash nimbus-updates \
+             nimbus-a11y nimbus-layout nimbus-keys nimbus-privacy \
+             nimbus-flatpak-perms nimbus-bar-preset nimbus-control; do
+        [ -f "$NIMBUS_SHELL/scripts/$s" ] || fail "falta NimbusShell scripts/$s"
+        install -Dm755 "$NIMBUS_SHELL/scripts/$s" "$AIROOTFS/usr/local/bin/$s" \
+            || fail "no se pudo instalar scripts/$s"
+    done
+    # Recursos de tema, presets de barra y preset del Dock.
+    mkdir -p "$AIROOTFS/usr/share/nimbus/themes" \
+             "$AIROOTFS/usr/share/nimbus/bar" \
+             "$AIROOTFS/usr/share/nimbus/dock"
+    cp -a "$NIMBUS_SHELL/packages/themes/nimbus-tahoe" "$AIROOTFS/usr/share/nimbus/themes/" \
+        || fail "no se pudo copiar el tema Nimbus"
+    mkdir -p "$AIROOTFS/usr/share/nimbus/bar/presets"
+    cp -a "$NIMBUS_SHELL/packages/shell/nimbus-bar/presets/." "$AIROOTFS/usr/share/nimbus/bar/presets/" \
+        || fail "no se pudieron copiar los presets de barra"
+    cp -a "$NIMBUS_SHELL/packages/shell/nimbus-bar/pins.txt" "$AIROOTFS/usr/share/nimbus/bar/" \
+        || fail "no se pudo copiar pins.txt"
+    cp -a "$NIMBUS_SHELL/packages/dock/kremarc-nimbus" "$AIROOTFS/usr/share/nimbus/dock/" \
+        || fail "no se pudo copiar el preset del Dock"
+    echo "componentes NimbusShell instalados en airootfs (GUI + KCM + tools + recursos)"
+fi
 
 # --- Paso 6: build ------------------------------------------------------------
 step "6/7 build (mkarchiso)"

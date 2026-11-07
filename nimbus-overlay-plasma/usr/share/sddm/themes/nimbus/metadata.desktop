@@ -1,0 +1,14 @@
+[SddmGreeterTheme]
+Name=Nimbus
+Description=Nimbus login — macOS-style centered login, arte propio NPS (sin activos Apple)
+Author=NimbusOS
+Version=0.1.0
+License=CC0-1.0
+Type=sddm-theme
+MainScript=Main.qml
+ConfigFile=theme.conf
+Theme-Id=nimbus
+# SDDM 0.21 (ThemeMetadata.cpp): sin QtVersion el greeter arranca el binario
+# Qt5 (/usr/bin/sddm-greeter), inexistente en imagen solo-Qt6 => negro.
+QtVersion=6
+Screenshot=Background.jpg

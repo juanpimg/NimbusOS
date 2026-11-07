@@ -4,6 +4,10 @@ Empieza por `../AGENTS.md` (obligatorio para sesiones de IA) y el `../README.md`
 
 | Documento | Para qué sirve |
 |---|---|
+| `architecture/PRODUCT-MODEL.md` | Fronteras NimbusOS/NimbusShell y fuente de verdad |
+| `architecture/REPO-MAP.md` | Mapa de carpetas de NimbusOS |
+| `architecture/BRANCHING.md` | Ramas, pines y regla de merge |
+| `MIGRACION-PLASMA.md` | Checklist y estado del corte Hyprland → Plasma |
 | `ESPECIFICACION.md` | Diseño original del proyecto (autoridad histórica, en español) |
 | `ARQUITECTURA.md` | Cómo encajan perfil upstream, overlay, build, sesión gráfica e instalado |
 | `FILOSOFIA.md` | Reglas de colaboración upstream y de UX (el porqué) |

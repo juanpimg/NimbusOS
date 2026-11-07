@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Nimbus Bar
+Comment=Barra superior Nimbus (fallback del servicio systemd; instancia única)
+Exec=/usr/local/bin/nimbus-bar-start
+OnlyShowIn=KDE;
+X-GNOME-Autostart-enabled=true
