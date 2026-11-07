@@ -39,6 +39,7 @@ congelado como perfil `legacy-hypr`. La frontera entre productos está en
 ## GitHub
 
 - NimbusShell: `main` Plasma activo, CI verde, 103/112.
-- NimbusOS: `main` Hyprland estable; `plasma-migration` es la línea nueva. No se
+- NimbusOS: `main` Hyprland estable; `plasma-migration` es la línea nueva,
+  publicada en el PR draft <https://github.com/juanpimg/NimbusOS/pull/1>. No se
   mergea hasta validar la ISO Plasma en VM/hardware.
 - ISOs (GBs) no se suben; `iso.manifest` registra SHA y pins.

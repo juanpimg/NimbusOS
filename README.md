@@ -4,7 +4,8 @@
 
 > **Estado 2026-11-07 — rama `plasma-migration`.** NimbusOS 1.0 se basa en
 > **Plasma + NimbusShell**. `main` sigue siendo la ISO Hyprland estable hasta
-> validar la ISO Plasma en VM/hardware (F12). Ver
+> validar la ISO Plasma en VM/hardware (F12). PR draft:
+> <https://github.com/juanpimg/NimbusOS/pull/1>. Ver
 > [`docs/MIGRACION-PLASMA.md`](docs/MIGRACION-PLASMA.md).
 
 > **English:** NimbusOS is a bootable Linux distro with a macOS look and feel, based on CachyOS with KDE Plasma 6.8 and the NimbusShell desktop layer. This project is documented primarily in Spanish.
