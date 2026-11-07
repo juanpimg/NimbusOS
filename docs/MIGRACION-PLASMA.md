@@ -32,6 +32,9 @@
 6. **Portal:** `xdg-desktop-portal-kde` en vez de `-hyprland`.
 7. **Energía:** `power-profiles-daemon` (Plasma) en vez de auto-cpufreq
    enmascarado; thermald/bluetooth se mantienen.
+8. **Liquid Glass:** el efecto `kwin-effects-glass` se construye/instala con
+   `NimbusShell/scripts/install-glass-nimbus` (pin en `packaging/glass`). La
+   ISO Plasma aún no lo empaqueta en el build; es un pendiente de F12-T03.
 
 ## Checklist de corte
 
@@ -40,6 +43,7 @@
 - [x] Paquete Plasma y AUR Plasma.
 - [x] Overlay Plasma (SDDM, Calamares, barra, tema).
 - [x] `build_iso.sh --profile plasma` + `--check-only`.
+- [ ] Empaquetar `kwin-effects-glass` en la ISO (Liquid Glass).
 - [ ] Build real de la ISO en host con root.
 - [ ] Instalación Calamares E2E en VM.
 - [ ] Primer arranque SDDM → Plasma → barra/dock/Spotlight.
