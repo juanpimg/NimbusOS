@@ -1,0 +1,26 @@
+{
+    "KPackageStructure": "aurorae",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Lester Cordero Murillo"
+            }
+        ],
+        "Category": "Plasma 6 Window Decorations",
+        "ServiceTypes": [
+            "aurorae"
+        ],
+        "EnabledByDefault": true,
+        "Name": "MacTahoeLiquidKde-Light",
+        "Description": "MacTahoeLiquidKde-Light window decorations",
+        "Id": "MacTahoeLiquidKde-Light",
+        "Version": "1.0",
+        "License": "GPL-3.0",
+        "X-KDE-PluginInfo-blur": false,
+        "X-KPackage-Dependencies": [],
+        "Name[pt_BR]": "MacTahoeLiquidKde-Light",
+        "Description[pt_BR]": "Decorações de janelas MacTahoeLiquidKde-Light",
+        "Name[de]": "MacTahoeLiquidKde-Light",
+        "Description[de]": "MacTahoeLiquidKde-Light-Fensterdekorationen"
+    }
+}

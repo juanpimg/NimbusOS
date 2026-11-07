@@ -1,0 +1,13 @@
+# F3-T09 — banner arriba-derecha, glass, 5s (macOS Banner [INFERIDO]).
+# Claves reales Plasma 6.8 (libnotificationmanager Settings; enum PopupPosition:
+# CloseToWidget=0..TopRight=3..BottomRight=6; verificado en headers + dotconfs).
+[DoNotDisturb]
+WhenFullscreen=false
+WhenScreenSharing=true
+WhenScreensMirrored=true
+
+[Notifications]
+LowPriorityHistory=true
+LowPriorityPopups=false
+PopupPosition=TopRight
+PopupTimeout=5000

@@ -1,0 +1,9 @@
+[KUserFeedback]
+statisticsEnabled=false
+
+[Theme]
+name=breeze-dark
+
+[Tooltips]
+delay=500
+showToolTips=true

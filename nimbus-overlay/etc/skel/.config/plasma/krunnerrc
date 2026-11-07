@@ -1,0 +1,7 @@
+[General]
+FreeFloating=true
+historyEnabled=true
+historySize=20
+
+[Plugins]
+Enabled=krunner_powerdevil,krunner_sessions,krunner_shell,krunner_calculator,krunner_recentdocuments

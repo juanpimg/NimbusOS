@@ -1,0 +1,11 @@
+# F10-T05 — Spectacle estilo macOS (Cmd+Shift+3/4/5 ya en
+# kglobalshortcutsrc, no se duplican): autoguardar en ~/Pictures/<locale>,
+# copiar imagen al portapapeles tras capturar, retardo 0 (defecto).
+# Claves reales verificadas contra ~/.config/spectaclerc del host (Plasma 6.8).
+[General]
+autoSaveImage=true
+clipboardGroup=PostScreenshotCopyImage
+useReleaseToCapture=true
+
+[ImageSave]
+translatedScreenshotsFolder=Pictures

@@ -1,0 +1,12 @@
+# NimbusShell F10-T03 — Konsole: perfil Nimbus por defecto.
+# [Desktop Entry] DefaultProfile es la clave estandar de Konsole para el
+# perfil inicial (documentada en el manual de Konsole).
+
+[Desktop Entry]
+DefaultProfile=Nimbus.profile
+
+[General]
+ConfigVersion=1
+
+[UiSettings]
+ColorScheme=

@@ -1,0 +1,7 @@
+[General]
+panelHeight=24
+tooltipDelay=500
+
+[PlasmaViews][Panel]
+floating=true
+thickness=24

@@ -1,0 +1,9 @@
+[Unit]
+Description=NimbusShell: aplica tema claro/oscuro según la hora (F3-T11)
+# Plasma 6.8 no trae cambio automático de tema (kcm_nighttime es solo el
+# ciclo día-noche de Night Light). Este servicio lo suple. Instalado por:
+#   scripts/nimbus-theme --auto enable
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/nimbus-theme auto

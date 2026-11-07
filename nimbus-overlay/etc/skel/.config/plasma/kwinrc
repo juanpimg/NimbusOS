@@ -1,0 +1,92 @@
+# NimbusShell: KWin lee ~/.config/kwinrc (Plasma 6.8), no plasma/kwinrc.
+# Este fichero es la copia efectiva de dotfiles/.config/plasma/kwinrc;
+# ambos deben ser IDÉNTICOS (cmp). Lo verifica scripts/ci.sh + tests/bar/test_kwinrc.sh.
+# kwinrc Nimbus (KWin 6.8) — política CSD (F10-T06): KWin NUNCA fuerza
+# decoración SSD sobre ventanas con decoración cliente (GTK3/4 CSD, Electron
+# con --ozone-platform-hint=auto, Qt con Qt::FramelessWindowHint propio): no
+# existe clave DecorationPolicy/NoPluginForced aquí a propósito — el default
+# upstream respeta CSD y solo decora ventanas SSD/XWayland legacy que la
+# piden. Sombras/bordes: Breeze defaults (BorderSize=Normal) para SSD; las
+# CSD dibujan su propia sombra y KWin no la duplica. Foco: ClickToFocus
+# (paridad macOS: clic activa sin pasar eventos). Excepciones documentadas:
+# (a) XWayland legacy sin marco (xterm, Java vieja) recibe sombra+borde SSD
+# Breeze —querido, sin eso flotan sin ancla visual—; (b) Firefox con
+# MOZ_ENABLE_WAYLAND=1 trae CSD propia con botones a la derecha: no se
+# reubican (excepción a ButtonsOnLeft=XIA, que solo aplica a SSD Breeze);
+# (c) diálogos/utilidades (types=288) sin maximizar vía kwinrulesrc regla 5.
+[Compositing]
+AnimationSpeed=3
+Enabled=true
+GLCore=true
+
+[Effect-fade]
+FadeInTime=150
+FadeOutTime=150
+
+[Effect-glide]
+Duration=250
+
+[Effect-magiclamp]
+AnimationDuration=350
+
+[Effect-overview]
+BorderActivate=9
+
+[NightColor]
+Active=false
+
+[Plugins]
+blurEnabled=true
+fadeEnabled=true
+glideEnabled=true
+magiclampEnabled=true
+maximizeEnabled=true
+# R-MC-STOCK: Overview stock desactivado; Mission Control propio (nimbus-mc).
+overviewEnabled=false
+scaleEnabled=true
+squashEnabled=false
+translucencyEnabled=true
+# Atajos Nimbus vía KWin Script (F6/F7/F11; sin Ctrl nuevos).
+nimbus-spotlightEnabled=true
+nimbus-apps-toggleEnabled=true
+nimbus-tabsEnabled=true
+nimbus-mcEnabled=true
+nimbus-zoomEnabled=true
+nimbus-overviewEnabled=true
+liquidglassEnabled=true
+
+[Windows]
+BorderSize=Normal
+BorderlessMaximizedWindows=true
+FocusPolicy=ClickToFocus
+MoveResizeMaximizedWindows=true
+Placement=Centered
+TitlebarDoubleClickCommand=Maximize
+
+[org.kde.kdecoration2]
+ButtonsOnLeft=XIA
+ButtonsOnRight=
+library=org.kde.kwin.aurorae
+theme=__aurorae__svg__MacTahoeLiquidKde-Dark
+
+[Effect-liquidglass]
+BlurDecorations=false
+BlurMatching=false
+BlurNonMatching=true
+BlurStrength=5
+Brightness=1
+CenterOpacity=0.75
+Contrast=1
+DarkGradientOverlay=false
+DockCornerRadius=22
+HighlightStrength=0.0
+HighlightWidth=0.0
+MagnifyGlassStrength=0.08
+MaterialOpacity=1
+MaterialPreset=1
+NoiseStrength=1
+PopupCornerRadius=18
+RefractionWidth=18
+RgbDriftStrength=10
+Saturation=1.33
+WindowCornerRadius=16

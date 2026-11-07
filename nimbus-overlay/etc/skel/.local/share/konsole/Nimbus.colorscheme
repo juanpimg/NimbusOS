@@ -1,0 +1,71 @@
+# NimbusShell F10-T03 — esquema de color Nimbus (oscuro, arte propio).
+# Formato exacto de src/colorscheme/ColorScheme.cpp upstream: cada seccion
+# [Foreground]/[Background]/[Color0-7]/variantes Intense lleva "Color=R,G,B";
+# [General] lleva Description, Opacity (0..1) y Blur. Sin activos de Apple:
+# paleta propia derivada de los tokens dark del contrato Tahoe
+# (bg #1C1C1E, label #FFFFFF, accent #0A84FF).
+
+[General]
+Description=Nimbus
+Opacity=0.92
+Blur=true
+
+[Foreground]
+Color=240,240,244
+
+[Background]
+Color=28,28,30
+
+[Color0]
+Color=28,28,30
+
+[Color1]
+Color=255,69,58
+
+[Color2]
+Color=48,209,88
+
+[Color3]
+Color=255,159,10
+
+[Color4]
+Color=10,132,255
+
+[Color5]
+Color=191,90,242
+
+[Color6]
+Color=100,210,255
+
+[Color7]
+Color=235,235,245
+
+[ForegroundIntense]
+Color=255,255,255
+
+[BackgroundIntense]
+Color=44,44,46
+
+[Color0Intense]
+Color=99,99,102
+
+[Color1Intense]
+Color=255,105,97
+
+[Color2Intense]
+Color=85,230,120
+
+[Color3Intense]
+Color=255,179,64
+
+[Color4Intense]
+Color=64,156,255
+
+[Color5Intense]
+Color=204,128,255
+
+[Color6Intense]
+Color=125,220,255
+
+[Color7Intense]
+Color=255,255,255

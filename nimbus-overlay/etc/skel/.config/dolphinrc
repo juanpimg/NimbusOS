@@ -1,0 +1,54 @@
+# NimbusShell F10-T02 — Dolphin estilo Finder (macOS Tahoe).
+# Claves reales del kcfg upstream de Dolphin (invent.kde.org/system/dolphin):
+#   src/settings/dolphin_generalsettings.kcfg -> grupo [General]
+#     (Version, SortingChoice 0=NaturalSorting, GlobalViewProps, FilterBar,
+#      ShowStatusBar 0=Small, ShowZoomSlider, RememberOpenedTabs,
+#      ConfirmClosingMultipleTabs, RenameInline, ShowFullPathInTitlebar,
+#      ShowToolTips, EnlargeSmallPreviews, BrowseThroughArchives)
+#   src/settings/dolphin_directoryviewpropertysettings.kcfg -> [Dolphin]
+#     (ViewMode, PreviewsShown, SortRole, SortOrder, SortFoldersFirst,
+#      GroupedSorting) y [Settings] (HiddenFilesShown). OJO: el kcfg dice
+#     "icons (0), details (1) and column (2)", pero el binario 26.08.2 ya no
+#     trae columnas Miller: 2 renderiza la vista Compacta.
+# ConfirmTrash/ConfirmDelete/ConfirmEmptyTrash: claves leidas por el binario
+# de Dolphin (simbolos presentes en /usr/bin/dolphin); van en [General] como
+# el resto de booleanos. Sin confirmacion al enviar a papelera (Finder-like);
+# el borrado definitivo y vaciar papelera SI piden confirmacion.
+# Tamano inicial 1100x700 ([MainWindow] estandar KMainWindow).
+# Sidebar Lugares: visible por defecto en Dolphin, sin clave necesaria.
+# NOTA vista: con GlobalViewProps=true Dolphin NO lee [Dolphin] de dolphinrc;
+# los defaults globales viven en ~/.local/share/dolphin/view_properties/
+# global/.directory (ViewProperties::defaultProperties/destinationDir en
+# src/views/viewproperties.cpp upstream; probado en nested). Miller-columnas
+# (valor historico) YA NO EXISTE en Dolphin 26: el binario solo trae acciones
+# icons/compact/details (nm: iconsModeAction, compactModeAction,
+# detailsModeAction); ViewMode=2 renderiza la vista Compacta multicolumna
+# ("lists the folders and files in columns"), lo mas cercano al Finder.
+# Ver dotfiles/.local/share/dolphin/...
+
+[General]
+BrowseThroughArchives=false
+ConfirmClosingMultipleTabs=false
+ConfirmDelete=true
+ConfirmEmptyTrash=true
+ConfirmTrash=false
+EnlargeSmallPreviews=true
+FilterBar=false
+GlobalViewProps=true
+RememberOpenedTabs=true
+RenameInline=true
+ShowFullPathInTitlebar=false
+ShowStatusBar=0
+ShowToolTips=false
+ShowZoomSlider=false
+SortingChoice=0
+SplitView=false
+Version=202
+
+[Settings]
+HiddenFilesShown=false
+
+[MainWindow]
+Height=700
+MenuBar=Disabled
+Width=1100

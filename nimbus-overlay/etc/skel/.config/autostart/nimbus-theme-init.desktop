@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Nimbus Theme Init
+Comment=Aplica color/acento/fondo Nimbus al entrar (el timer lo mantiene)
+Exec=/usr/bin/env nimbus-theme auto
+OnlyShowIn=KDE;
+X-GNOME-Autostart-enabled=true

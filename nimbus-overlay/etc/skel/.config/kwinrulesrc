@@ -1,0 +1,93 @@
+# kwinrulesrc — reglas de ventana Nimbus (KWin 6.8, verificado).
+# Formato real (upstream kwin/rules.cpp + rulesettings.kcfg): [General]
+# count=N + rules=lista; por regla [N]: Description (D mayúscula),
+# wmclass+wmclassmatch (0=ignorar,1=exacta,2=subcadena,3=regex),
+# wmclasscomplete=false (solo resourceClass), types (bitmask 1<<WindowType:
+# Normal=1, Dialog=32, Utility=256), placement=Centered (PlacementPolicy=5)
+# +placementrule=2 (Force, solo aplica al mapear), size=W,H +sizerule=3
+# (Apply inicial: el usuario puede redimensionar), maximize*=false +rule=3
+# (abre sin maximizar; maximizar manual sigue funcionando, NO Force).
+# NO se tocan: position (centra placement), fullscreen (apps que lo piden lo
+# conservan), ignoregeometry (respeta sesión), fsplevel/acceptfocus
+# (defaults), decorationpolicy (CSD GTK3/4 y Electron intactas: F10-T06 —
+# KWin decora solo SSD/XWayland legacy que la pide; Firefox CSD conserva sus
+# botones a la derecha, excepción a semáforos XIA). Bar/Dock/
+# Spotlight son layer-shell (no Normal): ninguna regla les aplica.
+
+[General]
+count=5
+rules=1,2,3,4,5
+
+[1]
+Description=Nimbus: Dolphin 1100x700 centrada
+Enabled=true
+maximizehoriz=false
+maximizehorizrule=3
+maximizevert=false
+maximizevertrule=3
+placement=Centered
+placementrule=2
+size=1100,700
+sizerule=3
+types=1
+wmclass=dolphin
+wmclasscomplete=false
+wmclassmatch=2
+
+[2]
+Description=Nimbus: Kate 1100x700 centrada
+Enabled=true
+maximizehoriz=false
+maximizehorizrule=3
+maximizevert=false
+maximizevertrule=3
+placement=Centered
+placementrule=2
+size=1100,700
+sizerule=3
+types=1
+wmclass=kate
+wmclasscomplete=false
+wmclassmatch=2
+
+[3]
+Description=Nimbus: Konsole 1100x700 centrada
+Enabled=true
+maximizehoriz=false
+maximizehorizrule=3
+maximizevert=false
+maximizevertrule=3
+placement=Centered
+placementrule=2
+size=1100,700
+sizerule=3
+types=1
+wmclass=konsole
+wmclasscomplete=false
+wmclassmatch=2
+
+[4]
+Description=Nimbus: Ajustes 1100x700 centrados
+Enabled=true
+maximizehoriz=false
+maximizehorizrule=3
+maximizevert=false
+maximizevertrule=3
+placement=Centered
+placementrule=2
+size=1100,700
+sizerule=3
+types=1
+wmclass=systemsettings
+wmclasscomplete=false
+wmclassmatch=2
+
+[5]
+Description=Nimbus: dialogos y utilidades sin maximizar
+Enabled=true
+maximizehoriz=false
+maximizehorizrule=3
+maximizevert=false
+maximizevertrule=3
+types=288
+wmclassmatch=0

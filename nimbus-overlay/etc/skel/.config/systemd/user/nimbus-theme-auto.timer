@@ -1,0 +1,9 @@
+[Unit]
+Description=NimbusShell: temporizador de tema claro/oscuro automático (F3-T11)
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+
+[Install]
+WantedBy=default.target
