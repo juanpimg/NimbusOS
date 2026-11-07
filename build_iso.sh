@@ -83,6 +83,11 @@ MISSING=()
 for b in "${DEPS_BIN[@]}"; do
     command -v "$b" >/dev/null 2>&1 || MISSING+=("$b")
 done
+if [ "$PROFILE" = "plasma" ]; then
+    for b in cmake ninja pkg-config; do
+        command -v "$b" >/dev/null 2>&1 || MISSING+=("$b")
+    done
+fi
 # Paquetes arch (validacion nominal; en --check-only solo se informa):
 for p in archiso mkinitcpio-archiso squashfs-tools grub ovmf; do
     if command -v pacman >/dev/null 2>&1 && ! pacman -Q "$p" >/dev/null 2>&1; then
