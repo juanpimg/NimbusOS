@@ -3,6 +3,13 @@
 # SOURCE_DATE_EPOCH. No borrar secciones: cada Task anade la suya.)
 # =============================================================================
 
+# --- Perfil Plasma (2026-11-07) ----------------------------------------------
+# Capa de escritorio consumida por `build_iso.sh --profile plasma`.
+# NIMBUS_SHELL_REPO=https://github.com/juanpimg/NimbusShell
+# NIMBUS_SHELL_COMMIT=13b6bfba2bd04e720034291973b25c4553762b5a
+# NIMBUS_SHELL_TAG=
+# Subir este pin exige revalidar la ISO Plasma en VM (F12).
+
 # --- Task 1 (2026-10-23): macshell + theming ----------------------------------
 # Shell (MIT, 246 stars, push verificado 2026-10-23T02:26:59Z via GitHub API):
 #   repo:    https://github.com/0-ss/MacShell
