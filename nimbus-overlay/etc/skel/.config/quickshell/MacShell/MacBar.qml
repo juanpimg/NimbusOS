@@ -34,33 +34,33 @@
 // Test with: notify-send "Fitness" "Move goal achieved"
 //
 // Spotlight (the search icon) is built in and drawn in Liquid Glass. Bind it to a key with:
-//   bind = ALT, space, exec, qs -c macbar ipc call spotlight toggle
+//   bind = ALT, space, exec, qs -c MacShell ipc call spotlight toggle
 // Hyprland (Lua):
-//   hl.bind("ALT + Space", hl.dsp.exec_cmd("qs -c macbar ipc call spotlight toggle"))
+//   hl.bind("ALT + Space", hl.dsp.exec_cmd("qs -c MacShell ipc call spotlight toggle"))
 //   Reduced motion: set "reduceMotion": true in ~/.config/macbar/settings.json to turn off Spotlight's pop / stagger / slide animations.
 // Wallpapers: Ctrl+Alt+W opens the wallpaper picker (Liquid Glass). Bind it with:
-//   hl.bind("CTRL + ALT + W", hl.dsp.exec_cmd("qs -c macbar ipc call wallpapers toggle"))
-//   (hyprlang:  bind = CTRL ALT, W, exec, qs -c macbar ipc call wallpapers toggle)
+//   hl.bind("CTRL + ALT + W", hl.dsp.exec_cmd("qs -c MacShell ipc call wallpapers toggle"))
+//   (hyprlang:  bind = CTRL ALT, W, exec, qs -c MacShell ipc call wallpapers toggle)
 // Folder: ~/Pictures/Wallpapers by default (change it inside the picker, or "wallpaperDir" in settings.json).
 // Star a wallpaper to pin it to the top. Applied through Noctalia / awww / swww / hyprpaper, or your own "wallpaperCmd" ({} = image path).
 // Clipboard history + Emoji live inside Spotlight (the clipboard and smiley buttons next to the search field):
 //   needs wl-clipboard + cliphist (this shell starts the `wl-paste --watch cliphist store` watchers itself, unless you already run them).
-//   bind = SUPER, V, exec, qs -c macbar ipc call spotlight clipboard       # Clipboard history (replace any default SUPER+V bind)
-//   bind = SUPER, period, exec, qs -c macbar ipc call spotlight emoji      # Emoji picker
+//   bind = SUPER, V, exec, qs -c MacShell ipc call spotlight clipboard       # Clipboard history (replace any default SUPER+V bind)
+//   bind = SUPER, period, exec, qs -c MacShell ipc call spotlight emoji      # Emoji picker
 // Hyprland (Lua):
-//   hl.bind("SUPER + V", hl.dsp.exec_cmd("qs -c macbar ipc call spotlight clipboard"))
-//   hl.bind("SUPER + period", hl.dsp.exec_cmd("qs -c macbar ipc call spotlight emoji"))
+//   hl.bind("SUPER + V", hl.dsp.exec_cmd("qs -c MacShell ipc call spotlight clipboard"))
+//   hl.bind("SUPER + period", hl.dsp.exec_cmd("qs -c MacShell ipc call spotlight emoji"))
 //   (use the same `qs -c <name>` prefix you use for the Spotlight bind; `ipc call spotlight apps` opens the Applications panel)
 // Return pastes the entry into the focused app, Shift+Return only copies it, Delete removes it from the history.
 // Files runs filesCmd.
 //
 // Screenshots (Print key): the screen freezes and dims, drag to select an area (a size badge follows the pointer), release to capture.
 // Return/Space = whole screen, Esc or right-click = cancel. Where it is saved (and clipboard / notification) is in System Settings → Menu Bar.
-//   bind = , Print, exec, qs -c macbar ipc call screenshot region
-//   bind = SHIFT, Print, exec, qs -c macbar ipc call screenshot screen
-//   bind = ALT, Print, exec, qs -c macbar ipc call screenshot window
+//   bind = , Print, exec, qs -c MacShell ipc call screenshot region
+//   bind = SHIFT, Print, exec, qs -c MacShell ipc call screenshot screen
+//   bind = ALT, Print, exec, qs -c MacShell ipc call screenshot window
 // Hyprland (Lua):
-//   hl.bind("Print", hl.dsp.exec_cmd("qs -c macbar ipc call screenshot region"))
+//   hl.bind("Print", hl.dsp.exec_cmd("qs -c MacShell ipc call screenshot region"))
 // Optional (no fade on the picker):  layerrule = noanim, macshot   (Lua: hl.layer_rule({ name = "macshot", match = { namespace = "macshot" }, no_anim = true }))
 // Needs grim (and wl-clipboard for the clipboard copy).
 
@@ -98,6 +98,11 @@ Scope {
     property string ccStyle: "tiles"         // tiles = every control its own glass | macos = one frosted panel behind them
     property bool notificationsEnabled: true // banners + Notification Center (off = no D-Bus daemon at all, so mako/dunst can take over)
     property bool clockAppEnabled: true      // the Clock app (alarms and timers still ring while it is on)
+    // NimbusOS Ruling overlay-on: WindowBar (semáforos+título QML) encendido por
+    // defecto — era binding muerto (nadie lo declaraba y el overlay no aparecía
+    // nunca, 0 menciones en `qs log`). Fase 1: solo declarar; hyprbars sigue
+    // dibujando (si hay doble juego se ve en captura y se retira en fase 2).
+    property bool windowBar: true
     readonly property bool barLayerNeeded: barEnabled || spotlightEnabled || ccEnabled || notificationsEnabled
     property bool darkMode: true             // the resolved look (true = dark); follows appearanceMode
     property string appearanceMode: "dark"   // light | dark | auto (auto = light by day, dark by night)
@@ -348,7 +353,7 @@ Scope {
     readonly property bool gaming: gamingMode || gamingAutoActive
     property bool ccMigGame: false            // one-time: add the Game Mode tile to an existing Control Center layout
     property bool barGlass: true              // the bar strip itself is Liquid Glass (needs barStyle "liquid")
-    property real barBgOpacity: 0.45          // NimbusOS Ruling fidelidad-macos: 0.45 (era 0.10 upstream). Must stay above the layerrule's ignore_alpha (0.05) for Hyprland to blur it
+    property real barBgOpacity: 0.10 // Tahoe 1:1 & upstream default (0.10 > ignore_alpha 0.05)
     property bool glassRealtime: false        // live-capture every window all the time; off by default now that popovers refract a screen snapshot       // keep every window capture live all the time (no wallpaper-first delay when a popover opens)
     // Animated wallpaper inside the Liquid Glass (bar, Dock, widgets, Settings): OFF by default. Off = no video decoder exists at all and the
     // glass refracts a still frame of the wallpaper (the wallpaper itself still plays through mpvpaper). On = the glass plays a small
@@ -401,7 +406,7 @@ Scope {
     readonly property var settingKeys: ["barEnabled", "darkMode", "appearanceMode", "accent", "fontFamily", "barHeight", "uiScaleAuto", "uiScaleManual", "glassOpacity",
         "barStyle", "barGlass", "glassRim", "glassGrain", "glassLiquid", "glassBlur", "barBgOpacity", "glassRealtime", "liveWallGlass", "glassDebug", "wallpaperPath", "use24h", "language", "showDate",
         "showSeconds", "showBatteryPercent", "showTray", "showSearch",
-        "spotlightEnabled", "reduceMotion", "ccEnabled", "notificationsEnabled", "clockAppEnabled", "ccStyle", "barLogoMode", "barCustomLogoPath", "barWidgets", "weekStartsMonday", "terminal", "launcher",
+        "spotlightEnabled", "reduceMotion", "ccEnabled", "notificationsEnabled", "clockAppEnabled", "windowBar", "ccStyle", "barLogoMode", "barCustomLogoPath", "barWidgets", "weekStartsMonday", "terminal", "launcher",
         "filesCmd", "clipboardCmd", "appUsage", "clipHistory", "clipAutoPaste", "emojiRecent", "screenshotDir", "screenshotSave", "screenshotClipboard", "screenshotNotify", "nightTemp", "ccControls", "ccMigRec", "wallpaperDir", "wallpaperFavs", "wallpaperCmd", "wallpaperVideo", "wpRestorePath", "uiSounds", "gamingMode", "gamingAuto", "ccMigGame", "lockArtBackground",
         "lockClockStyle", "switcherStyle", "lockClockFont", "lockClockWeight", "lockClockMaterial", "lockClockIntensity", "lockClockTint", "lockClockDate", "autoContrast", "wallpaperAppearance", "wpPairLight", "wpPairDark",
         "notifDnd", "dnd", "nightOn", "keepAwake",
@@ -2348,13 +2353,14 @@ Scope {
     // brightness
     property real brightness: 0.5
     function refreshBrightness() { if (!brightProc.running) brightProc.running = true; }
+    // NimbusOS Ruling: filtrar clase backlight y silenciar OSD en sondeo pasivo para evitar OSD colgado en VM/desktop (M6). Propuesta aguas arriba.
     Process {
         id: brightProc
-        command: ["sh", "-c", "brightnessctl -m 2>/dev/null | head -n1"]
+        command: ["sh", "-c", "brightnessctl -c backlight -m 2>/dev/null | head -n1"]
         stdout: StdioCollector {
             onStreamFinished: {
                 var f = text.trim().split(",");
-                if (f.length >= 4) { var p = parseInt(f[3]); if (!isNaN(p)) root.brightness = p / 100; }
+                if (f.length >= 4) { var p = parseInt(f[3]); if (!isNaN(p) && Math.abs(root.brightness - p / 100) > 0.005) { root.osdQuiet("brightness", 200); root.brightness = p / 100; } }
             }
         }
     }
@@ -3636,7 +3642,9 @@ Scope {
                 if (!same) root.screenCovered = next;
                 if (!root.videoWall) return;
                 for (var k in next) if (next[k] !== (root.wallPaused[k] === true))
-                    Quickshell.execDetached([root.wallPauseScript, k, next[k] ? "pause" : "resume"]);
+                    // NimbusOS Ruling (scripts opcionales no vendoreados): guarda -x
+                    // como en wpRestore; sin el script no se genera spawn fallido.
+                    Quickshell.execDetached(["sh", "-c", '[ -x "$1" ] && exec "$1" "$2" "$3"', "sh", root.wallPauseScript, k, next[k] ? "pause" : "resume"]);
                 root.wallPaused = next;
             }
         }
@@ -3719,12 +3727,13 @@ Scope {
         onTriggered: {
             if (!root.settingsReady || root.gaming === root.gamingApplied) return;
             root.gamingApplied = root.gaming;
-            Quickshell.execDetached([root.gamingScript, root.gaming ? "on" : "off"]);
+            // NimbusOS Ruling: idem guarda -x (script opcional no vendoreado).
+            Quickshell.execDetached(["sh", "-c", '[ -x "$1" ] && exec "$1" "$2"', "sh", root.gamingScript, root.gaming ? "on" : "off"]);
             if (root.uiSounds) Quickshell.execDetached(["pw-play", "--volume=0.6", root.soundDir + "/tink.wav"]);
         }
     }
     // a crash while Game Mode was on leaves Hyprland without blur/animations: put them back at start
-    Timer { interval: 1500; running: true; onTriggered: { if (!root.gaming) Quickshell.execDetached([root.gamingScript, "off"]); else gamingApply.restart(); } }
+    Timer { interval: 1500; running: true; onTriggered: { if (!root.gaming) Quickshell.execDetached(["sh", "-c", '[ -x "$1" ] && exec "$1" "$2"', "sh", root.gamingScript, "off"]); else gamingApply.restart(); } }
     // Automatic: on while the focused window is a fullscreen game
     readonly property var gameClassRe: /^(steam_app_\d+|gamescope|org\.vinegarhq\.sober|sober|robloxplayer.*|minecraft.*|com\.mojang.*|lutris|heroic|.*\.exe|osu!?|cs2|dota2|hl2_linux|factorio|terraria.*|stardew.*)$/i
     Process {
@@ -3773,10 +3782,10 @@ Scope {
     }
     function resetSettings() {
         barEnabled = true;
-        darkMode = true; appearanceMode = "dark"; accent = "#0a84ff"; fontFamily = "Inter"; glassOpacity = 0.42; glassBlur = 5; barBgOpacity = 0.45; glassRealtime = false; liveWallGlass = false;
+        darkMode = true; appearanceMode = "dark"; accent = "#0a84ff"; fontFamily = "Inter"; glassOpacity = 0.42; glassBlur = 5; barBgOpacity = 0.10; glassRealtime = false; liveWallGlass = false;
         barStyle = "liquid"; use24h = true; showDate = true; showSeconds = false; showBatteryPercent = true;
         showTray = true; showSearch = true;
-        spotlightEnabled = true; ccEnabled = true; notificationsEnabled = true; clockAppEnabled = true; ccStyle = "tiles";
+        spotlightEnabled = true; ccEnabled = true; notificationsEnabled = true; clockAppEnabled = true; windowBar = true; ccStyle = "tiles";
         barLogoMode = "arch"; barCustomLogoPath = "";
         barWidgets = ["appleMenu", "appMenus", "workspaces", "volume", "keyboard", "notifications", "wifi", "bluetooth", "privacy", "controlCenter", "clock"];
         ccControls = ccDefault.slice();
@@ -4118,7 +4127,7 @@ Scope {
     }
 
     // ═════════════ WALLPAPER PICKER (CTRL + ALT + W) ═════════════
-    //   hl.bind("CTRL + ALT + W", hl.dsp.exec_cmd("qs -c macbar ipc call wallpapers toggle"))
+    //   hl.bind("CTRL + ALT + W", hl.dsp.exec_cmd("qs -c MacShell ipc call wallpapers toggle"))
     property string wallpaperDir: ""          // "" = ~/Pictures/Wallpapers
     property var wallpaperFavs: []            // favourite image paths, shown first
     property string wallpaperVideo: ""        // animated wallpaper (video) playing right now, "" = a still picture
@@ -4327,7 +4336,8 @@ Scope {
         // animated wallpapers go through macshell-setwall.sh (mpvpaper for videos); pictures are always set with awww below
         if (root.wpIsVideo(path)) {
             root.wallpaperVideo = path;
-            setwallProc.command = [root.setwallScript, path];
+            // NimbusOS Ruling: idem guarda -x (sin setwall no hay wallpaper animado).
+            setwallProc.command = ["sh", "-c", '[ -x "$1" ] && exec "$1" "$2"', "sh", root.setwallScript, path];
             setwallProc.running = true;
             return;
         }
@@ -4454,9 +4464,9 @@ Scope {
 
     // ═════════════ WINDOW SWITCHER (ALT + TAB) ═════════════
     // Hyprland binds (put these in hyprland.conf, and remove any existing ALT+TAB bind):
-    //   bind   = ALT, TAB, exec, qs -c macshell ipc call switcher next
-    //   bind   = ALT SHIFT, TAB, exec, qs -c macshell ipc call switcher prev
-    //   bindrt = ALT, Alt_L, exec, qs -c macshell ipc call switcher commit     # optional safety net: switch on ALT release
+    //   bind   = ALT, TAB, exec, qs -c MacShell ipc call switcher next
+    //   bind   = ALT SHIFT, TAB, exec, qs -c MacShell ipc call switcher prev
+    //   bindrt = ALT, Alt_L, exec, qs -c MacShell ipc call switcher commit     # optional safety net: switch on ALT release
     // (use the same `qs ...` prefix you use for the Spotlight bind). Hold ALT, tap TAB to cycle, release ALT to switch.
     // Layer namespace: "macswitch" (only needed for a blur layerrule if you are NOT using the Liquid Glass style).
     property real switcherBlur: 15           // blur of the switcher glass (smooth Gaussian; less than Spotlight / notifications)
@@ -8375,7 +8385,7 @@ Scope {
                         liquid: root.liquidActive
                         dark: root.effDark
                         bx: swPanel.x; by: swPanel.y
-                        cornerR: 26
+                        cornerR: 24
                         // frosted: the same glass with no refraction, a heavier blur and more tint
                         tint: swPanel.style === "frosted" ? Math.max(0.5, root.glassOpacity) : root.glassOpacity
                         thickness: swPanel.style === "frosted" ? 6 : 20
@@ -8392,14 +8402,14 @@ Scope {
                         z: 2
                         anchors.fill: parent
                         visible: swPanel.style !== "opaque"
-                        cornerR: 26
+                        cornerR: 24
                         dark: root.effDark
                         tint: root.menuBorderColor
                     }
                     Rectangle {
                         anchors.fill: parent
                         visible: swPanel.style === "opaque"
-                        radius: 26
+                        radius: 24
                         color: root.effDark ? "#232325" : "#F2F2F5"
                         border.width: 1; border.color: root.effDark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.10)
                         layer.enabled: true
@@ -8534,7 +8544,7 @@ Scope {
                         liquid: root.liquidActive
                         dark: root.effDark
                         bx: wpPanel.x; by: wpPanel.y
-                        cornerR: 28
+                        cornerR: 24
                         tint: root.glassOpacity
                         thickness: 22
                         strength: 0.75 * root.glassLiquid
@@ -8549,7 +8559,7 @@ Scope {
                     MenuBorder {
                         z: 2
                         anchors.fill: parent
-                        cornerR: 28
+                        cornerR: 24
                         dark: root.effDark
                         tint: root.menuBorderColor
                     }
@@ -9270,8 +9280,8 @@ Scope {
                         height: listTop + Math.min(items.length > 0 ? items.length : keep, maxRows) * 46 + pad
                         // expands / contracts downward only: the pill above never moves
                         Behavior on height { NumberAnimation { duration: root.reduceMotion ? 0 : 220; easing.type: Easing.OutCubic } }
-                        GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 30; strengthMul: 1.0; shadowAmt: 0.14 }
-                        MenuBorder { amount: 1; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
+                        GGlass { anchors.fill: parent; gx: spg; cornerR: 24; thickness: 30; strengthMul: 1.0; shadowAmt: 0.14 }
+                        MenuBorder { amount: 1; anchors.fill: parent; cornerR: 24; dark: root.panelDarkMode; tint: root.menuBorderColor }
                         Item {
                             x: 8; y: resPanel.listTop
                             width: parent.width - 16
@@ -9403,8 +9413,8 @@ Scope {
                             : (ui.spQuery.trim() === "" && !root.clipLoading ? "Copy some text or an image and it will show up here" : ""))
                         height: 64 + (items.length > 0 ? shown * rowH + 14 : 118)
                         Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                        GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 34; strengthMul: 1.0; shadowAmt: 0.22 }
-                        MenuBorder { amount: 1; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
+                        GGlass { anchors.fill: parent; gx: spg; cornerR: 24; thickness: 34; strengthMul: 1.0; shadowAmt: 0.22 }
+                        MenuBorder { amount: 1; anchors.fill: parent; cornerR: 24; dark: root.panelDarkMode; tint: root.menuBorderColor }
 
                         Item {
                             id: clipHeader
@@ -9686,8 +9696,8 @@ Scope {
                         readonly property var items: ui.spMode === "emoji" ? ui.spResults : []
                         readonly property var cur: items[Math.min(ui.spSel, items.length - 1)]
                         height: 64 + 42 + gridRows * cell + 46
-                        GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 34; strengthMul: 1.0; shadowAmt: 0.22 }
-                        MenuBorder { amount: 1; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
+                        GGlass { anchors.fill: parent; gx: spg; cornerR: 24; thickness: 34; strengthMul: 1.0; shadowAmt: 0.22 }
+                        MenuBorder { amount: 1; anchors.fill: parent; cornerR: 24; dark: root.panelDarkMode; tint: root.menuBorderColor }
 
                         Item {
                             x: 20
@@ -9852,8 +9862,8 @@ Scope {
                         Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                         width: spot.width
                         height: Math.min(64 + appsCol.height + 14, 520)
-                        GGlass { anchors.fill: parent; gx: spg; cornerR: 32; thickness: 34; strengthMul: 1.0; shadowAmt: 0.22 }
-                        MenuBorder { amount: 1; anchors.fill: parent; cornerR: 32; dark: root.panelDarkMode; tint: root.menuBorderColor }
+                        GGlass { anchors.fill: parent; gx: spg; cornerR: 24; thickness: 34; strengthMul: 1.0; shadowAmt: 0.22 }
+                        MenuBorder { amount: 1; anchors.fill: parent; cornerR: 24; dark: root.panelDarkMode; tint: root.menuBorderColor }
 
                         Item {
                             id: appsHeader

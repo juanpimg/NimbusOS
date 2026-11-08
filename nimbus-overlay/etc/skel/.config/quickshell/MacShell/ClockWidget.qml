@@ -50,7 +50,7 @@ Item {
     readonly property real u: Math.min(width, height) / 158
     readonly property real s: u
     // same corner radius as the Weather / Calendar widgets
-    readonly property real radiusPx: 28 * scaleF * (isSmall ? 168 / 158 : (isMedium ? 358 / 338 : 1))
+    readonly property real radiusPx: 24 * scaleF * (isSmall ? 168 / 158 : (isMedium ? 358 / 338 : 1))
 
     readonly property bool dark:
         style === "dark" || (style === "liquid" && darkGlass)

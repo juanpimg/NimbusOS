@@ -1,0 +1,25 @@
+# NimbusShell F10-T03 — aplicaciones por defecto (formato freedesktop).
+# Todo .desktop existe en el ISO salvo correo: NO hay cliente de correo
+# instalado (sin thunderbird/kmail/kontact/merkuro en /usr/share/applications)
+# -> sin default para mailto; fallback documentado: webmail en Firefox.
+# PDF: sin visor dedicado (sin okular/evince) -> Firefox (declara
+# application/pdf en su MimeType). Video: mpv (declara video/mp4).
+[Default Applications]
+x-scheme-handler/http=firefox.desktop
+x-scheme-handler/https=firefox.desktop
+text/html=firefox.desktop
+application/pdf=firefox.desktop
+image/jpeg=org.kde.gwenview.desktop
+image/png=org.kde.gwenview.desktop
+inode/directory=org.kde.dolphin.desktop
+video/mp4=mpv.desktop
+
+[Added Associations]
+x-scheme-handler/http=firefox.desktop;
+x-scheme-handler/https=firefox.desktop;
+text/html=firefox.desktop;
+application/pdf=firefox.desktop;
+image/jpeg=org.kde.gwenview.desktop;
+image/png=org.kde.gwenview.desktop;
+inode/directory=org.kde.dolphin.desktop;
+video/mp4=mpv.desktop;

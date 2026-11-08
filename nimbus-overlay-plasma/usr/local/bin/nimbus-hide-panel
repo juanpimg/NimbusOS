@@ -1,0 +1,109 @@
+#!/bin/bash
+# nimbus-hide-panel — oculta/auto-oculta el panel stock de Plasma cuando la
+# barra Nimbus ya está viva. Idempotente y re-ejecutable (autostart + manual).
+#
+# Por qué así:
+#  - KWin/Plasma 6.8 NO leen ~/.config/plasma/kwinrc; el panel vive en
+#    plasma-org.kde.plasma.desktop-appletsrc y se controla por scripting.
+#  - `evaluateScript` SOLO imprime lo que el script pasa a `print()`; una
+#    expresión final (forEach/undefined) devuelve vacío con exit 0 y parecía
+#    éxito aunque no se hubiera aplicado nada. Medido en la VM (Plasma 6.8.2):
+#    `print(panels().length)` -> 1 y `print(panels()[0].hiding)` -> autohide.
+#  - La propiedad real del panel es `hiding` (none|autohide|dodgewindows|
+#    windowsgobelow). `visibilityMode`/`visible` no son la API de scripting de
+#    Plasma 6 y por eso el panel seguía visible.
+#  - Si el shell aún no está listo (login lento, plasmashell reiniciándose),
+#    se reintenta hasta 30 s (NIMBUS_HIDE_PANEL_TIMEOUT) y se deja rastro en
+#    el log. El autostart es la red de seguridad: un fallo no aborta la sesión.
+#
+# PENDIENTE 6.8: eliminar el panel de forma permanente (`panel.remove()`); la
+# API lo expone, pero borraría configuración del usuario. Criterio de
+# aceptación: el panel queda no visible/auto-hide tras login.
+set -u
+
+LOG_DIR="${XDG_CACHE_HOME:-${HOME:-/tmp}/.cache}/nimbus"
+LOG="$LOG_DIR/hide-panel.log"
+if ! mkdir -p "$LOG_DIR" 2>/dev/null; then
+    LOG="/dev/null"
+fi
+
+log() { printf '%s nimbus-hide-panel: %s\n' "$(date -Is)" "$*" >>"$LOG" 2>/dev/null || true; }
+
+TIMEOUT="${NIMBUS_HIDE_PANEL_TIMEOUT:-30}"
+case "$TIMEOUT" in
+    ''|*[!0-9]*) TIMEOUT=30 ;;
+esac
+ATTEMPTS=$((TIMEOUT * 2))
+[ "$ATTEMPTS" -ge 1 ] || ATTEMPTS=1
+
+QDBUS=(qdbus6 org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell.evaluateScript)
+
+# Devuelve un entero no negativo o vacío (qdbus ausente, error o basura).
+eval_count() {
+    local out=""
+    out="$(timeout 5 "${QDBUS[@]}" 'print(panels().length);' 2>/dev/null || true)"
+    out="$(printf '%s' "$out" | tr -d '[:space:]')"
+    case "$out" in
+        ''|*[!0-9]*) printf '' ;;
+        *) printf '%s' "$out" ;;
+    esac
+}
+
+# Devuelve los modos de ocultado reales, p. ej. "autohide" o "none,autohide".
+eval_hiding() {
+    timeout 5 "${QDBUS[@]}" \
+        'print(panels().map(function(p){return p.hiding;}).join(","));' 2>/dev/null || true
+}
+
+i=0
+last=""
+while [ "$i" -lt "$ATTEMPTS" ]; do
+    i=$((i + 1))
+    count="$(eval_count)"
+    if [ -z "$count" ]; then
+        last="sin respuesta de plasmashell (qdbus/evaluateScript)"
+    elif [ "$count" -eq 0 ]; then
+        last="panels() vacío (plasmashell aún sin paneles)"
+    else
+        # `hiding` es la API real de Plasma 6; print() hace que qdbus devuelva
+        # el valor (sin print, evaluateScript imprime vacío con exit 0).
+        if out="$(timeout 5 "${QDBUS[@]}" \
+            'panels().forEach(function(p){ p.hiding = "autohide"; }); print(panels().length);' \
+            2>&1)"; then
+            out="$(printf '%s' "$out" | tr -d '[:space:]')"
+            case "$out" in
+                ''|*[!0-9]*) last="evaluateScript devolvió «$out» (se esperaba número)" ;;
+                *)
+                    hiding="$(eval_hiding | tr -d '[:space:]')"
+                    case "$hiding" in
+                        autohide|autohide,*|*,autohide|*,autohide,*)
+                            log "OK: $out panel(es) -> hiding=$hiding (intento $i/$ATTEMPTS)"
+                            exit 0
+                            ;;
+                        *)
+                            last="hiding real «${hiding:-vacío}» tras aplicar autohide"
+                            ;;
+                    esac
+                    ;;
+            esac
+        else
+            last="evaluateScript falló: $out"
+        fi
+    fi
+    # No inundar el log: primer intento y luego cada 10 (≈5 s).
+    if [ "$i" -eq 1 ] || [ $((i % 10)) -eq 0 ]; then
+        log "reintento $i/$ATTEMPTS: $last"
+    fi
+    sleep 0.5
+done
+
+case "$last" in
+    *"panels()"*|*"sin respuesta"*)
+        # Sin paneles o sin bus no hay nada que ocultar y no debe romper la
+        # sesión; queda registrado para la aceptación.
+        log "AVISO: sin panel que ocultar tras ${TIMEOUT}s ($last)"
+        exit 0
+        ;;
+esac
+log "ERROR: no se pudo ocultar el panel tras ${TIMEOUT}s ($last)"
+exit 1

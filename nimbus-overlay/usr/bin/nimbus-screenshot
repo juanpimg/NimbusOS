@@ -1,25 +1,49 @@
 #!/bin/sh
-# NimbusOS — nimbus-screenshot (Task fidelidad-macos, 2026-10-27)
-# Capturas estilo macOS (SUPER+SHIFT+3/4/5 en 10-shortcuts.conf y hyprland.lua):
-#   full   = pantalla completa (Shift+Cmd+3 del Mac)
-#   area   = seleccion con slurp (Shift+Cmd+4 del Mac)
-#   window = ventana activa (Shift+Cmd+5 del Mac -> captura de ventana)
-# Guarda en ~/Pictures/captura-YYYYMMDD-HHMMSS.png (el Mac guarda en Desktop;
-# aqui Pictures, que existe en el skel). Solo necesita grim (+ slurp para area,
-# hyprctl+python3 para window, patron de nimbus-minimize-toggle).
+# NimbusShell — nimbus-screenshot (capturas estilo Mac, grim+slurp).
+# Uso: nimbus-screenshot [full|area|window]   (defecto: full)
+#   full   = SUPER+SHIFT+3 pantalla completa (macOS: ⇧⌘3).
+#   area   = SUPER+SHIFT+4 seleccion con slurp (macOS: ⇧⌘4).
+#   window = SUPER+SHIFT+5 ventana activa (macOS: captura de ventana).
+# Destino: ${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshot-YYYYMMDD-HHMMSS.png.
+# Copia al portapapeles con wl-copy si esta disponible; avisa con notify-send
+# si esta disponible. Solo necesita grim (+slurp para area,
+# hyprctl+python3 para window). Falla en silencio si cancelas la seleccion.
 set -u
-MODE="${1:-full}"
-mkdir -p "$HOME/Pictures"
-OUT="$HOME/Pictures/captura-$(date +%Y%m%d-%H%M%S).png"
-case "$MODE" in
+mode="${1:-full}"
+case "$mode" in
+    full|area|window) ;;
+    *) echo "ERROR: uso: nimbus-screenshot [full|area|window] (recibido: $mode)" >&2; exit 2 ;;
+esac
+command -v grim >/dev/null 2>&1 || { echo "ERROR: falta grim (paquete grim del manifest); instala con ./install.sh" >&2; exit 1; }
+outdir="${XDG_PICTURES_DIR:-$HOME/Pictures}"
+mkdir -p "$outdir" 2>/dev/null || { echo "ERROR: no se pudo crear $outdir (revisa permisos/disco)" >&2; exit 1; }
+out="$outdir/Screenshot-$(date +%Y%m%d-%H%M%S).png"
+
+case "$mode" in
     full)
-        grim "$OUT"
+        grim "$out" || { echo "ERROR: grim no pudo capturar la pantalla" >&2; exit 1; }
         ;;
     area)
-        GEOM="$(slurp 2>/dev/null)" && [ -n "$GEOM" ] && grim -g "$GEOM" "$OUT"
+        command -v slurp >/dev/null 2>&1 || { echo "ERROR: falta slurp (paquete slurp del manifest); instala con ./install.sh" >&2; exit 1; }
+        geom="$(slurp 2>/dev/null)" || exit 0
+        [ -n "$geom" ] || exit 0
+        grim -g "$geom" "$out" || { echo "ERROR: grim no pudo capturar la seleccion" >&2; exit 1; }
         ;;
     window)
-        GEOM="$(hyprctl activewindow -j 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print("%d,%d %dx%d" % (d["at"][0], d["at"][1], d["size"][0], d["size"][1]))' 2>/dev/null)"
-        [ -n "$GEOM" ] && grim -g "$GEOM" "$OUT"
+        if command -v hyprctl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+            geom="$(hyprctl activewindow -j 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); a=d.get("at",[0,0]); s=d.get("size",[0,0]); print("%d,%d %dx%d" % (a[0],a[1],s[0],s[1])) if s[0]>0 and s[1]>0 else print("")' 2>/dev/null)"
+        else
+            geom=""
+        fi
+        if [ -n "${geom:-}" ]; then
+            grim -g "$geom" "$out" || { echo "ERROR: grim no pudo capturar la ventana activa" >&2; exit 1; }
+        else
+            grim "$out" || { echo "ERROR: grim no pudo capturar (sin geometria de ventana, fallback a full)" >&2; exit 1; }
+        fi
         ;;
 esac
+
+[ -f "$out" ] || { echo "ERROR: no se genero $out (disco lleno o grim interrumpido)" >&2; exit 1; }
+if command -v wl-copy >/dev/null 2>&1; then wl-copy < "$out" >/dev/null 2>&1 || true; fi
+if command -v notify-send >/dev/null 2>&1; then notify-send -a NimbusShell "Captura guardada" "$out" >/dev/null 2>&1 || true; fi
+echo "$out"

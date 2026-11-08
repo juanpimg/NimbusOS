@@ -1,0 +1,55 @@
+# NimbusShell F2-T05 — panel superior base (validado en Plasma anidado 2026-10-31).
+# Panel stock arriba (location=3) + reloj; altura 24pt declarada en plasmashellrc
+# [PlasmaViews][Panel] thickness=24 (el shell stock dibuja ~38px: ver evidencia).
+[ActionPlugins][0]
+RightButton;NoModifier=org.kde.contextmenu
+
+[ActionPlugins][1]
+RightButton;NoModifier=org.kde.contextmenu
+
+[Containments][1]
+activityId=
+formfactor=2
+immutability=1
+lastScreen=0
+location=3
+plugin=org.kde.panel
+thickness=24
+wallpaperplugin=org.kde.image
+
+[Containments][1][Applets][2]
+immutability=1
+plugin=org.kde.plasma.digitalclock
+
+[Containments][1][Applets][2][Configuration]
+popupHeight=400
+popupWidth=560
+
+[Containments][1][Applets][2][Configuration][Appearance]
+fontWeight=400
+
+# F3-T09: el servidor FDO org.freedesktop.Notifications lo provee este applet
+# (Notifications.Server QML en libnotificationmanager; sin applet no hay
+# popups). Provisional: el icono campana en el panel diverge de macOS
+# (sin icono en menu bar); lo resolverá la barra custom F3-T12. R-NOTIF-SERVER.
+[Containments][1][Applets][3]
+immutability=1
+plugin=org.kde.plasma.notifications
+
+[Containments][1][General]
+AppletOrder=2;3
+
+[Containments][3]
+ItemGeometries-1280x800=
+ItemGeometriesHorizontal=
+activityId=fcc7e978-0f0c-4953-bc86-11d6db5977c0
+formfactor=0
+immutability=1
+lastScreen=0
+location=0
+plugin=org.kde.plasma.folder
+wallpaperplugin=org.kde.image
+
+[ScreenMapping]
+itemsOnDisabledScreens=
+screenMapping=

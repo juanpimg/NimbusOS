@@ -22,6 +22,7 @@
 # no es root.
 set -u
 
+PROFILE="$(cat /etc/nimbus/profile 2>/dev/null || echo legacy-hypr)"
 PAMAC_CONF="${PAMAC_CONF:-/etc/pamac.conf}"
 AUR_MANIFEST="${AUR_MANIFEST:-/usr/share/nimbus/packages.nimbus-aur.txt}"
 LIVE_LOG="${LIVE_LOG:-/var/log/nimbus-live-setup.log}"
@@ -79,20 +80,32 @@ else
     log "AVISO: flatpak no instalado, salto flathub"
 fi
 
-# --- 3. power-profiles-daemon fuera (conflicto con auto-cpufreq) --------------
+# --- 3. Energía: Plasma usa PPD; Hyprland usa auto-cpufreq -------------------
 if command -v systemctl >/dev/null 2>&1; then
-    systemctl mask power-profiles-daemon.service >/dev/null 2>&1 \
-        && log "power-profiles-daemon enmascarado" \
-        || log "AVISO: no se pudo enmascarar power-profiles-daemon"
-    for unit in auto-cpufreq.service thermald.service bluetooth.service; do
-        if systemctl list-unit-files 2>/dev/null | grep -q "^${unit}"; then
-            systemctl enable "$unit" >/dev/null 2>&1 \
-                && log "$unit habilitado" \
-                || log "AVISO: no se pudo habilitar $unit"
-        else
-            log "AVISO: $unit no instalado, salto enable"
-        fi
-    done
+    if [ "$PROFILE" = "plasma" ]; then
+        for unit in power-profiles-daemon.service thermald.service bluetooth.service; do
+            if systemctl list-unit-files 2>/dev/null | grep -q "^${unit}"; then
+                systemctl enable "$unit" >/dev/null 2>&1 \
+                    && log "$unit habilitado" \
+                    || log "AVISO: no se pudo habilitar $unit"
+            else
+                log "AVISO: $unit no instalado, salto enable"
+            fi
+        done
+    else
+        systemctl mask power-profiles-daemon.service >/dev/null 2>&1 \
+            && log "power-profiles-daemon enmascarado" \
+            || log "AVISO: no se pudo enmascarar power-profiles-daemon"
+        for unit in auto-cpufreq.service thermald.service bluetooth.service; do
+            if systemctl list-unit-files 2>/dev/null | grep -q "^${unit}"; then
+                systemctl enable "$unit" >/dev/null 2>&1 \
+                    && log "$unit habilitado" \
+                    || log "AVISO: no se pudo habilitar $unit"
+            else
+                log "AVISO: $unit no instalado, salto enable"
+            fi
+        done
+    fi
 else
     log "AVISO: sin systemctl (chroot sin systemd?), salto servicios"
 fi

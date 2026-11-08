@@ -7,6 +7,12 @@
 -- (Ruling sesion-lua: ALT+TAB = switcher MacShell via qs ipc, UNA sola vez).
 -- Uso: desde `~/.config/hypr/hyprland.lua` -> `dofile(os.getenv("HOME") ..
 --   "/.config/hypr/macshell.lua")`. El instalador de Task 5 lo referencia.
+-- NOTA: NO cargar `~/.config/quickshell/MacShell/macshell.lua` (mismo nombre,
+--   resto del install.sh UPSTREAM de MacShell, no del nuestro): registra los
+--   mismos binds (SUPER+ESPACIO, ALT+TAB, SUPER+V, PRINT, SUPER+L, XF86* ->
+--   doble-disparo), trae `CTRL+ALT+W` (Ctrl prohibido), invoca
+--   `MacLock/enable-sleep-lock.sh` (inexistente: solo hay lock-via-ipc.sh) y
+--   exige `awww/playerctl/wpctl` (fuera del manifest). Este snippet lo sustituye.
 -- NOTA: no se bindea CTRL-* (Ctrl intacto). Sin bind de wallpapers con CTRL.
 -- =============================================================================
 

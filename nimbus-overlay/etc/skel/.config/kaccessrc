@@ -1,0 +1,19 @@
+# kaccessrc Nimbus (F11-T04) — defaults de accesibilidad.
+# Se despliega a ~/.config/kaccessrc (KWin/kaccess lo lee ahí, igual que
+# kwinrulesrc en esta misma raíz). Todo OFF salvo el aviso visible:
+# las features se activan con scripts/nimbus-a11y --apply <feature>
+# (o la página Accesibilidad del KCM, F8-T05), nunca a mano.
+[Keyboard]
+BounceKeys=false
+BounceKeysDelay=500
+SlowKeys=false
+SlowKeysDelay=500
+StickyKeys=false
+
+# Aviso visible (flash) además del sonoro: redundancia visual (contrato §2.5).
+[Bell]
+SystemBell=true
+VisibleBell=true
+
+[ScreenReader]
+Enabled=false

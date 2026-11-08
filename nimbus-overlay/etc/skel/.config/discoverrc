@@ -1,0 +1,9 @@
+# discoverrc — Discover simple (F9-T07).
+# Claves REALES verificadas contra el esquema de plasma-discover en Arch:
+#   [General] CompactMode (bool): vista compacta, menos texto tecnico.
+# Claves ASUMIDAS (verificar en VM con Discover abierto, PENDIENTE):
+#   [General] ShowUnattendedUpdates / FontsAsFlat? NO incluidas: no inventar.
+# Regla: solo CompactMode=true (segura e idempotente). El lenguaje llano lo
+# pone scripts/nimbus-updates, no Discover. No tocar mas sin evidencia VM.
+[General]
+CompactMode=true

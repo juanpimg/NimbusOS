@@ -9,7 +9,7 @@
 //
 // Settings stay where they were: ~/.config/macbar/settings.json and ~/.config/macdock/settings.json (+ pinned.json).
 // Layer namespaces are unchanged ("macbar" / "macdock"), so your existing layerrule / windowrule lines keep working.
-// The Spotlight IPC bind is unchanged:  qs -c macbar ipc call spotlight toggle
+// The Spotlight IPC bind is unchanged:  qs -c MacShell ipc call spotlight toggle
 //
 // What is shared now (this is where the memory saving comes from):
 //   * one Quickshell / Qt process instead of two,
@@ -41,6 +41,7 @@ ShellRoot {
         property var widgets: macWidgets
         property var clock: clockApp
         property var about: aboutApp
+        property var minimizeFx: minimizeFx
         function openSettings(pane) { macDock.openPrefs(pane); }
 
         // set by MacBar / MacDock (Binding elements) when their glass needs live data
@@ -310,17 +311,28 @@ ShellRoot {
     MacBar { id: macBar; hub: sharedHub }
     MacDock { id: macDock; hub: sharedHub; bar: macBar }
     MacWidgets { id: macWidgets; hub: sharedHub }
-    ClockApp { id: clockApp; hub: sharedHub }
+    // NimbusOS Ruling: el ajuste clockAppEnabled (Settings) gobierna la app;
+    // components.json manual con clockEnabled gana si existe (override aparte,
+    // sin asignar a appEnabled para no romper este binding).
+    ClockApp { id: clockApp; hub: sharedHub; appEnabled: clockApp.manualOverride ? clockApp.manualVal : macBar.clockAppEnabled }
     AboutApp { id: aboutApp; hub: sharedHub }
+    // NimbusOS Ruling overlay-on: WindowBar.qml era código huérfano (ningún
+    // fichero lo instanciaba: 0 menciones en `qs log`, overlay imposible).
+    // Se instancia con el hub compartido; su `enabled` interno (MacBar
+    // windowBar:true) gobierna si aparece. Sin esto, los fixes de semáforos
+    // no tienen efecto observable (lección M1 2026-10-28).
+    WindowBar { id: windowBarItem; hub: sharedHub }
+    MinimizeFx { id: minimizeFx; hub: sharedHub }
 
     Component.onCompleted: {
         sharedHub.bar = macBar;
         sharedHub.dock = macDock;
         sharedHub.widgets = macWidgets;
+        sharedHub.minimizeFx = minimizeFx;
     }
 
     // reopen settings even when both the Dock and the Menu Bar are disabled:
-    //   qs -c macbar ipc call settings open
+    //   qs -c MacShell ipc call settings open
     IpcHandler {
         target: "settings"
         function open(): void { macDock.openPrefs("general"); }
@@ -362,5 +374,33 @@ ShellRoot {
     IpcHandler {
         target: "glass"
         function captures(on: bool): void { macDock.windowCapture = on; }
+    }
+    // qs -c MacShell ipc call window minimize
+    IpcHandler {
+        target: "window"
+        function minimize(): void {
+            if (windowBarItem && typeof windowBarItem.minimize === "function") {
+                windowBarItem.minimize();
+            }
+        }
+    }
+    // qs -c MacShell ipc call dock restoreFirst | activate <key>
+    IpcHandler {
+        target: "dock"
+        function restoreFirst(): void {
+            if (macDock && macDock.items) {
+                for (var i = 0; i < macDock.items.length; i++) {
+                    if (macDock.items[i].kind === "win") {
+                        macDock.activate(macDock.items[i], false);
+                        return;
+                    }
+                }
+            }
+        }
+        function activate(key: string): void {
+            if (macDock && macDock.itemMap && macDock.itemMap[key]) {
+                macDock.activate(macDock.itemMap[key], false);
+            }
+        }
     }
 }

@@ -1,0 +1,25 @@
+[Fonts]
+fixed=JetBrains Mono,11,-1,5,50,0,0,0,0,0
+font=Inter,11,-1,5,50,0,0,0,0,0
+menuFont=Inter,10,-1,5,50,0,0,0,0,0
+smallestReadableFont=Inter,8,-1,5,50,0,0,0,0,0
+titleFont=Inter,12,-1,5,75,0,0,0,0,0
+toolBarFont=Inter,10,-1,5,50,0,0,0,0,0
+
+[General]
+ColorScheme=NimbusTahoe
+Name=NimbusTahoe
+cursorSize=24
+cursorTheme=breeze_cursors
+
+[Icons]
+Theme=breeze
+
+[KDE]
+LookAndFeelPackage=org.kde.breezedark.desktop
+SingleClick=false
+
+[Sounds]
+# Sin assets de audio propios todavía: no anunciar un tema inexistente.
+Enable=false
+Theme=Nimbus

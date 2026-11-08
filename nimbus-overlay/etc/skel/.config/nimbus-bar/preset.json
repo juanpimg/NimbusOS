@@ -1,0 +1,40 @@
+{
+  "schema": "nimbus-bar-preset/1",
+  "name": "default",
+  "description": "Preset canónico: barra 24pt (contrato §3 [HIG]), todos los extras visibles.",
+  "bar": {
+    "height": 24,
+    "marginLeft": 12,
+    "marginRight": 12,
+    "spacingLeft": 8,
+    "spacingRight": 12,
+    "bgAlpha": 0.18,
+    "hairlineAlpha": 0.25
+  },
+  "clock": {
+    "format": "ddd d MMM HH:mm"
+  },
+  "icons": {
+    "order": [
+      "wifi",
+      "bluetooth",
+      "controlcenter",
+      "battery",
+      "tray",
+      "clock"
+    ],
+    "hidden": []
+  },
+  "osd": {
+    "width": 280,
+    "height": 56,
+    "timeoutMs": 1500
+  },
+  "glass": {
+    "tint": "dark",
+    "blurPxEq": [
+      15,
+      25
+    ]
+  }
+}

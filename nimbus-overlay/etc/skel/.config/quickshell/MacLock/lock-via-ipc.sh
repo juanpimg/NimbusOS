@@ -12,4 +12,5 @@
 if pgrep -x hyprlock >/dev/null 2>&1; then
     exit 0
 fi
+command -v hyprlock >/dev/null 2>&1 || { echo "lock-via-ipc: falta hyprlock (paquete hyprlock del manifest); instala con ./install.sh" >&2; exit 1; }
 exec hyprlock

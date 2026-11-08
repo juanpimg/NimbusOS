@@ -1,0 +1,8 @@
+[Daemon]
+Autolock=true
+LockOnResume=true
+LockOnStart=false
+Timeout=300
+
+[Greeter]
+Theme=org.nimbus.desktop

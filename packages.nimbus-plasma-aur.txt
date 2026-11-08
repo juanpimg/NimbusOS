@@ -1,0 +1,8 @@
+whitesur-gtk-theme
+whitesur-icon-theme
+pamac-aur
+# libpamac-aur entra como dependencia de pamac-aur.
+# hyprshell / hyprland-plugin-hyprbars quedan fuera del perfil Plasma.
+
+# Dock Krema (perfil Plasma)
+krema

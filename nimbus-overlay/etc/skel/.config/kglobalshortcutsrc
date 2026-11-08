@@ -1,0 +1,44 @@
+[KDE Keyboard Layout Switcher]
+Switch to Next Keyboard Layout=none,none,libera Meta+Espacio para KRunner
+
+[ksmserver]
+Lock Session=Meta+Ctrl+Q,Meta+Ctrl+Q,bloquear sesión (≈Cmd+Ctrl+Q macOS; única excepción Ctrl documentada F10-T04)
+
+[kwin]
+Expose=Meta+E,Meta+E,Exposé del escritorio actual
+Overview=none,none,Mission Control Nimbus (Meta+W via nimbus-mc; stock off, R-MC-STOCK)
+Show Desktop=Meta+D,Meta+D,mostrar escritorio
+Switch One Desktop Down=Meta+Ctrl+Down,Meta+Ctrl+Down,Space inferior (Ctrl permitido)
+Switch One Desktop Up=Meta+Ctrl+Up,Meta+Ctrl+Up,Space superior (Ctrl permitido)
+Switch One Desktop to the Left=Meta+Ctrl+Left,Meta+Ctrl+Left,Space anterior (Ctrl permitido: Spaces Ctrl+flechas)
+Switch One Desktop to the Right=Meta+Ctrl+Right,Meta+Ctrl+Right,Space siguiente (Ctrl permitido)
+Walk Through Windows=Alt+Tab\tMeta+Tab,Alt+Tab\tMeta+Tab,cambiar de app (Cmd+Tab; se conserva Alt+Tab como alias)
+Walk Through Windows (Reverse)=Alt+Shift+Tab\tMeta+Shift+Tab,Alt+Shift+Tab\tMeta+Shift+Tab,cambiar de app hacia atrás
+Walk Through Windows of Current Application=Alt+`\tMeta+`,Alt+`\tMeta+`,ciclo de ventanas de la app (Cmd+`)
+Window Close=Meta+Q,Meta+Q,cerrar ventana (Cmd+Q)
+Window Fullscreen=none,none,delegado al script Nimbus Fullscreen Meta+F (F4-T04)
+Window Maximize=none,none,maximizar con doble-clic (kwinrc); Meta+M es minimizar
+Window Minimize=Meta+M\tMeta+H,Meta+M\tMeta+H,minimizar/ocultar (Cmd+M/Cmd+H; KDE sin hide-app: alias a minimizar)
+Window One Desktop Down=Meta+Alt+Shift+Down,Meta+Alt+Shift+Down,mover ventana al Space inferior
+Window One Desktop Up=Meta+Alt+Shift+Up,Meta+Alt+Shift+Up,mover ventana al Space superior
+Window One Desktop to the Left=Meta+Alt+Shift+Left,Meta+Alt+Shift+Left,mover ventana al Space izquierdo
+Window One Desktop to the Right=Meta+Alt+Shift+Right,Meta+Alt+Shift+Right,mover ventana al Space derecho
+Window Quick Tile Bottom=Meta+Down,Meta+Down,ventana abajo
+Window Quick Tile Left=Meta+Left,Meta+Left,media ventana a la izquierda (Cmd+flecha)
+Window Quick Tile Right=Meta+Right,Meta+Right,media ventana a la derecha
+Window Quick Tile Top=Meta+Up,Meta+Up,ventana arriba (borde sup.=maximizar)
+
+[plasmashell]
+activate task manager entry 1=none,none,reservado Apps/Spotlight F6-T04 (Cmd+1)
+activate task manager entry 2=none,none,reservado Apps/Spotlight F6-T04 (Cmd+2)
+activate task manager entry 3=none,none,reservado Apps/Spotlight F6-T04 (Cmd+3)
+activate task manager entry 4=none,none,reservado Apps/Spotlight F6-T04 (Cmd+4)
+
+[services][org.kde.krunner.desktop]
+RunClipboard=Meta+Alt+Space,Meta+Alt+Space,historial del portapapeles (Opt+Cmd+Espacio)
+_launch=none,none,reservado Spotlight Nimbus (Cmd+Espacio; F6-T01)
+
+[services][org.kde.spectacle.desktop]
+ActiveWindowScreenShot=Meta+Shift+5,Meta+Shift+5,ventana activa (≈Cmd+Shift+5)
+FullScreenScreenShot=Meta+Shift+3,Meta+Shift+3,captura de pantalla (Cmd+Shift+3)
+RectangularRegionScreenShot=Meta+Shift+4,Meta+Shift+4,captura de región (Cmd+Shift+4)

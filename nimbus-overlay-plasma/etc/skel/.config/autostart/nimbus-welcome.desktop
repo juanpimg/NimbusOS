@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Nimbus Welcome
+Comment=Asistente de primer arranque (se autodesactiva al completarlo)
+Exec=/usr/local/bin/nimbus-welcome
+OnlyShowIn=KDE;
+X-GNOME-Autostart-enabled=true

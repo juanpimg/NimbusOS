@@ -1,7 +1,7 @@
 -- =============================================================================
 -- NimbusOS — hyprland.lua (sesion canonica Lua, Hyprland >= 0.55)
 -- Equivalente 1:1 de hyprland.conf + 10-shortcuts.conf en Lua (API hl.*).
--- Requiere: Hyprland >= 0.55, Quickshell >= 0.3.2, Qt 6.8+.
+-- Requiere: Hyprland >= 0.56, Quickshell >= 0.3.2, Qt 6.8+.
 -- Upstream shell: https://github.com/0-ss/MacShell (main @ 2026-10-23, MIT).
 -- Reglas globales: todo flotante, sin atajos con la tecla Control,
 --   Alt+Tab=switcher MacShell, esquinas 10px, blur Dual-Kawase.
@@ -10,7 +10,7 @@
 -- PRECEDENCIA (Hyprland 0.56.2, verificada con HOME temporal + --verify-config):
 --   si ~/.config/hypr/hyprland.lua existe, Hyprland lo usa e IGNORA
 --   hyprland.conf ("Using lua config found at ..."). Sin .lua usa el .conf
---   legacy (avisa: soporte .conf se elimina en Hyprland 0.57). El .conf queda
+--   legacy (avisa: hyprlang en desuso desde 0.55 a favor de Lua). El .conf queda
 --   como fallback: NO borrar (ver Ruling en el commit).
 -- RULING ALT+TAB p2-final (2026-10-26): UNA sola definicion en ambas
 --   sesiones (.conf + Lua -> `qs -c MacShell ipc call switcher next`).
@@ -38,10 +38,11 @@ hl.monitor({
 
 -- --- Entorno -----------------------------------------------------------------
 -- (mismos valores que hyprland.conf; QS_ICON_THEME debe coincidir con
--- macshell/env — lo comprueba verify-macshell.sh).
+-- macshell/env — lo comprueban install.sh --check y el paso [8/8]).
 hl.env("XDG_CURRENT_DESKTOP", "Hyprland")
 hl.env("XDG_SESSION_TYPE", "wayland")
 hl.env("QT_QPA_PLATFORM", "wayland")
+hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
 -- Task menu-tienda: el modulo GTK exporta el menu por D-Bus (com.canonical.AppMenu).
 hl.env("GTK_MODULES", "appmenu-gtk-module")
 hl.env("QS_ICON_THEME", "WhiteSur")
@@ -140,9 +141,9 @@ hl.window_rule({ name = "nimbus-size-all",   match = { class = ".*" }, size   = 
 --     initialTitle/initialClass (verificado con zenity en Hyprland 0.56.2).
 hl.window_rule({ name = "nimbus-dialog-portal", match = { class = "^(org\\.freedesktop\\.impl\\.portal\\.desktop\\.(gtk|hyprland)|[Xx]dg-desktop-portal-gtk)$" }, size = "700 500" })
 hl.window_rule({ name = "nimbus-dialog-modal",  match = { modal = true }, size = "700 500" })
-hl.window_rule({ name = "nimbus-dialog-titles", match = { title = "^([Oo]pen|[Ss]ave|[Cc]hoose|[Ss]elect|[Aa]brir|[Gg]uardar|[Ee]legir|[Ss]eleccionar|[Aa]utenticaci|[Aa]uthentication).*" }, size = "700 500" })
+hl.window_rule({ name = "nimbus-dialog-titles", match = { title = "^([Oo]pen|[Ss]ave|[Cc]hoose|[Ss]elect|[Ee]xport|[Ii]mport|[Uu]pload|[Aa]ttach|[Aa]brir|[Gg]uardar|[Ee]legir|[Ss]eleccionar|[Ee]xportar|[Ii]mportar|[Aa]djuntar|[Ss]ubir|[Aa]utenticaci|[Aa]uthentication).*" }, size = "700 500" })
 
--- --- Decoracion macOS: esquinas 12-14px, sombras suaves, blur ----------------
+-- --- Decoracion macOS: esquinas 10px, sombras suaves, blur ----------------
 hl.config({
     decoration = {
         rounding         = 10,   -- NimbusOS Ruling fidelidad-macos: 10 (era 13), radio Mac
@@ -199,29 +200,22 @@ hl.config({
         hyprbars = {
             bar_height            = 28,
             bar_buttons_alignment = "left",
-            bar_title_enabled     = true,
+            -- Overlay WindowBar ON (MacBar windowBar:true): el overlay QML
+            -- dibuja semaforos 12px + titulo; hyprbars aporta SOLO la tira.
+            -- LECCION 2026-10-28: `hyprctl reload` PIERDE los add_button
+            -- (solo viven en el arranque); cambios hyprbars exigen reinicio
+            -- completo, nunca reload. `hyprctl keyword` no existe en sesion
+            -- Lua (non-legacy parser): solo fichero + reinicio.
+            bar_title_enabled     = false,
             bar_text_size         = 11,
             bar_text_font         = "Inter",
             bar_padding           = 15,
             bar_button_padding    = 8,
-            -- Task botones-nativos: paridad con los semaforos NATIVOS de
-            -- MacShell (AboutApp.qml:178, ClockApp.qml:398, Installer.qml:157,
-            -- MacDock.qml:1064-1067: circulos 14px en Row scale 0.93 (~13px
-            -- efectivos), spacing 8, luces en x15-17, colores exactos
-            -- #FF5F57/#FEBC2E/#28C840, glifo al hover en negro 58%).
-            -- hyprbars dibuja el icono con fuente "sans" fija a size*0.62 y
-            -- color fg (barDeco.cpp, dibujado de botones): con icon_on_hover
-            -- (bool real, main.cpp:233) el glifo sale SOLO al hover, como en
-            -- macOS. `buttons_on_hover` NO existe en la API 0.56.2 (grep en
-            -- el fuente: 0 resultados): NO usarlo. bar_blur acerca la barra
-            -- al cristal esmerilado nativo (bg alfa .97 sobre blur); el
-            -- tinte exacto por-tema es imposible (un solo bar_color estatico
-            -- en la API: se deja el defecto). inactive_button_color gris ~=
-            -- apagado nativo (AboutApp pal.lightOff: dark rgba(1,1,1,0.2) /
-            -- light rgba(0,0,0,0.15); Apple systemGray #8E8E93).
-            icon_on_hover         = true,
-            bar_blur              = true,
-            inactive_button_color = "rgb(8E8E93)",
+            -- Sin botones hyprbars (los dibuja el overlay WindowBar 12px +
+            -- glifo al hover + titulo): la tira aporta fondo+blur+arrastre.
+            -- bar_blur esmerila la tira; el tinte exacto por-tema es imposible
+            -- (un solo bar_color estatico en la API: se deja el defecto).
+            bar_blur              = true, -- tira esmerilada (el overlay dibuja encima)
             -- Task barra-resize: MOVER con la barra = nativo, sin opcion que
             -- activar. Upstream barDeco.cpp: pulsar dentro de la barra arma
             -- drag-pending (handleDownEvent, lineas 212-246) y mover el raton
@@ -254,21 +248,11 @@ hl.config({
         },
     },
 })
--- Rojo cerrar / amarillo minimizar a special:minimized (RESTAURA con SUPER+M
--- o click en el Dock: ver binds abajo y nimbus-minimize-toggle) / verde
--- ZOOM macOS = maximizar (mode="maximized": ocupa el escritorio sin tapar
--- barra/dock; P1 2026-10-26: antes era fullscreen real). Pantalla completa
--- real queda SOLO en SUPER+F (ver binds workflow-mac).
--- Task botones-nativos: los 3 botones llevan glifo ×/−/+ (fg negro 58% ~=
--- Canvas nativo rgba(0,0,0,0.58)) que hyprbars muestra SOLO al hover
--- (icon_on_hover arriba), como los nativos. El verde usa "+" (zoom clasico
--- macOS) en vez del "↗" nativo: hyprbars renderiza el icono con fuente
--- "sans" fija (barDeco.cpp) y U+2197 puede faltar en el fallback, mientras
--- ×/−/+ tienen cobertura universal. Amarillo CORREGIDO a FEBC2E (era
--- FEBE2E transpuesto; el nativo es #FEBC2E en los 5 QML).
-hl.plugin.hyprbars.add_button({ bg_color = "rgb(FF5F57)", fg_color = "rgba(00000094)", size = 12, icon = "×", action = [[hyprctl dispatch 'hl.dsp.window.close()']] })
-hl.plugin.hyprbars.add_button({ bg_color = "rgb(FEBC2E)", fg_color = "rgba(00000094)", size = 12, icon = "−", action = [[hyprctl dispatch 'hl.dsp.window.move({ workspace = "special:minimized", follow = false })']] })
-hl.plugin.hyprbars.add_button({ bg_color = "rgb(28C840)", fg_color = "rgba(00000094)", size = 12, icon = "+", action = [[hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = "maximized", action = "toggle" })']] })
+-- Semaforos (overlay WindowBar): rojo=cerrar, amarillo=minimizar a
+-- special:minimized (RESTAURA con SUPER+M o click en el Dock), verde=ZOOM
+-- macOS = maximizar sin tapar barra/dock. Pantalla completa real SOLO en
+-- SUPER+F. Acciones en WindowBar.qml close()/minimize()/zoom().
+-- (sin add_button: los dibuja el overlay WindowBar; ver nota arriba)
 
 -- Sin doble barra en apps con CSD propio bueno (headerbar/tabs nativos):
 -- Nautilus (GTK4 headerbar) y Firefox (tabs en la barra de titulo).
@@ -320,12 +304,14 @@ hl.window_rule({ name = "nimbus-hyprbars-no-bar-macshell-titles", match = { titl
 hl.curve("nimbus",    { type = "bezier", points = { { 0.25, 0.1 }, { 0.25, 1 } } })
 hl.curve("nimbusOut", { type = "bezier", points = { { 0.4, 0.0 },  { 0.2, 1 } } })
 
-hl.animation({ leaf = "windows",     enabled = true, speed = 5, bezier = "nimbus",    style = "slide" })
-hl.animation({ leaf = "windowsIn",   enabled = true, speed = 5, bezier = "nimbus",    style = "slide" })
-hl.animation({ leaf = "windowsOut",  enabled = true, speed = 4, bezier = "nimbusOut", style = "slide" })
-hl.animation({ leaf = "fade",        enabled = true, speed = 5, bezier = "nimbus" })
-hl.animation({ leaf = "workspaces",  enabled = true, speed = 5, bezier = "nimbus",    style = "slide" })
-hl.animation({ leaf = "layers",      enabled = true, speed = 4, bezier = "nimbus",    style = "fade" })
+hl.animation({ leaf = "windows",          enabled = true, speed = 5, bezier = "nimbus",    style = "slide" })
+hl.animation({ leaf = "windowsIn",        enabled = true, speed = 5, bezier = "nimbus",    style = "slide" })
+hl.animation({ leaf = "windowsOut",       enabled = true, speed = 4, bezier = "nimbusOut", style = "slide" })
+hl.animation({ leaf = "windowsMove",      enabled = true, speed = 4, bezier = "nimbus",    style = "slide" })
+hl.animation({ leaf = "fade",             enabled = true, speed = 5, bezier = "nimbus" })
+hl.animation({ leaf = "workspaces",       enabled = true, speed = 5, bezier = "nimbus",    style = "slide" })
+hl.animation({ leaf = "specialWorkspace", enabled = true, speed = 4, bezier = "nimbus",    style = "slidevert" })
+hl.animation({ leaf = "layers",           enabled = true, speed = 4, bezier = "nimbus",    style = "fade" })
 
 -- --- Misc --------------------------------------------------------------------
 hl.config({
@@ -387,12 +373,12 @@ hl.bind("SUPER + T", hl.dsp.exec_cmd("kitty"))
 
 -- Task ui-flows: teclas hardware (volumen/brillo) -> OSD interno de MacBar.
 -- Sin swayosd/avizo (duplicarian el OSD). `repeating` = repite al mantener.
-hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd(qs .. "hardware volumeUp"), { repeating = true })
-hl.bind("XF86AudioLowerVolume",  hl.dsp.exec_cmd(qs .. "hardware volumeDown"), { repeating = true })
-hl.bind("XF86AudioMute",         hl.dsp.exec_cmd(qs .. "hardware mute"))
-hl.bind("XF86AudioMicMute",      hl.dsp.exec_cmd(qs .. "hardware micMute"))
-hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(qs .. "hardware brightnessUp"), { repeating = true })
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(qs .. "hardware brightnessDown"), { repeating = true })
+hl.bind("XF86AudioRaiseVolume",  hl.dsp.exec_cmd(qs .. "hardware volumeUp"), { repeating = true, locked = true })
+hl.bind("XF86AudioLowerVolume",  hl.dsp.exec_cmd(qs .. "hardware volumeDown"), { repeating = true, locked = true })
+hl.bind("XF86AudioMute",         hl.dsp.exec_cmd(qs .. "hardware mute"), { locked = true })
+hl.bind("XF86AudioMicMute",      hl.dsp.exec_cmd(qs .. "hardware micMute"), { locked = true })
+hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd(qs .. "hardware brightnessUp"), { repeating = true, locked = true })
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(qs .. "hardware brightnessDown"), { repeating = true, locked = true })
 
 -- Task workflow-mac: Spaces / Mission Control / zoom+fullscreen.
 -- Sin atajos con Control (macOS usa Control+flechas; aqui SUPER+LEFT/RIGHT).

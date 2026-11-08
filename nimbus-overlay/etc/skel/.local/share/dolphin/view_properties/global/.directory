@@ -1,0 +1,26 @@
+# NimbusShell F10-T02 — defaults GLOBALES de vista Dolphin (estilo Finder).
+# Con GlobalViewProps=true Dolphin lee estos defaults de
+# ~/.local/share/dolphin/view_properties/global/.directory, NO de dolphinrc
+# ([Dolphin] ahi se ignora — verificado en nested). Formato y claves del kcfg
+# upstream src/settings/dolphin_directoryviewpropertysettings.kcfg:
+# ViewMode 2=columnas (Finder), PreviewsShown, SortRole=text, SortOrder
+# 0=ascendente, SortFoldersFirst; Version=4 evita la migracion
+# (CurrentViewPropertiesVersion en src/views/viewproperties.cpp).
+
+# NOTA Timestamp: Dolphin 26 descarta props sin Timestamp (probado en nested:
+# sin Timestamp ignora ViewMode venga de .directory, global o xattr; con
+# Timestamp presente las aplica; ViewPropsTimestamp de dolphinrc no es
+# necesario). Valor estatico: Dolphin lo refresca al cambiar el usuario.
+
+[Dolphin]
+GroupedSorting=false
+PreviewsShown=true
+SortFoldersFirst=true
+SortOrder=0
+SortRole=text
+Timestamp=2026,10,31,12,0,0
+Version=4
+ViewMode=2
+
+[Settings]
+HiddenFilesShown=false

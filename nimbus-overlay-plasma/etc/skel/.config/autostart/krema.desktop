@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Krema Dock
+Comment=Dock Nimbus (Krema 0.12 pinneado, tema propio)
+Exec=/usr/bin/krema
+OnlyShowIn=KDE;
+X-GNOME-Autostart-enabled=true

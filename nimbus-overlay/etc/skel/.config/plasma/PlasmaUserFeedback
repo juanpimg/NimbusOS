@@ -1,0 +1,10 @@
+# NimbusOS — Telemetría KDE desactivada (F2-T09).
+# Canal real en Plasma 6.8: kcm_feedback escribe el nivel global en este
+# fichero (fuente: /usr/share/config.kcfg/feedbacksettings.kcfg ->
+# `<kcfgfile name="PlasmaUserFeedback"/>`, grupo [Global], clave
+# FeedbackLevel). 0 = KUserFeedback::Provider::NoTelemetry (ver
+# kuserfeedback/provider.h: NoTelemetry, BasicSystemInformation=0x10, ...).
+# El valor por defecto upstream ya es NoTelemetry; se fija explícito para
+# que el skel instalado lo garantice sin depender del primer arranque.
+[Global]
+FeedbackLevel=0

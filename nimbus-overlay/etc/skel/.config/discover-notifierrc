@@ -1,0 +1,8 @@
+# discover-notifierrc — avisos de updates en lenguaje llano (F9-T07).
+# Estado: ASUMIDO, PENDIENTE de verificar en VM (el notificador de Discover
+# puede usar otra ruta: plasma-discover-notifier o discovernotifierrc).
+# Si en VM la clave real difiere, corregir este fichero y anotar Ruling.
+# Intencion: avisar sin tecnicismos; el detalle lo da nimbus-updates --check.
+[General]
+ShowNotifications=true
+CheckInterval=86400

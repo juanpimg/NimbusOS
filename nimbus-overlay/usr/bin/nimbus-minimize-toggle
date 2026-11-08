@@ -25,11 +25,11 @@ if command -v python3 >/dev/null 2>&1 && command -v hyprctl >/dev/null 2>&1; the
         TOGGLE="dispatch togglespecialworkspace minimized"
         move_back() { hyprctl dispatch movetoworkspace "$1,address:$2" >/dev/null 2>&1; }
     fi
-    # shellcheck disable=SC2086
-    _info="$(hyprctl activewindow -j 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("workspace",{}).get("name",""), d.get("address",""))' 2>/dev/null)"
-    # shellcheck disable=SC2086
-    set -- $_info
-    active_ws="${1:-}"; addr="${2:-}"
+    # Separador TAB (no espacio): los nombres de workspace los elige el usuario
+    # y pueden llevar espacios; la direccion hex nunca los lleva.
+    _info="$(hyprctl activewindow -j 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("workspace",{}).get("name","")+"\t"+d.get("address",""))' 2>/dev/null)"
+    _tab="$(printf '\t')"
+    active_ws="${_info%%"$_tab"*}"; addr="${_info#*"$_tab"}"
     if [ "$active_ws" = "special:minimized" ] && [ -n "$addr" ]; then
         # Devolver al workspace con foco (id numerico normal; si el shelf
         # sigue abierto el id puede ser el del special -> usar 1).
@@ -41,6 +41,12 @@ if command -v python3 >/dev/null 2>&1 && command -v hyprctl >/dev/null 2>&1; the
         if [ "$cur" -lt 1 ] 2>/dev/null; then cur=1; fi
         move_back "$cur" "$addr"
         exit 0
+    fi
+    # Si la ventana activa es normal y MacShell responde a IPC, minimizamos con Genie shader
+    if [ -n "$addr" ] && [ "$active_ws" != "special:minimized" ] && command -v qs >/dev/null 2>&1; then
+        if qs -c MacShell ipc call window minimize >/dev/null 2>&1; then
+            exit 0
+        fi
     fi
     # shellcheck disable=SC2086
     hyprctl $TOGGLE >/dev/null 2>&1

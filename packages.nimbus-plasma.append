@@ -1,0 +1,154 @@
+# =============================================================================
+# NimbusOS — packages.nimbus-plasma.append (perfil Plasma 2026.11)
+# Se concatena a packages_desktop.x86_64 del perfil CachyOS-Live-ISO.
+# Fuente de verdad del escritorio: NimbusShell/packages/plasma.list.
+# Regla: repos oficiales CachyOS/Arch; AUR solo en packages.nimbus-plasma-aur.txt.
+# =============================================================================
+
+# --- Escritorio Plasma 6.8 + NimbusShell --------------------------------------
+plasma-meta
+plasma-workspace
+plasma-desktop
+kwin
+krunner
+kdecoration
+breeze
+kglobalaccel
+kpackage
+kio
+kservice
+kdeplasma-addons
+qt6-base
+qt6-declarative
+qt6-tools
+qt6-wayland
+qt6-svg
+qt6-shadertools
+qt6-multimedia-ffmpeg
+layer-shell-qt
+kvantum
+sddm
+sddm-kcm
+kde-gtk-config
+power-profiles-daemon
+powerdevil
+konsole
+dolphin
+spectacle
+plasma-nm
+networkmanager
+firewalld
+xdg-desktop-portal
+xdg-desktop-portal-kde
+kwallet-pam
+
+# --- Dock Krema (AUR; preset en NimbusShell/packages/dock) --------------------
+krema
+
+# --- Runtime de NimbusShell (barra, apps, KCM) --------------------------------
+kwindowsystem
+kcmutils
+kconfig
+kcoreaddons
+ki18n
+knewstuff
+knotifications
+kstatusnotifieritem
+kitemviews
+kjobwidgets
+ksvg
+kwayland
+appmenu-gtk-module
+wl-clipboard
+cliphist
+grim
+slurp
+libnotify
+brightnessctl
+bluez
+bluez-utils
+upower
+dconf
+
+# --- Tema y fuentes -----------------------------------------------------------
+inter-font
+noto-fonts
+noto-fonts-emoji
+papirus-icon-theme
+capitaine-cursors
+whitesur-gtk-theme
+whitesur-icon-theme
+sassc
+gtk3
+gtk4
+gtk4-layer-shell
+libadwaita
+libhandy
+desktop-file-utils
+
+# --- Energía, GPU, VA-API y ZRAM (base del perfil NimbusOS) -------------------
+thermald
+zram-generator
+lib32-nvidia-utils
+nvidia-prime
+switcheroo-control
+mesa
+vulkan-radeon
+vulkan-intel
+vulkan-mesa-layers
+lib32-vulkan-mesa-layers
+libva
+libva-utils
+vdpauinfo
+libvdpau-va-gl
+intel-media-driver
+libva-intel-driver
+libvpl
+vpl-gpu-rt
+ffmpeg
+gst-plugins-bad
+mpv
+vlc
+nvtop
+libva-nvidia-driver
+
+# --- Tienda, Flathub y USB plug&play -----------------------------------------
+pamac-aur
+appstream
+archlinux-appstream-data
+flatpak
+base-devel
+git
+polkit-gnome
+udisks2
+udiskie
+gvfs
+gvfs-mtp
+ntfs-3g
+exfatprogs
+dosfstools
+mtools
+
+# --- Defaults no interactivos y helper AUR -----------------------------------
+paru
+iptables
+tesseract-data-eng
+
+# --- Toolchain para AUR en live ----------------------------------------------
+vala
+meson
+ninja
+gobject-introspection
+itstool
+asciidoc
+xorgproto
+gettext
+rust
+
+# --- Audio (CachyOS suele traerlo; se declara por claridad) ------------------
+pipewire
+pipewire-pulse
+wireplumber
+
+# NOTA: hyprland, hyprlock, quickshell, hyprpaper, swaybg, greetd,
+# hyprshell y hyprland-plugin-hyprbars NO van en este perfil.

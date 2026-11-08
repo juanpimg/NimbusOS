@@ -16,6 +16,12 @@ HLUA="$ROOT/nimbus-overlay/etc/skel/.config/hypr/hyprland.lua"
 WRAP="$ROOT/nimbus-overlay/usr/bin/macshell"
 ENVF="$ROOT/nimbus-overlay/etc/skel/.config/macshell/env"
 MDOCK="$ROOT/nimbus-overlay/etc/skel/.config/macdock/settings.json"
+WBAR="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/WindowBar.qml"
+SHELLQML="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/shell.qml"
+MBAR="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/MacBar.qml"
+MDOCKQML="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/MacDock.qml"
+MWIDGETS="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/MacWidgets.qml"
+ESJS="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/lang/es.js"
 OVL="$ROOT/nimbus-overlay"
 PASS=0; FAIL=0; SKIP=0
 ok()   { echo "PASS: $1"; PASS=$((PASS+1)); }
@@ -197,66 +203,47 @@ fi
 chkg "ventanas-raton: bindm SUPER mouse:272 movewindow" "$SHORT" 'bindm[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*mouse:272,[[:space:]]*movewindow'
 chkg "ventanas-raton: bindm SUPER mouse:273 resizewindow" "$SHORT" 'bindm[[:space:]]*=[[:space:]]*SUPER,[[:space:]]*mouse:273,[[:space:]]*resizewindow'
 
-# --- Task hyprbars: titlebars NATIVAS (plugin oficial, sin overlay) -----------
-# Reemplaza a WindowBar.qml (revertido: MacShell queda pristine, sin
-# bifurcar). hyprbars vive en hyprland.lua: hl.plugin.load del .so +
-# hl.config(plugin.hyprbars) + 3 add_button macOS a la izquierda +
-# no_bar para apps con CSD propio (sin doble barra).
-MBAR="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/MacBar.qml"
-SHELLQML="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/shell.qml"
+# --- Task hyprbars & WindowBar: overlay QML + tira esmerilada muda (R6, R7, R8, R9) ---
+# hyprbars vive en hyprland.lua: hl.plugin.load del .so + hl.config(plugin.hyprbars)
+# configurado como tira muda (bar_title_enabled = false, sin botones nativos) para
+# arrastre y doble-click; los semaforos y el titulo los dibuja el overlay WindowBar.qml.
 MANAUR="$ROOT/packages.nimbus-aur.txt"
 chkg "hyprbars: manifest AUR" "$MANAUR" '^hyprland-plugin-hyprbars$'
 chkg "hyprbars: append declaracion canonica" "$APP" '^hyprland-plugin-hyprbars$'
 chkg "hyprbars: build-aur-repo.sh lo compila al repo [nimbus]" "$ROOT/scripts/build-aur-repo.sh" 'hyprland-plugin-hyprbars'
 chkg "hyprbars: plugin load /usr/lib/libhyprbars.so" "$HLUA" 'hl\.plugin\.load\("/usr/lib/libhyprbars\.so"\)'
 chkg "hyprbars: bar_height 28" "$HLUA" 'bar_height *= *28'
-chkg "hyprbars: botones a la izquierda" "$HLUA" 'bar_buttons_alignment *= *"left"'
-chkg "hyprbars: boton rojo cerrar window.close" "$HLUA" 'bg_color = "rgb\(FF5F57\)".*window\.close'
-chkg "hyprbars: boton amarillo minimizar special:minimized" "$HLUA" 'bg_color = "rgb\(FEBC2E\)".*special:minimized'
-chkg "hyprbars: boton verde fullscreen toggle" "$HLUA" 'bg_color = "rgb\(28C840\)".*window\.fullscreen'
+chkg "hyprbars: bar_part_of_window true" "$HLUA" 'bar_part_of_window *= *true'
+chkg "hyprbars: bar_blur true" "$HLUA" 'bar_blur *= *true'
+chkg "hyprbars: tira sin botones en lua (overlay WindowBar R7)" "$HLUA" 'bar_title_enabled *= *false'
 chkg "hyprbars: no_bar Nautilus (CSD GTK propio)" "$HLUA" 'Nautilus.*hyprbars:no_bar'
 chkg "hyprbars: no_bar Firefox (tabs propios)" "$HLUA" 'firefox.*hyprbars:no_bar'
 chkg "hyprbars: no_bar pamac (CSD GTK propio, Wayland+X11)" "$HLUA" 'pamac-manager.*hyprbars:no_bar'
-if grep -qE 'windowBar|WindowBar|winBarWantsGeo|tlAlwaysSymbols|tlColorOnHover' "$MBAR" "$SHELLQML" 2>/dev/null; then
-  bad "hyprbars: cero QML MacShell modificado (MacBar/shell pristine)"
-else
-  ok "hyprbars: cero QML MacShell modificado (MacBar/shell pristine)"
-fi
 
-# --- Task botones-nativos: UN solo juego de semaforos estilo Liquid Glass ---
-# MacShell dibuja semaforos nativos en sus ventanas (AboutApp.qml:178 14px
-# #FF5F57/#FEBC2E/#28C840 solo Close activo; ClockApp.qml:398; Installer
-# qml:157 huerfano; MacDock.qml:1064 prefsWindow "macshell Settings"):
-# hyprbars NO debe duplicarlos (no_bar clase quickshell + titulos exactos)
-# y sus propios botones imitan al nativo (13px ~= 14*0.93, iconos ×/−/+
-# negro 58% SOLO al hover, padding 15/8, gris #8E8E93 inactivo, blur).
+# Overlay WindowBar & MinimizeFx en QML (R7, R12)
+chkg "windowbar: MacBar windowBar true" "$MBAR" 'property bool windowBar: true'
+chkg "windowbar: WindowBar instanciado en shell.qml" "$SHELLQML" 'WindowBar \{ id: windowBarItem; hub: sharedHub \}'
+chkg "windowbar: MinimizeFx instanciado en shell.qml" "$SHELLQML" 'MinimizeFx \{ id: minimizeFx; hub: sharedHub \}'
+chkg "windowbar: sharedHub.minimizeFx enlazado" "$SHELLQML" 'sharedHub\.minimizeFx = minimizeFx'
+chkg "windowbar: ipc handler window.minimize" "$SHELLQML" 'function minimize\(\): void'
+chkg "windowbar: ipc handler dock.restoreFirst" "$SHELLQML" 'function restoreFirst\(\): void'
+
+# Semáforos Liquid Glass en WindowBar.qml (R6, R8, R9)
+chkg "windowbar: semaforos 12px diametro" "$WBAR" 'width: 12; height: 12; radius: 6'
+chkg "windowbar: placa en pildora radius 15px (R8)" "$WBAR" 'radius: 15'
+chkg "windowbar: glifos solo al hover (R6)" "$WBAR" 'visible: root\.alwaysSymbols \|\| hover\.hovered'
+chkg "windowbar: gris inactivo Apple SystemGray 35% #598E8E93 (R9)" "$WBAR" '598E8E93'
+
+# Ventanas nativas QuickShell AboutApp / ClockApp (R9)
 ABOUT="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/AboutApp.qml"
+CLOCK="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/ClockApp.qml"
 ASH="$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/assets/about-info.sh"
+chkg "botones-nativos: About semaforos 12px (R9)" "$ABOUT" 'width: 12; height: 12; radius: 6'
+chkg "botones-nativos: About radio ventana 12px (R9)" "$ABOUT" 'radius: 12'
+chkg "botones-nativos: Clock semaforos 12px (R9)" "$CLOCK" 'width: 12; height: 12; radius: 6'
+chkg "botones-nativos: Clock gris inactivo #598E8E93 (R9)" "$CLOCK" '598E8E93'
 chkg "botones-nativos: lua no_bar clase org.quickshell (ventanas MacShell)" "$HLUA" 'class = "\^\(org\\\\\.quickshell\)\$".*hyprbars:no_bar'
 chkg "botones-nativos: lua no_bar titulos About/Clock/Installer/Settings" "$HLUA" 'title = "\^\(About This Linux\|Clock\|Install Dependencies\|macshell Settings\)\$".*hyprbars:no_bar'
-chkg "botones-nativos: lua icon_on_hover (glifo solo al hover, como macOS)" "$HLUA" 'icon_on_hover *= *true'
-chkg "botones-nativos: lua boton rojo con ×" "$HLUA" 'bg_color = "rgb\(FF5F57\)".*icon = "×"'
-chkg "botones-nativos: lua boton amarillo FEBC2E con −" "$HLUA" 'bg_color = "rgb\(FEBC2E\)".*icon = "−"'
-chkg "botones-nativos: lua boton verde con +" "$HLUA" 'bg_color = "rgb\(28C840\)".*icon = "\+"'
-chkg "botones-nativos: lua fg negro 58% (Canvas nativo rgba 0,0,0,0.58)" "$HLUA" 'fg_color = "rgba\(00000094\)"'
-chkg "botones-nativos: lua bar_padding 15 (luces nativas en x15-17)" "$HLUA" 'bar_padding *= *15,'
-chkg "botones-nativos: lua bar_button_padding 8 (spacing nativo 8)" "$HLUA" 'bar_button_padding *= *8,'
-chkg "botones-nativos: lua gris inactivo #8E8E93 (lightOff nativo)" "$HLUA" 'inactive_button_color *= *"rgb\(8E8E93\)"'
-chkg "botones-nativos: lua bar_blur (cristal esmerilado nativo)" "$HLUA" 'bar_blur *= *true'
-if grep -qE 'buttons_on_hover[[:space:]]*=' "$HLUA"; then
-  bad "botones-nativos: lua sin clave buttons_on_hover (NO existe en API 0.56.2)"
-else
-  ok "botones-nativos: lua sin clave buttons_on_hover (NO existe en API 0.56.2)"
-fi
-if grep -vE '^[[:space:]]*(--|#)' "$HLUA" "$HYPR" 2>/dev/null | grep -q 'FEBE2E'; then
-  bad "botones-nativos: cero FEBE2E transpuesto (nativo #FEBC2E en 5 QML)"
-else
-  ok "botones-nativos: cero FEBE2E transpuesto (nativo #FEBC2E en 5 QML)"
-fi
-chkg "botones-nativos: conf botones con iconos ×/−/+" "$HYPR" 'hyprbars-button = rgb\(FF5F57\), 12, ×'
-chkg "botones-nativos: conf amarillo FEBC2E con −" "$HYPR" 'hyprbars-button = rgb\(FEBC2E\), 12, −'
-chkg "botones-nativos: conf verde con +" "$HYPR" 'hyprbars-button = rgb\(28C840\), 12, \+'
-chkg "botones-nativos: conf icon_on_hover paridad Lua" "$HYPR" 'icon_on_hover[[:space:]]*=[[:space:]]*true'
 chkg "botones-nativos: About titulo This Linux (no Mac)" "$ABOUT" 'title: "About This Linux"'
 chkg "botones-nativos: About specs dinamicas de os-release" "$ASH" 'os-release'
 chkg "botones-nativos: About hook userlogo sin tocar QML" "$ASH" 'linux-logo'
@@ -438,12 +425,12 @@ chkg "ventanas-p0: lua excepcion dialogos modal" "$HLUA" 'nimbus-dialog-modal.*m
 chkg "ventanas-p0: lua excepcion dialogos titulos" "$HLUA" 'nimbus-dialog-titles.*700 500'
 chkg "ventanas-p0: conf excepcion dialogos portal" "$HYPR" 'window_rule[[:space:]]*=[[:space:]]*size 700 500, class:\^\(org'
 chkg "ventanas-p0: conf excepcion dialogos titulos" "$HYPR" 'window_rule[[:space:]]*=[[:space:]]*size 700 500, title:\^'
-# P0-5 fallback .conf: stanza plugin hyprbars (valida sin .so) + 3 semaforos;
-# no_bar NO se porta (limitacion documentada).
+# P0-5 fallback .conf: stanza plugin hyprbars (valida sin .so);
+# tira muda para overlay WindowBar (R7); no_bar NO se porta (limitacion documentada).
 chkg "ventanas-p0: conf plugin hyprbars on_double_click" "$HYPR" 'on_double_click'
-chkg "ventanas-p0: conf boton rojo cerrar" "$HYPR" 'hyprbars-button = rgb\(FF5F57\)'
-chkg "ventanas-p0: conf boton amarillo minimizar" "$HYPR" 'hyprbars-button = rgb\(FEBC2E\).*movetoworkspace special:minimized'
-chkg "ventanas-p0: conf boton verde fullscreen" "$HYPR" 'hyprbars-button = rgb\(28C840\)'
+chkg "ventanas-p0: conf hyprbars bar_part_of_window" "$HYPR" 'bar_part_of_window[[:space:]]*=[[:space:]]*true'
+chkg "ventanas-p0: conf hyprbars bar_blur" "$HYPR" 'bar_blur[[:space:]]*=[[:space:]]*true'
+chkg "ventanas-p0: conf hyprbars tira sin botones nativos (overlay WindowBar, R7)" "$HYPR" 'bar_title_enabled[[:space:]]*=[[:space:]]*false'
 chkg "ventanas-p0: conf documenta no_bar no portado" "$HYPR" 'no_bar: NO se porta'
 if grep -vE '^[[:space:]]*#' "$HYPR" | grep -qE 'hyprbars:no_bar'; then
   bad "ventanas-p0: conf sin efecto no_bar (rompe verify sin .so)"
@@ -499,8 +486,7 @@ skip "p2-final animaciones software rendering: Ruling (sin deteccion simple/segu
 #    upstream); el check SKIP documentado ya existe arriba (ui-desktop2:
 #    reloj espanol). Sin cambios.
 # 5) Verde = maximizar coherente .conf <-> lua (no fullscreen).
-chkg "p2-final: conf verde hyprbars = fullscreen 1 (maximizar)" "$HYPR" 'hyprbars-button = rgb\(28C840\).*fullscreen 1'
-chkg "p2-final: lua verde hyprbars = mode maximized" "$HLUA" 'bg_color = "rgb\(28C840\)".*mode = "maximized"'
+chkg "p2-final: WindowBar verde = zoom macOS (maximizar, R9/M5)" "$WBAR" 'fullscreen_state.*internal = 2'
 chkg "p2-final: conf doble-click barra = fullscreen 1 (maximizar)" "$HYPR" 'on_double_click = hyprctl dispatch fullscreen 1'
 chkg "p2-final: lua doble-click barra = mode maximized" "$HLUA" 'on_double_click.*mode = "maximized"'
 chkg "p2-final: lua SUPER+F = fullscreen real (paridad .conf)" "$HLUA" 'SUPER \+ F.*mode = "fullscreen"'
@@ -543,7 +529,6 @@ chkg "minimize-toggle documenta multi-monitor (restaura al foco)" "$MBT" 'multi-
 # application_id en upstream src/manager.vala, CSD libadwaita propia);
 # StartupWMClass=pamac-manager solo cubre XWayland. Sin la regla appid,
 # pamac muestra DOBLE barra.
-chkg "noobar2: lua verde hyprbars = mode maximized" "$HLUA" 'bg_color = "rgb\(28C840\)".*mode = "maximized"'
 chkg "noobar2: lua doble-click barra = mode maximized" "$HLUA" 'on_double_click.*mode = "maximized"'
 chkg "noobar2: lua no_bar pamac UNICA (Wayland+XWayland en alternacion)" "$HLUA" 'org\.manjaro\.pamac\.manager\|pamac-manager.*hyprbars:no_bar'
 chkg "noobar2: lua no_bar firefox (tabs propios)" "$HLUA" 'firefox.*hyprbars:no_bar'
@@ -573,15 +558,14 @@ chkg "fidelidad-1: MacBar fontFamily Inter" "$MBAR" 'property string fontFamily:
 chkg "fidelidad-1: MacDock fontFamily Inter" "$MDOCK" 'property string fontFamily: "Inter"'
 if grep -q 'fontFamily.indexOf("Inter").*Open Runde' "$MBAR" "$MDOCK" 2>/dev/null; then bad "fidelidad-1: reconversion a Open Runde eliminada"; else ok "fidelidad-1: reconversion a Open Runde eliminada"; fi
 chkg "fidelidad-2: barHeight 24" "$MBAR" 'property int barHeight: 24'
-chkg "fidelidad-2: barBgOpacity 0.45" "$MBAR" 'property real barBgOpacity: 0.45'
+chkg "fidelidad-2: barBgOpacity 0.10 (Tahoe canónico R11)" "$MBAR" 'property real barBgOpacity: 0.10'
 chkg "fidelidad-3: lua gaps 4/8" "$HLUA" 'gaps_in     = 4'
 chkg "fidelidad-3: conf gaps 4/8" "$HYPR" 'gaps_in = 4'
 chkg "fidelidad-3: lua rounding 10 + opacity 1.0" "$HLUA" 'rounding         = 10'
 chkg "fidelidad-3: conf rounding 10 + opacity 1.0" "$HYPR" 'rounding = 10'
 chkg "fidelidad-3: lua blur vibrancy" "$HLUA" 'vibrancy           = 0.1696'
 chkg "fidelidad-3: conf blur vibrancy" "$HYPR" 'vibrancy = 0.1696'
-chkg "fidelidad-3: lua botones 12px" "$HLUA" 'size = 12, icon = "×"'
-chkg "fidelidad-3: conf botones 12px" "$HYPR" 'hyprbars-button = rgb\(FF5F57\), 12, ×'
+chkg "fidelidad-3: WindowBar semaforos 12px (Ruling R9/M5)" "$WBAR" 'width: 12; height: 12; radius: 6'
 chkg "fidelidad-4: dockDark sigue bar.darkMode" "$MDOCK" 'dockDark: bar \? bar.darkMode : darkMode'
 chkg "fidelidad-5: conf captura pantalla SUPER+SHIFT+3" "$SHORT" 'SUPER SHIFT, 3, exec, nimbus-screenshot full'
 chkg "fidelidad-5: conf captura seleccion SUPER+SHIFT+4" "$SHORT" 'SUPER SHIFT, 4, exec, nimbus-screenshot area'
@@ -605,6 +589,21 @@ chkg "fidelidad-8: item_color #F5F5F7" "$GRUBT" 'item_color = "#F5F5F7"'
 chkg "fidelidad-9: show.qml fondo Sequoia" "$SHOWQ" 'sequoia-light.jpg'
 chkg "fidelidad-9: show.qml logo N sobre Hello" "$SHOWQ" 'source: "nimbus-logo.svg"'
 skip "fidelidad-10: hyprexpo SKIP (Ruling: fork hyprexpose-git r0-1, 0 votos, -git sin pin; se mantiene switcher)"
+
+# --- Task tahoe-m2-m3-m14: Sistema unico de radios + Genie Shader + i18n ES ---
+[ -f "$ESJS" ] && ok "tahoe-i18n: es.js existe en lang/" || bad "tahoe-i18n: es.js existe en lang/"
+chkg "tahoe-i18n: I18n selector incluye es" "$ROOT/nimbus-overlay/etc/skel/.config/quickshell/MacShell/I18n.js" 'es:'
+chkg "tahoe-m2: MacBar paneles radios 24px (R11)" "$MBAR" 'cornerR: 24'
+chkg "tahoe-m2: MacWidgets escritorios radios 24px (R8)" "$MWIDGETS" 'radius: 24'
+chkg "tahoe-m2: WindowBar capsula semaforos 15px (R8)" "$WBAR" 'radius: 15'
+chkg "tahoe-m2: AboutApp dialogo radios 12px (R9)" "$ABOUT" 'radius: 12'
+chkg "tahoe-m3: animacion specialWorkspace slidevert (lua, R12)" "$HLUA" 'leaf = "specialWorkspace",.*style = "slidevert"'
+chkg "tahoe-m3: animacion windowsMove slide (lua, R12)" "$HLUA" 'leaf = "windowsMove",.*style = "slide"'
+chkg "tahoe-m3: animacion specialWorkspace slidevert (conf, R12)" "$HYPR" 'animation = specialWorkspace, 1, 4, nimbus, slidevert'
+chkg "tahoe-m3: animacion windowsMove slide (conf, R12)" "$HYPR" 'animation = windowsMove, 1, 4, nimbus, slide'
+chkg "tahoe-m3: MacDock targetRectForToplevel analitico (R12)" "$MDOCKQML" 'function targetRectForToplevel'
+chkg "tahoe-m3: WindowBar minimize con Genie Shader (R12)" "$WBAR" 'sharedHub\.minimizeFx\.play|fx\.play'
+chkg "tahoe-m3: nimbus-minimize-toggle llamada IPC prioritaria" "$MBT" 'qs -c MacShell ipc call window minimize'
 
 # --- Sintaxis: hyprland --verify-config si disponible --------------------------
 # Hyprland 0.56: --check-config no existe, es --verify-config. El source=
