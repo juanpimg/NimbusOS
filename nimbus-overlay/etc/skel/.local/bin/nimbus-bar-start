@@ -1,0 +1,101 @@
+#!/bin/bash
+# nimbus-bar-start — arranca nimbus-bar exactamente una vez (F3-T03).
+# Sin root, HOME temporal, idempotente. Log: ~/.local/state/nimbus/bar.log.
+# Invocado por nimbus-bar.service (systemd de usuario) y por el autostart
+# nimbus-bar.desktop (fallback no-systemd). Bajo systemd (INVOCATION_ID lo
+# pone el gestor) hace exec en primer plano para que el gestor siga el
+# ciclo de vida del binario; fuera de systemd lanza en segundo plano.
+# La instancia única real la garantiza org.nimbus.Bar en nimbus-bar (DBus);
+# el pgrep y la sonda qdbus de aquí solo evitan un lanzamiento obvio.
+set -u
+
+BIN="${NIMBUS_BAR_BIN:-$(command -v nimbus-bar 2>/dev/null || echo "$HOME/.local/bin/nimbus-bar")}"
+STATE="${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/nimbus"
+LOG="$STATE/bar.log"
+
+mkdir -p "$STATE" 2>/dev/null || true
+log() { printf '%s nimbus-bar-start: %s\n' "$(date -Is)" "$*" >>"$LOG" 2>/dev/null || true; }
+
+if [ ! -x "$BIN" ]; then
+    log "ERROR: binario no ejecutable: $BIN (instala nimbus-bar o ajusta NIMBUS_BAR_BIN)"
+    exit 1
+fi
+
+# Coincidencia exacta del ejecutable (evita casar con nimbus-bar-start).
+if pgrep -f -- "^${BIN}([[:space:]]|$)" >/dev/null 2>&1; then
+    log "ya hay una instancia de $BIN; nada que hacer"
+    exit 0
+fi
+
+# Si org.nimbus.Bar ya tiene dueño, hay una barra viva: salir 0 sin lanzar
+# (cubre servicio + autostart coincidiendo; sin qdbus se omite la sonda y
+# decide el propio binario, que también sale 0).
+if command -v qdbus6 >/dev/null 2>&1; then
+    QDBUS=qdbus6
+elif command -v qdbus >/dev/null 2>&1; then
+    QDBUS=qdbus
+else
+    QDBUS=""
+fi
+if [ -n "$QDBUS" ] && "$QDBUS" org.nimbus.Bar >/dev/null 2>&1; then
+    log "org.nimbus.Bar ya registrado (barra viva); nada que hacer"
+    exit 0
+fi
+
+# La barra necesita el socket Wayland (lanzarla antes da
+# `Failed to create wl_display`, que era el bug del env script). Espera
+# hasta ~10 s tanto bajo systemd como en autostart/manual.
+RUNTIME="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+    if [ ! -S "$RUNTIME/$WAYLAND_DISPLAY" ]; then
+        tries="${NIMBUS_BAR_SOCKET_TRIES:-20}"
+        while [ ! -S "$RUNTIME/$WAYLAND_DISPLAY" ] && [ "$tries" -gt 0 ]; do
+            sleep 0.5
+            tries=$((tries - 1))
+        done
+    fi
+    if [ -S "$RUNTIME/$WAYLAND_DISPLAY" ]; then
+        log "socket $RUNTIME/$WAYLAND_DISPLAY listo"
+    else
+        log "AVISO: sin socket $RUNTIME/$WAYLAND_DISPLAY tras la espera; intento el arranque igualmente"
+    fi
+fi
+
+if [ -n "${INVOCATION_ID:-}" ] && [ -n "${NOTIFY_SOCKET:-}" ]; then
+    # Type=notify (review F3): systemd no debe considerar arrancada la unit
+    # hasta que la barra posea org.freedesktop.Notifications; si no, gana
+    # plasmashell y el banner lo sirve KDE. Se notifica READY con el nombre
+    # ya adquirido (o tras 5 s, para no bloquear el login si está tomado).
+    log "systemd notify: lanzando $BIN y esperando org.freedesktop.Notifications"
+    "$BIN" "$@" >>"$LOG" 2>&1 &
+    bar_pid=$!
+    owner=""
+    tries=0
+    while [ "$tries" -lt 50 ]; do
+        owner="$(busctl --user status org.freedesktop.Notifications 2>/dev/null \
+            | awk -F= '/^PID=/{print $2; exit}')"
+        [ "${owner:-}" = "$bar_pid" ] && break
+        kill -0 "$bar_pid" 2>/dev/null || break
+        sleep 0.1
+        tries=$((tries + 1))
+    done
+    if [ "${owner:-}" = "$bar_pid" ]; then
+        log "org.freedesktop.Notifications propio (pid $bar_pid); READY"
+    else
+        log "AVISO: nombre FDO no propio tras 5 s (owner=${owner:-ninguno}); READY igualmente"
+    fi
+    systemd-notify --ready 2>/dev/null || true
+    wait "$bar_pid"
+    exit $?
+fi
+
+if [ -n "${INVOCATION_ID:-}" ]; then
+    log "systemd (INVOCATION_ID=$INVOCATION_ID): exec en primer plano $BIN $*"
+    exec "$BIN" "$@"
+fi
+
+# Fallback (autostart .desktop / manual): segundo plano, sin bloquear.
+log "lanzando $BIN $* en segundo plano"
+nohup "$BIN" "$@" >>"$LOG" 2>&1 &
+log "pid $!"
+exit 0

@@ -2,7 +2,7 @@
 Type=Application
 Name=Nimbus Hide Stock Panel
 Comment=Oculta el panel stock; la barra Nimbus ocupa su lugar
-Exec=/usr/local/bin/nimbus-hide-panel
+Exec=/usr/bin/env nimbus-hide-panel
 OnlyShowIn=KDE;
 X-GNOME-Autostart-enabled=true
 X-KDE-autostart-after=plasmashell
